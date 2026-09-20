@@ -15,7 +15,7 @@ export interface RegisterPetInput {
   breed: Breed;
   sex: PetSex;
   birthInformation: BirthInformation;
-  ownerId: string;
+  ownerAccountId: string;
   color?: string;
   distinctiveMarks?: string;
   microchip?: string;

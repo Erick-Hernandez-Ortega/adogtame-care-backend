@@ -14,31 +14,31 @@ export class MembershipId {
   }
 }
 
-export class UserId {
+export class AccountId {
   private constructor(readonly value: string) {}
 
-  static from(value: string): UserId {
+  static from(value: string): AccountId {
     const normalizedValue: string = value.toLowerCase();
 
     if (!isValidUuid(normalizedValue)) {
-      throw new TypeError('User ID must be a valid non-nil UUID');
+      throw new TypeError('Account ID must be a valid non-nil UUID');
     }
 
-    return new UserId(normalizedValue);
+    return new AccountId(normalizedValue);
   }
 }
 
 export class PetMembership {
   private constructor(
     readonly id: MembershipId,
-    readonly userId: UserId,
+    readonly accountId: AccountId,
     readonly role: PetMembershipRoleType,
   ) {}
 
-  static createInitialOwner(userId: UserId): PetMembership {
+  static createInitialOwner(accountId: AccountId): PetMembership {
     return new PetMembership(
       MembershipId.generate(),
-      userId,
+      accountId,
       PetMembershipRole.OWNER,
     );
   }

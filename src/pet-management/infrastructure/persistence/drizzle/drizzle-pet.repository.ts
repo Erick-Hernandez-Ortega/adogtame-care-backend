@@ -29,7 +29,7 @@ export class DrizzlePetRepository implements PetRepository {
         pet.memberships.map((membership) => ({
           id: membership.id.value,
           petId: pet.id.value,
-          userId: membership.userId.value,
+          accountId: membership.accountId.value,
           role: membership.role,
         })),
       );

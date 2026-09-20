@@ -3,7 +3,7 @@ import type { Pet } from '../../domain/pet/pet';
 import { InvalidPetRegistrationError, RegisterPet } from './register-pet';
 import type { RegisteredPet, RegisterPetCommand } from './register-pet.types';
 
-const OWNER_ID: string = '550e8400-e29b-41d4-a716-446655440000';
+const OWNER_ACCOUNT_ID: string = '550e8400-e29b-41d4-a716-446655440000';
 
 class InMemoryPetRepository implements PetRepository {
   readonly savedPets: Pet[] = [];
@@ -30,7 +30,7 @@ function validCommand(
       date: '2021-06-14',
       accuracy: 'EXACT',
     },
-    ownerId: OWNER_ID,
+    ownerAccountId: OWNER_ACCOUNT_ID,
     ...overrides,
   };
 }
@@ -71,7 +71,7 @@ describe('RegisterPet', () => {
         memberships: [
           {
             id: expect.any(String) as string,
-            userId: OWNER_ID,
+            accountId: OWNER_ACCOUNT_ID,
             role: 'OWNER',
           },
         ],

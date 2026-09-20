@@ -13,7 +13,7 @@ import {
   pets,
 } from '../../src/pet-management/infrastructure/persistence/drizzle/pet-management.schema';
 
-const OWNER_ID: string = '550e8400-e29b-41d4-a716-446655440000';
+const OWNER_ACCOUNT_ID: string = '550e8400-e29b-41d4-a716-446655440000';
 
 function createPet(): Pet {
   return Pet.register({
@@ -22,7 +22,7 @@ function createPet(): Pet {
     breed: Breed.known('Labrador Retriever'),
     sex: 'FEMALE',
     birthInformation: BirthInformation.exact('2021-06-14'),
-    ownerId: OWNER_ID,
+    ownerAccountId: OWNER_ACCOUNT_ID,
     color: 'Golden',
   });
 }
@@ -81,7 +81,7 @@ describe('DrizzlePetRepository (integration)', () => {
         {
           id: pet.memberships[0].id.value,
           petId: pet.id.value,
-          userId: OWNER_ID,
+          accountId: OWNER_ACCOUNT_ID,
           role: 'OWNER',
         },
       ]);
@@ -118,7 +118,7 @@ describe('DrizzlePetRepository (integration)', () => {
       await databaseService.connection.insert(petMemberships).values({
         id: membershipId,
         petId: blockerPetId,
-        userId: OWNER_ID,
+        accountId: OWNER_ACCOUNT_ID,
         role: 'OWNER',
       });
 

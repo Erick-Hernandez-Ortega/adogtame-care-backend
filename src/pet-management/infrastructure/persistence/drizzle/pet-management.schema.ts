@@ -59,7 +59,7 @@ export const petMemberships = pgTable(
     petId: uuid('pet_id')
       .notNull()
       .references(() => pets.id, { onDelete: 'restrict' }),
-    userId: uuid('user_id').notNull(),
+    accountId: uuid('account_id').notNull(),
     role: text('role').notNull(),
   },
   (table) => [

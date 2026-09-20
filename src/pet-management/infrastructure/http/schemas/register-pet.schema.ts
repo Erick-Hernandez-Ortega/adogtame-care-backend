@@ -18,7 +18,7 @@ export const registerPetSchema: z.ZodType<RegisterPetCommand> = z
         accuracy: z.enum(['EXACT', 'APPROXIMATE']),
       })
       .strict(),
-    ownerId: z.string(),
+    ownerAccountId: z.string(),
     color: z.string().optional(),
     distinctiveMarks: z.string().optional(),
     microchip: z.string().optional(),

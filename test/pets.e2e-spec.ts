@@ -11,7 +11,7 @@ import {
 } from '../src/pet-management/infrastructure/persistence/drizzle/pet-management.schema';
 import type { RegisteredPet } from '../src/pet-management/application/register-pet/register-pet.types';
 
-const OWNER_ID: string = '550e8400-e29b-41d4-a716-446655440000';
+const OWNER_ACCOUNT_ID: string = '550e8400-e29b-41d4-a716-446655440000';
 
 describe('POST /pets (e2e)', () => {
   let application: INestApplication<App>;
@@ -40,7 +40,7 @@ describe('POST /pets (e2e)', () => {
         breed: { name: 'Labrador Retriever', kind: 'KNOWN' },
         sex: 'FEMALE',
         birthInformation: { date: '2021-06-14', accuracy: 'EXACT' },
-        ownerId: OWNER_ID,
+        ownerAccountId: OWNER_ACCOUNT_ID,
       })
       .expect(201);
     const body: RegisteredPet = response.body as RegisteredPet;
@@ -53,7 +53,7 @@ describe('POST /pets (e2e)', () => {
         distinctiveMarks: null,
         microchip: null,
         status: 'ACTIVE',
-        memberships: [{ userId: OWNER_ID, role: 'OWNER' }],
+        memberships: [{ accountId: OWNER_ACCOUNT_ID, role: 'OWNER' }],
       });
     } finally {
       await databaseService.connection
@@ -84,7 +84,7 @@ describe('POST /pets (e2e)', () => {
           date: '2020-01-01',
           accuracy: 'APPROXIMATE',
         },
-        ownerId: OWNER_ID,
+        ownerAccountId: OWNER_ACCOUNT_ID,
       })
       .expect(422);
 

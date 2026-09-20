@@ -15,7 +15,7 @@ export interface RegisterPetCommand {
     date: string;
     accuracy: BirthDateAccuracy;
   };
-  ownerId: string;
+  ownerAccountId: string;
   color?: string;
   distinctiveMarks?: string;
   microchip?: string;
@@ -23,7 +23,7 @@ export interface RegisterPetCommand {
 
 export interface RegisteredPetMembership {
   id: string;
-  userId: string;
+  accountId: string;
   role: PetMembershipRole;
 }
 

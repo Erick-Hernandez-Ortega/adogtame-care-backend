@@ -1,6 +1,6 @@
 import { BirthInformation } from '../birth-information/birth-information';
 import { Breed } from '../breed/breed';
-import { PetMembership, UserId } from '../pet-membership/pet-membership';
+import { AccountId, PetMembership } from '../pet-membership/pet-membership';
 import { generateUuid } from '../shared/uuid';
 import type {
   PetProperties,
@@ -63,9 +63,9 @@ export class Pet {
       throw new TypeError('Pet birth information must be a BirthInformation');
     }
 
-    const ownerId: UserId = UserId.from(input.ownerId);
+    const ownerAccountId: AccountId = AccountId.from(input.ownerAccountId);
     const initialOwner: PetMembership =
-      PetMembership.createInitialOwner(ownerId);
+      PetMembership.createInitialOwner(ownerAccountId);
 
     return new Pet({
       id: PetId.generate(),

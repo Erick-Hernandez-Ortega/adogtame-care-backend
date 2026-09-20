@@ -10,7 +10,7 @@ import type {
 
 const UUID_PATTERN: RegExp =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
-const OWNER_ID_V1: string = '550e8400-e29b-11d4-a716-446655440000';
+const OWNER_ACCOUNT_ID_V1: string = '550e8400-e29b-11d4-a716-446655440000';
 
 function validPetInput(
   overrides: Partial<RegisterPetInput> = {},
@@ -21,7 +21,7 @@ function validPetInput(
     breed: Breed.known('Labrador Retriever'),
     sex: PetSex.FEMALE,
     birthInformation: BirthInformation.exact('2021-06-14'),
-    ownerId: OWNER_ID_V1,
+    ownerAccountId: OWNER_ACCOUNT_ID_V1,
     ...overrides,
   };
 }
@@ -67,7 +67,7 @@ describe('Pet', () => {
     expect(pet.memberships).toHaveLength(1);
     expect(pet.memberships[0]).toMatchObject({
       role: PetMembershipRole.OWNER,
-      userId: { value: OWNER_ID_V1 },
+      accountId: { value: OWNER_ACCOUNT_ID_V1 },
     });
     expect(pet.memberships[0].id.value).toMatch(UUID_PATTERN);
     expect(pet.memberships[0].id.value).not.toBe(pet.id.value);
@@ -82,10 +82,10 @@ describe('Pet', () => {
     expect(pet.memberships).toHaveLength(1);
   });
 
-  it('rejects registering a pet without a valid owner ID', () => {
+  it('rejects registering a pet without a valid owner account ID', () => {
     expect(() =>
-      Pet.register(validPetInput({ ownerId: 'not-a-uuid' })),
-    ).toThrow('User ID must be a valid non-nil UUID');
+      Pet.register(validPetInput({ ownerAccountId: 'not-a-uuid' })),
+    ).toThrow('Account ID must be a valid non-nil UUID');
   });
 
   it('rejects an empty name', () => {

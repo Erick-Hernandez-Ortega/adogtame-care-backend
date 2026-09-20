@@ -31,7 +31,7 @@ export class RegisterPet {
         breed,
         sex: command.sex,
         birthInformation,
-        ownerId: command.ownerId,
+        ownerAccountId: command.ownerAccountId,
         color: command.color,
         distinctiveMarks: command.distinctiveMarks,
         microchip: command.microchip,
@@ -65,7 +65,7 @@ export class RegisterPet {
       status: pet.status,
       memberships: pet.memberships.map((membership) => ({
         id: membership.id.value,
-        userId: membership.userId.value,
+        accountId: membership.accountId.value,
         role: membership.role,
       })),
     };

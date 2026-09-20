@@ -1,0 +1,1 @@
+ALTER TABLE "pet_memberships" RENAME COLUMN "user_id" TO "account_id";
