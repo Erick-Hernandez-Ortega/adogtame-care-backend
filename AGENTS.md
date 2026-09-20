@@ -351,7 +351,7 @@ Schema design, migrations, transaction boundaries, and repository implementation
 * Follow the repository's ESLint and Prettier configuration.
 * Use single quotes and trailing commas as configured by Prettier.
 * Run the relevant pnpm lint and build commands after code changes.
-* Run tests once the project defines a testing strategy or when the changed area already has relevant tests.
+- Run the relevant pnpm lint, build, and test commands after code changes.
 
 ## Agent behavior
 
