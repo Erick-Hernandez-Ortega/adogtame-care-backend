@@ -14,7 +14,6 @@ The project is also intended as a practical software engineering project. Archit
 * Use PostgreSQL in Docker for local development.
 * Use Neon for remote PostgreSQL environments.
 * Use Resend for transactional email delivery when email functionality is introduced.
-* The testing strategy is still to be defined. Do not assume a testing approach or add testing tools without an explicit request.
 * Do not install dependencies unless the user explicitly requests it.
 * Do not introduce infrastructure such as Redis, message brokers, queues, event buses, cloud services, or caching unless explicitly requested.
 
@@ -324,6 +323,28 @@ Schema design, migrations, transaction boundaries, and repository implementation
 * Write the description in lowercase imperative form without a trailing period.
 * Mark breaking changes with `!` before the colon and explain them in a `BREAKING CHANGE:` footer when more context is required.
 * Keep each commit focused on one coherent change.
+
+## Testing
+
+* Use the testing tools already configured by the NestJS project. Do not introduce additional testing libraries or dependencies unless explicitly requested.
+* Colocate unit tests with the source code they test using the `*.spec.ts` naming convention.
+* Keep the root `test/` directory for end-to-end tests and broader integration tests when they are introduced.
+* Prioritize unit tests for domain behavior and business invariants.
+* Domain unit tests must not require NestJS, a database, network access, or external services.
+* Test observable behavior and business rules rather than private implementation details.
+* Application-layer tests should focus on use-case orchestration and interactions with required contracts. Use test doubles only when they provide meaningful isolation.
+* Do not mock domain objects merely to isolate application code when using the real domain object is simpler and more representative.
+* Infrastructure code should not be unit tested by extensively mocking Drizzle, PostgreSQL, NestJS, or external libraries. Prefer integration tests when verifying real infrastructure behavior provides more value.
+* Add integration tests when persistence or other infrastructure behavior warrants them.
+* Add end-to-end tests once a complete vertical slice exists and can be exercised through the public API.
+* End-to-end tests should verify complete application behavior through real application boundaries rather than duplicate domain unit tests.
+* Keep tests deterministic, isolated, readable, and focused on behavior.
+* Follow the Arrange, Act, Assert structure when it improves readability, without adding comments that merely label each section.
+* Do not add tests solely to increase coverage metrics.
+* Do not introduce a coverage threshold unless explicitly requested.
+* Run the relevant unit tests after modifying tested behavior.
+* Run relevant integration or end-to-end tests when the changed area is covered by them.
+
 
 ## Formatting and validation
 
