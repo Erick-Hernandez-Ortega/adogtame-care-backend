@@ -1,0 +1,20 @@
+services:
+  postgres:
+    image: postgres:18-alpine
+    ports:
+      - '127.0.0.1:5432:5432'
+    environment:
+      POSTGRES_DB: adogtame_care
+      POSTGRES_USER: adogtame
+      POSTGRES_PASSWORD: adogtame_local
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U adogtame -d adogtame_care']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+volumes:
+  postgres_data:
