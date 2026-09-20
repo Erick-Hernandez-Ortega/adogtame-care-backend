@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { generateUuid, isValidUuid } from '../shared/uuid';
 import type { PetMembershipRole as PetMembershipRoleType } from './pet-membership.types';
 
 export const PetMembershipRole = {
@@ -6,15 +6,11 @@ export const PetMembershipRole = {
   COLLABORATOR: 'COLLABORATOR',
 } as const satisfies Record<string, PetMembershipRoleType>;
 
-const CANONICAL_UUID_PATTERN: RegExp =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const NIL_UUID: string = '00000000-0000-0000-0000-000000000000';
-
 export class MembershipId {
   private constructor(readonly value: string) {}
 
   static generate(): MembershipId {
-    return new MembershipId(randomUUID());
+    return new MembershipId(generateUuid());
   }
 }
 
@@ -24,10 +20,7 @@ export class UserId {
   static from(value: string): UserId {
     const normalizedValue: string = value.toLowerCase();
 
-    if (
-      !CANONICAL_UUID_PATTERN.test(normalizedValue) ||
-      normalizedValue === NIL_UUID
-    ) {
+    if (!isValidUuid(normalizedValue)) {
       throw new TypeError('User ID must be a valid non-nil UUID');
     }
 

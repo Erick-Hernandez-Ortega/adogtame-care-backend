@@ -1,7 +1,7 @@
-import { randomUUID } from 'node:crypto';
 import { BirthInformation } from '../birth-information/birth-information';
 import { Breed } from '../breed/breed';
 import { PetMembership, UserId } from '../pet-membership/pet-membership';
+import { generateUuid } from '../shared/uuid';
 import type {
   PetProperties,
   PetSex as PetSexType,
@@ -30,7 +30,7 @@ export class PetId {
   private constructor(readonly value: string) {}
 
   static generate(): PetId {
-    return new PetId(randomUUID());
+    return new PetId(generateUuid());
   }
 }
 
