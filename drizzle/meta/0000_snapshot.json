@@ -1,0 +1,201 @@
+{
+  "id": "f5114b68-3a2c-41a9-a679-e4be4dec5791",
+  "prevId": "00000000-0000-0000-0000-000000000000",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.pet_memberships": {
+      "name": "pet_memberships",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "pet_id": {
+          "name": "pet_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "role": {
+          "name": "role",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "pet_memberships_pet_id_pets_id_fk": {
+          "name": "pet_memberships_pet_id_pets_id_fk",
+          "tableFrom": "pet_memberships",
+          "tableTo": "pets",
+          "columnsFrom": [
+            "pet_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "pet_memberships_role_supported": {
+          "name": "pet_memberships_role_supported",
+          "value": "\"pet_memberships\".\"role\" in ('OWNER', 'COLLABORATOR')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.pets": {
+      "name": "pets",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "species": {
+          "name": "species",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "breed_name": {
+          "name": "breed_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "breed_kind": {
+          "name": "breed_kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sex": {
+          "name": "sex",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "birth_date": {
+          "name": "birth_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "birth_date_accuracy": {
+          "name": "birth_date_accuracy",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "color": {
+          "name": "color",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "distinctive_marks": {
+          "name": "distinctive_marks",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "microchip": {
+          "name": "microchip",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "pets_name_not_empty": {
+          "name": "pets_name_not_empty",
+          "value": "btrim(\"pets\".\"name\") <> ''"
+        },
+        "pets_species_supported": {
+          "name": "pets_species_supported",
+          "value": "\"pets\".\"species\" in ('DOG', 'CAT')"
+        },
+        "pets_breed_name_not_empty": {
+          "name": "pets_breed_name_not_empty",
+          "value": "btrim(\"pets\".\"breed_name\") <> ''"
+        },
+        "pets_breed_kind_supported": {
+          "name": "pets_breed_kind_supported",
+          "value": "\"pets\".\"breed_kind\" in ('KNOWN', 'CUSTOM')"
+        },
+        "pets_sex_supported": {
+          "name": "pets_sex_supported",
+          "value": "\"pets\".\"sex\" in ('MALE', 'FEMALE', 'UNKNOWN')"
+        },
+        "pets_birth_date_accuracy_supported": {
+          "name": "pets_birth_date_accuracy_supported",
+          "value": "\"pets\".\"birth_date_accuracy\" in ('EXACT', 'APPROXIMATE')"
+        },
+        "pets_color_not_empty": {
+          "name": "pets_color_not_empty",
+          "value": "\"pets\".\"color\" is null or btrim(\"pets\".\"color\") <> ''"
+        },
+        "pets_distinctive_marks_not_empty": {
+          "name": "pets_distinctive_marks_not_empty",
+          "value": "\"pets\".\"distinctive_marks\" is null or btrim(\"pets\".\"distinctive_marks\") <> ''"
+        },
+        "pets_microchip_not_empty": {
+          "name": "pets_microchip_not_empty",
+          "value": "\"pets\".\"microchip\" is null or btrim(\"pets\".\"microchip\") <> ''"
+        },
+        "pets_status_supported": {
+          "name": "pets_status_supported",
+          "value": "\"pets\".\"status\" in ('ACTIVE', 'ARCHIVED')"
+        }
+      },
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {},
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}
