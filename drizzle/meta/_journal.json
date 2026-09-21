@@ -15,6 +15,13 @@
       "when": 1789946850311,
       "tag": "0001_faithful_bruce_banner",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1789948178090,
+      "tag": "0002_wooden_toad",
+      "breakpoints": true
     }
   ]
 }
