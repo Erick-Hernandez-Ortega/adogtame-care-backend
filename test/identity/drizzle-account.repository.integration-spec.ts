@@ -60,11 +60,26 @@ describe('DrizzleAccountRepository (integration)', () => {
           passwordHash: '$argon2id$encoded-hash',
         },
       ]);
+
+      const foundAccount: Account | null = await repository.findByEmail(
+        Email.from(` ${email.toUpperCase()} `),
+      );
+
+      expect(foundAccount).not.toBeNull();
+      expect(foundAccount?.id.value).toBe(account.id.value);
+      expect(foundAccount?.email.value).toBe(email);
+      expect(foundAccount?.passwordHash.value).toBe('$argon2id$encoded-hash');
     } finally {
       await databaseService.connection
         .delete(accounts)
         .where(eq(accounts.id, account.id.value));
     }
+  });
+
+  it('returns null when an account does not exist', async () => {
+    await expect(
+      repository.findByEmail(Email.from('missing-repository@example.com')),
+    ).resolves.toBeNull();
   });
 
   it('lets PostgreSQL resolve concurrent registrations of the same email', async () => {
