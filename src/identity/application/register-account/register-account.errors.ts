@@ -1,10 +1,3 @@
-export class InvalidEmailError extends Error {
-  constructor(cause: TypeError) {
-    super(cause.message, { cause });
-    this.name = 'InvalidEmailError';
-  }
-}
-
 export class InvalidPasswordError extends Error {
   constructor() {
     super('Password must be between 12 and 128 characters');

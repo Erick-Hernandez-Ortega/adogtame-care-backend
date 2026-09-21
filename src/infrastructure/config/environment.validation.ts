@@ -7,6 +7,12 @@ const environmentSchema = z.object({
     .default('development'),
   PORT: z.coerce.number().int().min(1).max(65_535).default(3000),
   DATABASE_URL: databaseUrlSchema,
+  JWT_ACCESS_TOKEN_SECRET: z.string().min(32),
+  JWT_ACCESS_TOKEN_TTL_SECONDS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(3600),
 });
 
 export type EnvironmentVariables = z.infer<typeof environmentSchema>;

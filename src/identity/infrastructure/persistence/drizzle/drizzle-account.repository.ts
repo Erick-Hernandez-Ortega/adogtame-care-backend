@@ -1,11 +1,14 @@
 import { Injectable } from '@nestjs/common';
-import { DrizzleQueryError } from 'drizzle-orm';
+import { DrizzleQueryError, eq } from 'drizzle-orm';
 import postgres from 'postgres';
 import {
   SaveAccountOutcome,
   type AccountRepository,
 } from '../../../application/persistence/account.repository';
-import type { Account } from '../../../domain/account/account';
+import { Account, AccountId } from '../../../domain/account/account';
+import type { Email } from '../../../domain/email/email';
+import { Email as AccountEmail } from '../../../domain/email/email';
+import { PasswordHash } from '../../../domain/password-hash/password-hash';
 import { DatabaseService } from '../../../../infrastructure/database/database.service';
 import { accounts } from './identity.schema';
 
@@ -36,5 +39,24 @@ export class DrizzleAccountRepository implements AccountRepository {
 
       throw error;
     }
+  }
+
+  async findByEmail(email: Email): Promise<Account | null> {
+    const rows = await this.databaseService.connection
+      .select()
+      .from(accounts)
+      .where(eq(accounts.email, email.value))
+      .limit(1);
+    const row = rows[0];
+
+    if (row === undefined) {
+      return null;
+    }
+
+    return Account.reconstitute({
+      id: AccountId.from(row.id),
+      email: AccountEmail.from(row.email),
+      passwordHash: PasswordHash.from(row.passwordHash),
+    });
   }
 }

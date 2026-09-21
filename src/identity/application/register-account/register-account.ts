@@ -6,11 +6,9 @@ import type { PasswordHasher } from '../security/password-hasher';
 import { Account } from '../../domain/account/account';
 import { Email } from '../../domain/email/email';
 import { PasswordHash } from '../../domain/password-hash/password-hash';
+import { InvalidEmailError } from '../errors/invalid-email.error';
 import { assertPasswordMeetsPolicy } from './password-policy';
-import {
-  EmailAlreadyRegisteredError,
-  InvalidEmailError,
-} from './register-account.errors';
+import { EmailAlreadyRegisteredError } from './register-account.errors';
 import type {
   RegisteredAccount,
   RegisterAccountCommand,

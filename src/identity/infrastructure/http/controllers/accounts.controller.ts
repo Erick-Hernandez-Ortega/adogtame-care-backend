@@ -11,9 +11,9 @@ import {
 import { RegisterAccount } from '../../../application/register-account/register-account';
 import {
   EmailAlreadyRegisteredError,
-  InvalidEmailError,
   InvalidPasswordError,
 } from '../../../application/register-account/register-account.errors';
+import { InvalidEmailError } from '../../../application/errors/invalid-email.error';
 import type {
   RegisteredAccount,
   RegisterAccountCommand,

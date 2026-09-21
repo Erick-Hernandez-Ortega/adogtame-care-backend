@@ -18,5 +18,11 @@ describe('Argon2idPasswordHasher', () => {
     await expect(
       verify(passwordHash.value, 'a different password'),
     ).resolves.toBe(false);
+    await expect(
+      passwordHasher.verify(plaintextPassword, passwordHash),
+    ).resolves.toBe(true);
+    await expect(
+      passwordHasher.verify('a different password', passwordHash),
+    ).resolves.toBe(false);
   });
 });

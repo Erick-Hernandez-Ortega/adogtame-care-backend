@@ -6,6 +6,32 @@ const UUID_PATTERN: RegExp =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 describe('Account', () => {
+  it('reconstitutes an account while preserving its persisted identity', () => {
+    const idValue: string = '018f3f4a-38d2-7b22-8b5d-6063e393d7c8';
+    const id: AccountId = AccountId.from(idValue);
+    const email: Email = Email.from('erick@example.com');
+    const passwordHash: PasswordHash = PasswordHash.from(
+      '$argon2id$encoded-hash',
+    );
+
+    const account: Account = Account.reconstitute({ id, email, passwordHash });
+
+    expect(account.id).toBe(id);
+    expect(account.id.value).toBe(idValue);
+    expect(account.email).toBe(email);
+    expect(account.passwordHash).toBe(passwordHash);
+  });
+
+  it.each([
+    'not-a-uuid',
+    '00000000-0000-0000-0000-000000000000',
+    '018f3f4a38d27b228b5d6063e393d7c8',
+  ])('rejects an invalid persisted account ID: %s', (value: string) => {
+    expect(() => AccountId.from(value)).toThrow(
+      'Account ID must be a canonical non-nil UUID',
+    );
+  });
+
   it('registers an account with a generated identity', () => {
     const email: Email = Email.from('erick@example.com');
     const passwordHash: PasswordHash = PasswordHash.from(

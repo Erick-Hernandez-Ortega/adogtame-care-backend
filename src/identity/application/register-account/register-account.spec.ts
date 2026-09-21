@@ -1,14 +1,15 @@
 import type { Account } from '../../domain/account/account';
+import type { Email } from '../../domain/email/email';
 import { PasswordHash } from '../../domain/password-hash/password-hash';
 import {
   SaveAccountOutcome,
   type AccountRepository,
 } from '../persistence/account.repository';
 import type { PasswordHasher } from '../security/password-hasher';
+import { InvalidEmailError } from '../errors/invalid-email.error';
 import { RegisterAccount } from './register-account';
 import {
   EmailAlreadyRegisteredError,
-  InvalidEmailError,
   InvalidPasswordError,
 } from './register-account.errors';
 import type { RegisteredAccount } from './register-account.types';
@@ -24,6 +25,10 @@ class InMemoryAccountRepository implements AccountRepository {
 
     return Promise.resolve(this.outcome);
   }
+
+  findByEmail(): Promise<Account | null> {
+    return Promise.resolve(null);
+  }
 }
 
 class FakePasswordHasher implements PasswordHasher {
@@ -33,6 +38,10 @@ class FakePasswordHasher implements PasswordHasher {
     this.receivedPasswords.push(plaintextPassword);
 
     return Promise.resolve(PasswordHash.from(HASH_VALUE));
+  }
+
+  verify(): Promise<boolean> {
+    return Promise.resolve(false);
   }
 }
 
@@ -131,6 +140,7 @@ describe('RegisterAccount', () => {
       hash: jest
         .fn<Promise<PasswordHash>, [string]>()
         .mockRejectedValue(hashingError),
+      verify: jest.fn<Promise<boolean>, [string, PasswordHash]>(),
     };
     const registerAccount = new RegisterAccount(
       new InMemoryAccountRepository(),
@@ -151,6 +161,7 @@ describe('RegisterAccount', () => {
       save: jest
         .fn<Promise<SaveAccountOutcome>, [Account]>()
         .mockRejectedValue(persistenceError),
+      findByEmail: jest.fn<Promise<Account | null>, [Email]>(),
     };
     const registerAccount = new RegisterAccount(
       repository,

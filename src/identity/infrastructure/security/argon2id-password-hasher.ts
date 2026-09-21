@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { argon2id, hash } from 'argon2';
+import { argon2id, hash, verify } from 'argon2';
 import type { PasswordHasher } from '../../application/security/password-hasher';
 import { PasswordHash } from '../../domain/password-hash/password-hash';
 
@@ -11,5 +11,12 @@ export class Argon2idPasswordHasher implements PasswordHasher {
     });
 
     return PasswordHash.from(encodedHash);
+  }
+
+  verify(
+    plaintextPassword: string,
+    passwordHash: PasswordHash,
+  ): Promise<boolean> {
+    return verify(passwordHash.value, plaintextPassword);
   }
 }
