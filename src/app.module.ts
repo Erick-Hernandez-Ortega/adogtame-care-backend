@@ -4,6 +4,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { validateEnvironment } from './infrastructure/config/environment.validation';
 import { DatabaseModule } from './infrastructure/database/database.module';
+import { IdentityModule } from './identity/infrastructure/identity.module';
 import { PetManagementModule } from './pet-management/infrastructure/pet-management.module';
 
 @Module({
@@ -14,6 +15,7 @@ import { PetManagementModule } from './pet-management/infrastructure/pet-managem
       validate: validateEnvironment,
     }),
     DatabaseModule,
+    IdentityModule,
     PetManagementModule,
   ],
   controllers: [AppController],
