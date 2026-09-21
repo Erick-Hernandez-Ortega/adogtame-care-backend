@@ -35,6 +35,7 @@
     "@nestjs/platform-express": "^11.0.1",
     "argon2": "^0.45.1",
     "drizzle-orm": "^0.45.2",
+    "jose": "^6.2.12",
     "postgres": "^3.4.9",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
