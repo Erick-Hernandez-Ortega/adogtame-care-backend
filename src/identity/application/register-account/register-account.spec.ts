@@ -1,4 +1,4 @@
-import type { Account } from '../../domain/account/account';
+import type { Account, AccountId } from '../../domain/account/account';
 import type { Email } from '../../domain/email/email';
 import { PasswordHash } from '../../domain/password-hash/password-hash';
 import {
@@ -27,6 +27,10 @@ class InMemoryAccountRepository implements AccountRepository {
   }
 
   findByEmail(): Promise<Account | null> {
+    return Promise.resolve(null);
+  }
+
+  findById(): Promise<Account | null> {
     return Promise.resolve(null);
   }
 }
@@ -162,6 +166,7 @@ describe('RegisterAccount', () => {
         .fn<Promise<SaveAccountOutcome>, [Account]>()
         .mockRejectedValue(persistenceError),
       findByEmail: jest.fn<Promise<Account | null>, [Email]>(),
+      findById: jest.fn<Promise<Account | null>, [AccountId]>(),
     };
     const registerAccount = new RegisterAccount(
       repository,

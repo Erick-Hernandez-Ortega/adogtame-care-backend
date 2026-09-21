@@ -12,6 +12,12 @@ import { PasswordHash } from '../../../domain/password-hash/password-hash';
 import { DatabaseService } from '../../../../infrastructure/database/database.service';
 import { accounts } from './identity.schema';
 
+interface AccountRow {
+  id: string;
+  email: string;
+  passwordHash: string;
+}
+
 @Injectable()
 export class DrizzleAccountRepository implements AccountRepository {
   constructor(private readonly databaseService: DatabaseService) {}
@@ -53,6 +59,25 @@ export class DrizzleAccountRepository implements AccountRepository {
       return null;
     }
 
+    return this.toDomain(row);
+  }
+
+  async findById(accountId: AccountId): Promise<Account | null> {
+    const rows = await this.databaseService.connection
+      .select()
+      .from(accounts)
+      .where(eq(accounts.id, accountId.value))
+      .limit(1);
+    const row = rows[0];
+
+    if (row === undefined) {
+      return null;
+    }
+
+    return this.toDomain(row);
+  }
+
+  private toDomain(row: AccountRow): Account {
     return Account.reconstitute({
       id: AccountId.from(row.id),
       email: AccountEmail.from(row.email),

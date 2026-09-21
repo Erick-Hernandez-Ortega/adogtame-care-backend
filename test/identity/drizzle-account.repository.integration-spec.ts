@@ -1,12 +1,13 @@
 import { INestApplicationContext } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { eq } from 'drizzle-orm';
+import { randomUUID } from 'node:crypto';
 import { AppModule } from '../../src/app.module';
 import {
   SaveAccountOutcome,
   type SaveAccountOutcome as SaveAccountOutcomeType,
 } from '../../src/identity/application/persistence/account.repository';
-import { Account } from '../../src/identity/domain/account/account';
+import { Account, AccountId } from '../../src/identity/domain/account/account';
 import { Email } from '../../src/identity/domain/email/email';
 import { PasswordHash } from '../../src/identity/domain/password-hash/password-hash';
 import { DrizzleAccountRepository } from '../../src/identity/infrastructure/persistence/drizzle/drizzle-account.repository';
@@ -69,6 +70,13 @@ describe('DrizzleAccountRepository (integration)', () => {
       expect(foundAccount?.id.value).toBe(account.id.value);
       expect(foundAccount?.email.value).toBe(email);
       expect(foundAccount?.passwordHash.value).toBe('$argon2id$encoded-hash');
+
+      const foundById: Account | null = await repository.findById(account.id);
+
+      expect(foundById).not.toBeNull();
+      expect(foundById?.id.value).toBe(account.id.value);
+      expect(foundById?.email.value).toBe(email);
+      expect(foundById?.passwordHash.value).toBe('$argon2id$encoded-hash');
     } finally {
       await databaseService.connection
         .delete(accounts)
@@ -79,6 +87,9 @@ describe('DrizzleAccountRepository (integration)', () => {
   it('returns null when an account does not exist', async () => {
     await expect(
       repository.findByEmail(Email.from('missing-repository@example.com')),
+    ).resolves.toBeNull();
+    await expect(
+      repository.findById(AccountId.from(randomUUID())),
     ).resolves.toBeNull();
   });
 

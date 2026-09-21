@@ -33,6 +33,10 @@ class InMemoryAccountRepository implements AccountRepository {
     this.searchedEmails.push(email);
     return Promise.resolve(this.account);
   }
+
+  findById(): Promise<Account | null> {
+    return Promise.resolve(this.account);
+  }
 }
 
 class FakePasswordHasher implements PasswordHasher {

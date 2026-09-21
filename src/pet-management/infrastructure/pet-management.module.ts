@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { DatabaseModule } from '../../infrastructure/database/database.module';
+import { IdentityModule } from '../../identity/infrastructure/identity.module';
 import {
   PET_REPOSITORY,
   type PetRepository,
@@ -9,7 +10,7 @@ import { PetsController } from './http/controllers/pets.controller';
 import { DrizzlePetRepository } from './persistence/drizzle/drizzle-pet.repository';
 
 @Module({
-  imports: [DatabaseModule],
+  imports: [DatabaseModule, IdentityModule],
   controllers: [PetsController],
   providers: [
     DrizzlePetRepository,

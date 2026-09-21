@@ -6,7 +6,10 @@ import {
   HttpStatus,
   Post,
   UnprocessableEntityException,
+  UseGuards,
 } from '@nestjs/common';
+import { AuthenticationGuard } from '../../../../identity/infrastructure/http/authentication/authentication.guard';
+import { CurrentAccountId } from '../../../../identity/infrastructure/http/decorators/current-account-id.decorator';
 import {
   InvalidPetRegistrationError,
   RegisterPet,
@@ -15,15 +18,22 @@ import type {
   RegisteredPet,
   RegisterPetCommand,
 } from '../../../application/register-pet/register-pet.types';
-import { registerPetSchema } from '../schemas/register-pet.schema';
+import {
+  registerPetSchema,
+  type RegisterPetRequest,
+} from '../schemas/register-pet.schema';
 
 @Controller('pets')
 export class PetsController {
   constructor(private readonly registerPet: RegisterPet) {}
 
   @Post()
+  @UseGuards(AuthenticationGuard)
   @HttpCode(HttpStatus.CREATED)
-  async create(@Body() body: unknown): Promise<RegisteredPet> {
+  async create(
+    @CurrentAccountId() ownerAccountId: string,
+    @Body() body: unknown,
+  ): Promise<RegisteredPet> {
     const result = registerPetSchema.safeParse(body);
 
     if (!result.success) {
@@ -33,7 +43,11 @@ export class PetsController {
       });
     }
 
-    const command: RegisterPetCommand = result.data;
+    const request: RegisterPetRequest = result.data;
+    const command: RegisterPetCommand = {
+      ...request,
+      ownerAccountId,
+    };
 
     try {
       return await this.registerPet.execute(command);

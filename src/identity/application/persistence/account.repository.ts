@@ -1,4 +1,4 @@
-import type { Account } from '../../domain/account/account';
+import type { Account, AccountId } from '../../domain/account/account';
 import type { Email } from '../../domain/email/email';
 
 export const ACCOUNT_REPOSITORY: unique symbol = Symbol('ACCOUNT_REPOSITORY');
@@ -14,4 +14,5 @@ export type SaveAccountOutcome =
 export interface AccountRepository {
   save(account: Account): Promise<SaveAccountOutcome>;
   findByEmail(email: Email): Promise<Account | null>;
+  findById(accountId: AccountId): Promise<Account | null>;
 }

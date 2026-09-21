@@ -1,7 +1,26 @@
 import { z } from 'zod';
-import type { RegisterPetCommand } from '../../../application/register-pet/register-pet.types';
+import type { BirthDateAccuracy } from '../../../domain/birth-information/birth-information.types';
+import type { BreedKind } from '../../../domain/breed/breed.types';
+import type { PetSex, PetSpecies } from '../../../domain/pet/pet.types';
 
-export const registerPetSchema: z.ZodType<RegisterPetCommand> = z
+export interface RegisterPetRequest {
+  name: string;
+  species: PetSpecies;
+  breed: {
+    name: string;
+    kind: BreedKind;
+  };
+  sex: PetSex;
+  birthInformation: {
+    date: string;
+    accuracy: BirthDateAccuracy;
+  };
+  color?: string;
+  distinctiveMarks?: string;
+  microchip?: string;
+}
+
+export const registerPetSchema: z.ZodType<RegisterPetRequest> = z
   .object({
     name: z.string(),
     species: z.enum(['DOG', 'CAT']),
@@ -18,7 +37,6 @@ export const registerPetSchema: z.ZodType<RegisterPetCommand> = z
         accuracy: z.enum(['EXACT', 'APPROXIMATE']),
       })
       .strict(),
-    ownerAccountId: z.string(),
     color: z.string().optional(),
     distinctiveMarks: z.string().optional(),
     microchip: z.string().optional(),

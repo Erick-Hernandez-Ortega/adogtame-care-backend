@@ -16,11 +16,17 @@ import {
   ACCESS_TOKEN_ISSUER,
   type AccessTokenIssuer,
 } from '../application/security/access-token-issuer';
+import {
+  ACCESS_TOKEN_VERIFIER,
+  type AccessTokenVerifier,
+} from '../application/security/access-token-verifier';
+import { AuthenticationGuard } from './http/authentication/authentication.guard';
 import { AccountsController } from './http/controllers/accounts.controller';
 import { AuthController } from './http/controllers/auth.controller';
 import { DrizzleAccountRepository } from './persistence/drizzle/drizzle-account.repository';
 import { Argon2idPasswordHasher } from './security/argon2id-password-hasher';
 import { JoseAccessTokenIssuer } from './security/jose-access-token-issuer';
+import { JoseAccessTokenVerifier } from './security/jose-access-token-verifier';
 
 @Module({
   imports: [DatabaseModule],
@@ -50,6 +56,17 @@ import { JoseAccessTokenIssuer } from './security/jose-access-token-issuer';
         ),
     },
     {
+      provide: ACCESS_TOKEN_VERIFIER,
+      inject: [ConfigService],
+      useFactory: (
+        configService: ConfigService<EnvironmentVariables, true>,
+      ): AccessTokenVerifier =>
+        new JoseAccessTokenVerifier(
+          configService.getOrThrow('JWT_ACCESS_TOKEN_SECRET', { infer: true }),
+        ),
+    },
+    AuthenticationGuard,
+    {
       provide: RegisterAccount,
       inject: [ACCOUNT_REPOSITORY, PASSWORD_HASHER],
       useFactory: (
@@ -73,5 +90,6 @@ import { JoseAccessTokenIssuer } from './security/jose-access-token-issuer';
         ),
     },
   ],
+  exports: [AuthenticationGuard, ACCOUNT_REPOSITORY, ACCESS_TOKEN_VERIFIER],
 })
 export class IdentityModule {}
