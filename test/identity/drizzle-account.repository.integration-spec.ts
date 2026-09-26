@@ -54,13 +54,14 @@ describe('DrizzleAccountRepository (integration)', () => {
         .from(accounts)
         .where(eq(accounts.id, account.id.value));
 
-      expect(savedAccounts).toEqual([
-        {
-          id: account.id.value,
-          email,
-          passwordHash: '$argon2id$encoded-hash',
-        },
-      ]);
+      expect(savedAccounts).toHaveLength(1);
+      expect(savedAccounts[0]).toMatchObject({
+        id: account.id.value,
+        email,
+        passwordHash: '$argon2id$encoded-hash',
+      });
+      expect(savedAccounts[0].createdAt).toBeInstanceOf(Date);
+      expect(savedAccounts[0].updatedAt).toBeInstanceOf(Date);
 
       const foundAccount: Account | null = await repository.findByEmail(
         Email.from(` ${email.toUpperCase()} `),
@@ -77,6 +78,37 @@ describe('DrizzleAccountRepository (integration)', () => {
       expect(foundById?.id.value).toBe(account.id.value);
       expect(foundById?.email.value).toBe(email);
       expect(foundById?.passwordHash.value).toBe('$argon2id$encoded-hash');
+    } finally {
+      await databaseService.connection
+        .delete(accounts)
+        .where(eq(accounts.id, account.id.value));
+    }
+  });
+
+  it('updates the persistence timestamp on a direct SQL update', async () => {
+    const account: Account = createAccount('timestamp-account@example.com');
+    const originalCreatedAt: Date = new Date('2020-01-01T00:00:00.000Z');
+    const originalUpdatedAt: Date = new Date('2020-01-02T00:00:00.000Z');
+
+    try {
+      await databaseService.connection.insert(accounts).values({
+        id: account.id.value,
+        email: account.email.value,
+        passwordHash: account.passwordHash.value,
+        createdAt: originalCreatedAt,
+        updatedAt: originalUpdatedAt,
+      });
+
+      const [updatedAccount] = await databaseService.connection
+        .update(accounts)
+        .set({ email: account.email.value })
+        .where(eq(accounts.id, account.id.value))
+        .returning();
+
+      expect(updatedAccount.createdAt).toEqual(originalCreatedAt);
+      expect(updatedAccount.updatedAt.getTime()).toBeGreaterThan(
+        originalUpdatedAt.getTime(),
+      );
     } finally {
       await databaseService.connection
         .delete(accounts)

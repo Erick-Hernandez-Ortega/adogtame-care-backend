@@ -25,6 +25,12 @@ export const pets = pgTable(
     distinctiveMarks: text('distinctive_marks'),
     microchip: text('microchip'),
     status: text('status').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' })
+      .notNull()
+      .defaultNow(),
   },
   (table) => [
     check('pets_name_not_empty', sql`btrim(${table.name}) <> ''`),
@@ -71,6 +77,12 @@ export const petMemberships = pgTable(
     accountId: uuid('account_id').notNull(),
     role: text('role').notNull(),
     status: text('status').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' })
+      .notNull()
+      .defaultNow(),
   },
   (table) => [
     check(

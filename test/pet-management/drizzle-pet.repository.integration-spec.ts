@@ -61,31 +61,91 @@ describe('DrizzlePetRepository (integration)', () => {
         .from(petMemberships)
         .where(eq(petMemberships.petId, pet.id.value));
 
-      expect(savedPets).toEqual([
-        {
-          id: pet.id.value,
-          name: 'Luna',
-          species: 'DOG',
-          breedName: 'Labrador Retriever',
-          breedKind: 'KNOWN',
-          sex: 'FEMALE',
-          birthDate: '2021-06-14',
-          birthDateAccuracy: 'EXACT',
-          color: 'Golden',
-          distinctiveMarks: null,
-          microchip: null,
-          status: 'ACTIVE',
-        },
-      ]);
-      expect(savedMemberships).toEqual([
-        {
-          id: pet.memberships[0].id.value,
-          petId: pet.id.value,
-          accountId: OWNER_ACCOUNT_ID,
-          role: 'OWNER',
-          status: 'ACTIVE',
-        },
-      ]);
+      expect(savedPets).toHaveLength(1);
+      expect(savedPets[0]).toMatchObject({
+        id: pet.id.value,
+        name: 'Luna',
+        species: 'DOG',
+        breedName: 'Labrador Retriever',
+        breedKind: 'KNOWN',
+        sex: 'FEMALE',
+        birthDate: '2021-06-14',
+        birthDateAccuracy: 'EXACT',
+        color: 'Golden',
+        distinctiveMarks: null,
+        microchip: null,
+        status: 'ACTIVE',
+      });
+      expect(savedPets[0].createdAt).toBeInstanceOf(Date);
+      expect(savedPets[0].updatedAt).toBeInstanceOf(Date);
+      expect(savedMemberships).toHaveLength(1);
+      expect(savedMemberships[0]).toMatchObject({
+        id: pet.memberships[0].id.value,
+        petId: pet.id.value,
+        accountId: OWNER_ACCOUNT_ID,
+        role: 'OWNER',
+        status: 'ACTIVE',
+      });
+      expect(savedMemberships[0].createdAt).toBeInstanceOf(Date);
+      expect(savedMemberships[0].updatedAt).toBeInstanceOf(Date);
+    } finally {
+      await databaseService.connection
+        .delete(petMemberships)
+        .where(eq(petMemberships.petId, pet.id.value));
+      await databaseService.connection
+        .delete(pets)
+        .where(eq(pets.id, pet.id.value));
+    }
+  });
+
+  it('updates persistence timestamps for direct pet and membership updates', async () => {
+    const pet: Pet = createPet();
+    const originalCreatedAt: Date = new Date('2020-01-01T00:00:00.000Z');
+    const originalUpdatedAt: Date = new Date('2020-01-02T00:00:00.000Z');
+
+    try {
+      await databaseService.connection.insert(pets).values({
+        id: pet.id.value,
+        name: 'Luna',
+        species: 'DOG',
+        breedName: 'Labrador Retriever',
+        breedKind: 'KNOWN',
+        sex: 'FEMALE',
+        birthDate: '2021-06-14',
+        birthDateAccuracy: 'EXACT',
+        status: 'ACTIVE',
+        createdAt: originalCreatedAt,
+        updatedAt: originalUpdatedAt,
+      });
+      await databaseService.connection.insert(petMemberships).values({
+        id: pet.memberships[0].id.value,
+        petId: pet.id.value,
+        accountId: OWNER_ACCOUNT_ID,
+        role: 'OWNER',
+        status: 'ACTIVE',
+        createdAt: originalCreatedAt,
+        updatedAt: originalUpdatedAt,
+      });
+
+      const [updatedPet] = await databaseService.connection
+        .update(pets)
+        .set({ name: 'Luna' })
+        .where(eq(pets.id, pet.id.value))
+        .returning();
+      const [updatedMembership] = await databaseService.connection
+        .update(petMemberships)
+        .set({ status: 'ACTIVE' })
+        .where(eq(petMemberships.id, pet.memberships[0].id.value))
+        .returning();
+
+      expect(updatedPet.createdAt).toEqual(originalCreatedAt);
+      expect(updatedPet.updatedAt.getTime()).toBeGreaterThan(
+        originalUpdatedAt.getTime(),
+      );
+      expect(updatedMembership.createdAt).toEqual(originalCreatedAt);
+      expect(updatedMembership.updatedAt.getTime()).toBeGreaterThan(
+        originalUpdatedAt.getTime(),
+      );
     } finally {
       await databaseService.connection
         .delete(petMemberships)
