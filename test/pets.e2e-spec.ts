@@ -7,7 +7,10 @@ import { App } from 'supertest/types';
 import { AppModule } from '../src/app.module';
 import { accounts } from '../src/identity/infrastructure/persistence/drizzle/identity.schema';
 import { DatabaseService } from '../src/infrastructure/database/database.service';
-import type { AccessiblePetSummary } from '../src/pet-management/application/persistence/pet-query.repository';
+import type {
+  AccessiblePetSummary,
+  PetDetail,
+} from '../src/pet-management/application/persistence/pet-query.repository';
 import type { RegisteredPet } from '../src/pet-management/application/register-pet/register-pet.types';
 import {
   petMemberships,
@@ -378,5 +381,148 @@ describe('GET /pets (e2e)', () => {
       code: 'UNAUTHENTICATED',
       message: 'Authentication is required',
     });
+  });
+});
+
+describe('GET /pets/:petId (e2e)', () => {
+  let application: INestApplication<App>;
+  let databaseService: DatabaseService;
+
+  beforeAll(async () => {
+    const moduleFixture: TestingModule = await Test.createTestingModule({
+      imports: [AppModule],
+    }).compile();
+
+    application = moduleFixture.createNestApplication();
+    await application.init();
+    databaseService = application.get(DatabaseService);
+  });
+
+  afterAll(async () => {
+    await application.close();
+  });
+
+  it('returns the owner detail while concealing other accounts and archived pets', async () => {
+    const accountA: AuthenticatedAccountFixture = await registerAndAuthenticate(
+      application,
+      'detail-owner-a',
+    );
+    const accountB: AuthenticatedAccountFixture = await registerAndAuthenticate(
+      application,
+      'detail-owner-b',
+    );
+    let petId: string | undefined;
+
+    try {
+      const registrationResponse = await request(application.getHttpServer())
+        .post('/pets')
+        .set('Authorization', `Bearer ${accountA.accessToken}`)
+        .send({
+          ...validPetRequest(),
+          color: 'Golden',
+          distinctiveMarks: 'White paw',
+          microchip: '985141000000001',
+        })
+        .expect(201);
+      const registeredPet: RegisteredPet =
+        registrationResponse.body as RegisteredPet;
+      petId = registeredPet.id;
+
+      const detailResponse = await request(application.getHttpServer())
+        .get(`/pets/${petId}`)
+        .set('Authorization', `Bearer ${accountA.accessToken}`)
+        .expect(200);
+      const detail: PetDetail = detailResponse.body as PetDetail;
+      expect(detail).toEqual({
+        id: petId,
+        name: 'Luna',
+        species: 'DOG',
+        breed: { name: 'Labrador Retriever', kind: 'KNOWN' },
+        sex: 'FEMALE',
+        birthInformation: { date: '2021-06-14', accuracy: 'EXACT' },
+        color: 'Golden',
+        distinctiveMarks: 'White paw',
+        microchip: '985141000000001',
+        status: 'ACTIVE',
+        role: 'OWNER',
+      });
+
+      const nonexistentResponse = await request(application.getHttpServer())
+        .get(`/pets/${randomUUID()}`)
+        .set('Authorization', `Bearer ${accountB.accessToken}`)
+        .expect(404);
+      expect(nonexistentResponse.body).toEqual({
+        code: 'PET_NOT_FOUND',
+        message: 'Pet was not found',
+      });
+
+      const inaccessibleResponse = await request(application.getHttpServer())
+        .get(`/pets/${petId}`)
+        .set('Authorization', `Bearer ${accountB.accessToken}`)
+        .expect(404);
+      expect(inaccessibleResponse.body).toEqual(nonexistentResponse.body);
+
+      await databaseService.connection
+        .update(pets)
+        .set({ status: 'ARCHIVED' })
+        .where(eq(pets.id, petId));
+
+      const archivedResponse = await request(application.getHttpServer())
+        .get(`/pets/${petId}`)
+        .set('Authorization', `Bearer ${accountA.accessToken}`)
+        .expect(404);
+      expect(archivedResponse.body).toEqual(nonexistentResponse.body);
+    } finally {
+      if (petId !== undefined) {
+        await databaseService.connection
+          .delete(petMemberships)
+          .where(eq(petMemberships.petId, petId));
+        await databaseService.connection.delete(pets).where(eq(pets.id, petId));
+      }
+
+      await databaseService.connection
+        .delete(accounts)
+        .where(eq(accounts.id, accountA.accountId));
+      await databaseService.connection
+        .delete(accounts)
+        .where(eq(accounts.id, accountB.accountId));
+    }
+  });
+
+  it('requires authentication and rejects a malformed pet id', async () => {
+    const petId: string = randomUUID();
+    const unauthenticatedResponse = await request(application.getHttpServer())
+      .get(`/pets/${petId}`)
+      .expect(401);
+    expect(unauthenticatedResponse.body).toEqual({
+      code: 'UNAUTHENTICATED',
+      message: 'Authentication is required',
+    });
+
+    const invalidTokenResponse = await request(application.getHttpServer())
+      .get(`/pets/${petId}`)
+      .set('Authorization', 'Bearer invalid-token')
+      .expect(401);
+    expect(invalidTokenResponse.body).toEqual(unauthenticatedResponse.body);
+
+    const account: AuthenticatedAccountFixture = await registerAndAuthenticate(
+      application,
+      'detail-invalid-id',
+    );
+
+    try {
+      const invalidIdResponse = await request(application.getHttpServer())
+        .get('/pets/not-a-uuid')
+        .set('Authorization', `Bearer ${account.accessToken}`)
+        .expect(400);
+      expect(invalidIdResponse.body).toEqual({
+        code: 'INVALID_REQUEST',
+        message: 'Pet id is invalid',
+      });
+    } finally {
+      await databaseService.connection
+        .delete(accounts)
+        .where(eq(accounts.id, account.accountId));
+    }
   });
 });

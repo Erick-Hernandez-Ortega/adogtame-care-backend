@@ -1,6 +1,7 @@
+import type { BirthDateAccuracy } from '../../domain/birth-information/birth-information.types';
 import type { BreedKind } from '../../domain/breed/breed.types';
 import type { PetMembershipRole } from '../../domain/pet-membership/pet-membership.types';
-import type { PetSex, PetSpecies } from '../../domain/pet/pet.types';
+import type { PetSex, PetSpecies, PetStatus } from '../../domain/pet/pet.types';
 
 export const PET_QUERY_REPOSITORY: unique symbol = Symbol(
   'PET_QUERY_REPOSITORY',
@@ -18,6 +19,30 @@ export interface AccessiblePetSummary {
   readonly role: PetMembershipRole;
 }
 
+export interface PetDetail {
+  readonly id: string;
+  readonly name: string;
+  readonly species: PetSpecies;
+  readonly breed: {
+    readonly name: string;
+    readonly kind: BreedKind;
+  };
+  readonly sex: PetSex;
+  readonly birthInformation: {
+    readonly date: string;
+    readonly accuracy: BirthDateAccuracy;
+  };
+  readonly color: string | null;
+  readonly distinctiveMarks: string | null;
+  readonly microchip: string | null;
+  readonly status: PetStatus;
+  readonly role: PetMembershipRole;
+}
+
 export interface PetQueryRepository {
   findAccessibleByAccountId(accountId: string): Promise<AccessiblePetSummary[]>;
+  findAccessibleDetailById(
+    petId: string,
+    accountId: string,
+  ): Promise<PetDetail | null>;
 }

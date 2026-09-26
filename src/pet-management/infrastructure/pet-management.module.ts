@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { DatabaseModule } from '../../infrastructure/database/database.module';
 import { IdentityModule } from '../../identity/infrastructure/identity.module';
+import { GetPetDetail } from '../application/get-pet-detail/get-pet-detail';
 import { ListMyPets } from '../application/list-my-pets/list-my-pets';
 import {
   PET_QUERY_REPOSITORY,
@@ -29,6 +30,12 @@ import { DrizzlePetRepository } from './persistence/drizzle/drizzle-pet.reposito
       inject: [PET_QUERY_REPOSITORY],
       useFactory: (petQueryRepository: PetQueryRepository): ListMyPets =>
         new ListMyPets(petQueryRepository),
+    },
+    {
+      provide: GetPetDetail,
+      inject: [PET_QUERY_REPOSITORY],
+      useFactory: (petQueryRepository: PetQueryRepository): GetPetDetail =>
+        new GetPetDetail(petQueryRepository),
     },
     DrizzlePetRepository,
     {

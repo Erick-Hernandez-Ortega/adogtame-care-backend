@@ -4,7 +4,10 @@ import { inArray } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
 import { AppModule } from '../../src/app.module';
 import { DatabaseService } from '../../src/infrastructure/database/database.service';
-import type { AccessiblePetSummary } from '../../src/pet-management/application/persistence/pet-query.repository';
+import type {
+  AccessiblePetSummary,
+  PetDetail,
+} from '../../src/pet-management/application/persistence/pet-query.repository';
 import { DrizzlePetQueryRepository } from '../../src/pet-management/infrastructure/persistence/drizzle/drizzle-pet-query.repository';
 import {
   petMemberships,
@@ -51,6 +54,9 @@ describe('DrizzlePetQueryRepository (integration)', () => {
           sex: 'FEMALE',
           birthDate: '2021-06-14',
           birthDateAccuracy: 'EXACT',
+          color: 'Golden',
+          distinctiveMarks: 'White paw',
+          microchip: '985141000000001',
           status: 'ACTIVE',
         },
         {
@@ -144,6 +150,48 @@ describe('DrizzlePetQueryRepository (integration)', () => {
       await expect(
         repository.findAccessibleByAccountId(randomUUID()),
       ).resolves.toEqual([]);
+
+      const ownedDetail: PetDetail | null =
+        await repository.findAccessibleDetailById(pet1Id, accountAId);
+      expect(ownedDetail).toEqual({
+        id: pet1Id,
+        name: 'Luna',
+        species: 'DOG',
+        breed: { name: 'Labrador Retriever', kind: 'KNOWN' },
+        sex: 'FEMALE',
+        birthInformation: { date: '2021-06-14', accuracy: 'EXACT' },
+        color: 'Golden',
+        distinctiveMarks: 'White paw',
+        microchip: '985141000000001',
+        status: 'ACTIVE',
+        role: 'OWNER',
+      });
+
+      const collaboratorDetail: PetDetail | null =
+        await repository.findAccessibleDetailById(pet2Id, accountAId);
+      expect(collaboratorDetail).toEqual({
+        id: pet2Id,
+        name: 'Rocky',
+        species: 'CAT',
+        breed: { name: 'Mixed', kind: 'CUSTOM' },
+        sex: 'MALE',
+        birthInformation: { date: '2020-01-01', accuracy: 'APPROXIMATE' },
+        color: null,
+        distinctiveMarks: null,
+        microchip: null,
+        status: 'ACTIVE',
+        role: 'COLLABORATOR',
+      });
+
+      await expect(
+        repository.findAccessibleDetailById(pet3Id, accountAId),
+      ).resolves.toBeNull();
+      await expect(
+        repository.findAccessibleDetailById(pet4Id, accountAId),
+      ).resolves.toBeNull();
+      await expect(
+        repository.findAccessibleDetailById(randomUUID(), accountAId),
+      ).resolves.toBeNull();
     } finally {
       await databaseService.connection
         .delete(petMemberships)

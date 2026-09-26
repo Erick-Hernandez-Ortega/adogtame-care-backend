@@ -1,5 +1,6 @@
 import type {
   AccessiblePetSummary,
+  PetDetail,
   PetQueryRepository,
 } from '../persistence/pet-query.repository';
 import { ListMyPets } from './list-my-pets';
@@ -8,6 +9,7 @@ const ACCOUNT_ID: string = '550e8400-e29b-41d4-a716-446655440000';
 
 class InMemoryPetQueryRepository implements PetQueryRepository {
   readonly requestedAccountIds: string[] = [];
+  readonly requestedDetails: { petId: string; accountId: string }[] = [];
 
   constructor(private readonly summaries: AccessiblePetSummary[]) {}
 
@@ -17,6 +19,14 @@ class InMemoryPetQueryRepository implements PetQueryRepository {
     this.requestedAccountIds.push(accountId);
 
     return Promise.resolve(this.summaries);
+  }
+
+  findAccessibleDetailById(
+    petId: string,
+    accountId: string,
+  ): Promise<PetDetail | null> {
+    this.requestedDetails.push({ petId, accountId });
+    return Promise.resolve(null);
   }
 }
 
@@ -61,6 +71,10 @@ describe('ListMyPets', () => {
       findAccessibleByAccountId: jest
         .fn<Promise<AccessiblePetSummary[]>, [string]>()
         .mockRejectedValue(persistenceError),
+      findAccessibleDetailById: jest.fn<
+        Promise<PetDetail | null>,
+        [string, string]
+      >(),
     };
     const listMyPets = new ListMyPets(repository);
 

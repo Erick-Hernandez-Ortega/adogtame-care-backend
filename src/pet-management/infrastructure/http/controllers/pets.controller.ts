@@ -5,14 +5,23 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  NotFoundException,
+  Param,
   Post,
   UnprocessableEntityException,
   UseGuards,
 } from '@nestjs/common';
 import { AuthenticationGuard } from '../../../../identity/infrastructure/http/authentication/authentication.guard';
 import { CurrentAccountId } from '../../../../identity/infrastructure/http/decorators/current-account-id.decorator';
+import {
+  GetPetDetail,
+  PetNotFoundError,
+} from '../../../application/get-pet-detail/get-pet-detail';
 import { ListMyPets } from '../../../application/list-my-pets/list-my-pets';
-import type { AccessiblePetSummary } from '../../../application/persistence/pet-query.repository';
+import type {
+  AccessiblePetSummary,
+  PetDetail,
+} from '../../../application/persistence/pet-query.repository';
 import {
   InvalidPetRegistrationError,
   RegisterPet,
@@ -25,18 +34,49 @@ import {
   registerPetSchema,
   type RegisterPetRequest,
 } from '../schemas/register-pet.schema';
+import { petIdSchema } from '../schemas/get-pet-detail.schema';
 
 @Controller('pets')
 export class PetsController {
   constructor(
     private readonly registerPet: RegisterPet,
     private readonly listMyPets: ListMyPets,
+    private readonly getPetDetail: GetPetDetail,
   ) {}
 
   @Get()
   @UseGuards(AuthenticationGuard)
   list(@CurrentAccountId() accountId: string): Promise<AccessiblePetSummary[]> {
     return this.listMyPets.execute(accountId);
+  }
+
+  @Get(':petId')
+  @UseGuards(AuthenticationGuard)
+  async detail(
+    @CurrentAccountId() accountId: string,
+    @Param('petId') petId: string,
+  ): Promise<PetDetail> {
+    const result = petIdSchema.safeParse(petId);
+
+    if (!result.success) {
+      throw new BadRequestException({
+        code: 'INVALID_REQUEST',
+        message: 'Pet id is invalid',
+      });
+    }
+
+    try {
+      return await this.getPetDetail.execute(result.data, accountId);
+    } catch (error: unknown) {
+      if (error instanceof PetNotFoundError) {
+        throw new NotFoundException({
+          code: 'PET_NOT_FOUND',
+          message: error.message,
+        });
+      }
+
+      throw error;
+    }
   }
 
   @Post()
