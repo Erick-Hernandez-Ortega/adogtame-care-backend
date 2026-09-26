@@ -307,6 +307,9 @@ Schema design, migrations, transaction boundaries, and repository implementation
 
 ## Comments and documentation
 
+* Update the OpenAPI documentation for a route whenever its contract changes or a route is added.
+* Keep `README.md` and `README.es.md` in sync when routes or Swagger access change.
+
 * Prefer self-explanatory code over comments.
 * Do not add comments that merely restate what the code does.
 * Add a comment only when an important function, non-obvious decision, constraint, or tradeoff cannot be expressed clearly through names and structure.

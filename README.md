@@ -52,6 +52,27 @@ pnpm start:dev
 
 The API listens on the port defined by `PORT`.
 
+## API documentation
+
+Open Swagger UI at `http://localhost:3000/docs` (use your configured `PORT` if
+different). The OpenAPI JSON is at `/docs-json`. Both are available in every
+environment.
+
+To try protected routes, register with `POST /accounts` if needed, then call
+`POST /auth/login` with your email and password. Copy `accessToken` from the
+response, click **Authorize** in Swagger, and enter the token. Swagger adds the
+Bearer prefix to requests automatically.
+
+| Route                            | Description          | Bearer token |
+| -------------------------------- | -------------------- | ------------ |
+| `GET /`                          | Welcome message      | No           |
+| `POST /accounts`                 | Register account     | No           |
+| `POST /auth/login`               | Get access token     | No           |
+| `GET /pets`                      | List accessible pets | Yes          |
+| `GET /pets/{petId}`              | Get pet profile      | Yes          |
+| `POST /pets`                     | Register pet         | Yes          |
+| `POST /pets/{petId}/invitations` | Invite collaborator  | Yes          |
+
 ## Migrations
 
 Drizzle schemas will live in:

@@ -52,6 +52,27 @@ pnpm start:dev
 
 La API escucha en el puerto definido por `PORT`.
 
+## Documentación de la API
+
+Abre Swagger UI en `http://localhost:3000/docs` (usa el `PORT` configurado si
+es diferente). El JSON de OpenAPI está en `/docs-json`. Ambos están disponibles
+en todos los entornos.
+
+Para probar rutas protegidas, regístrate con `POST /accounts` si hace falta y
+después llama a `POST /auth/login` con tu correo y contraseña. Copia
+`accessToken` de la respuesta, pulsa **Authorize** en Swagger e introduce el
+token. Swagger añade automáticamente el prefijo Bearer a las peticiones.
+
+| Ruta                             | Descripción                 | Token Bearer |
+| -------------------------------- | --------------------------- | ------------ |
+| `GET /`                          | Mensaje de bienvenida       | No           |
+| `POST /accounts`                 | Registrar cuenta            | No           |
+| `POST /auth/login`               | Obtener token               | No           |
+| `GET /pets`                      | Listar mascotas accesibles  | Sí           |
+| `GET /pets/{petId}`              | Consultar perfil de mascota | Sí           |
+| `POST /pets`                     | Registrar mascota           | Sí           |
+| `POST /pets/{petId}/invitations` | Invitar colaborador         | Sí           |
+
 ## Migraciones
 
 Los esquemas Drizzle vivirán en:

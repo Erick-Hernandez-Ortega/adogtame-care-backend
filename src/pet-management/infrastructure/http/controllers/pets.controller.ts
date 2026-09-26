@@ -12,6 +12,15 @@ import {
   UnprocessableEntityException,
   UseGuards,
 } from '@nestjs/common';
+import {
+  ApiBearerAuth,
+  ApiBody,
+  ApiOperation,
+  ApiParam,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
+import { errorSchema } from '../../../../infrastructure/http/openapi-error.schema';
 import { AuthenticationGuard } from '../../../../identity/infrastructure/http/authentication/authentication.guard';
 import { CurrentAccountId } from '../../../../identity/infrastructure/http/decorators/current-account-id.decorator';
 import { PetNotFoundError } from '../../../application/errors/pet-not-found.error';
@@ -45,8 +54,18 @@ import {
   inviteCollaboratorSchema,
   type InviteCollaboratorRequest,
 } from '../schemas/invite-collaborator.schema';
+import {
+  createdInvitationResponseSchema,
+  inviteCollaboratorRequestSchema,
+  petDetailResponseSchema,
+  petSummaryResponseSchema,
+  registeredPetResponseSchema,
+  registerPetRequestSchema,
+} from '../schemas/openapi.schemas';
 
 @Controller('pets')
+@ApiTags('Pets')
+@ApiBearerAuth()
 export class PetsController {
   constructor(
     private readonly registerPet: RegisterPet,
@@ -57,12 +76,49 @@ export class PetsController {
 
   @Get()
   @UseGuards(AuthenticationGuard)
+  @ApiOperation({ summary: 'List pets accessible to the current account' })
+  @ApiResponse({
+    status: 200,
+    description: 'Accessible pets',
+    schema: { type: 'array', items: petSummaryResponseSchema },
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Missing or invalid Bearer token',
+    schema: errorSchema(['UNAUTHENTICATED'], 'Authentication is required'),
+  })
   list(@CurrentAccountId() accountId: string): Promise<AccessiblePetSummary[]> {
     return this.listMyPets.execute(accountId);
   }
 
   @Get(':petId')
   @UseGuards(AuthenticationGuard)
+  @ApiOperation({ summary: 'Get an accessible pet profile' })
+  @ApiParam({
+    name: 'petId',
+    description: 'Pet UUID',
+    schema: { type: 'string', format: 'uuid' },
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Pet profile and current account role',
+    schema: petDetailResponseSchema,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid pet UUID',
+    schema: errorSchema(['INVALID_REQUEST'], 'Pet id is invalid'),
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Missing or invalid Bearer token',
+    schema: errorSchema(['UNAUTHENTICATED'], 'Authentication is required'),
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Pet is missing or inaccessible',
+    schema: errorSchema(['PET_NOT_FOUND'], 'Pet was not found'),
+  })
   async detail(
     @CurrentAccountId() accountId: string,
     @Param('petId') petId: string,
@@ -93,6 +149,53 @@ export class PetsController {
   @Post(':petId/invitations')
   @UseGuards(AuthenticationGuard)
   @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({
+    summary: 'Invite a collaborator to a pet',
+    description:
+      'Only an active owner can invite a collaborator. The invitation is pending until accepted or expired.',
+  })
+  @ApiParam({
+    name: 'petId',
+    description: 'Pet UUID',
+    schema: { type: 'string', format: 'uuid' },
+  })
+  @ApiBody({
+    schema: inviteCollaboratorRequestSchema,
+    examples: { invitation: { value: { email: 'friend@example.com' } } },
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Pending invitation created',
+    schema: createdInvitationResponseSchema,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid pet UUID or request body',
+    schema: errorSchema(['INVALID_REQUEST'], 'Request body is invalid'),
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Missing or invalid Bearer token',
+    schema: errorSchema(['UNAUTHENTICATED'], 'Authentication is required'),
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Pet is missing or current account is not an owner',
+    schema: errorSchema(['PET_NOT_FOUND'], 'Pet was not found'),
+  })
+  @ApiResponse({
+    status: 409,
+    description: 'Existing member or pending invitation',
+    schema: errorSchema(
+      ['ALREADY_PET_MEMBER', 'INVITATION_ALREADY_PENDING'],
+      'Account is already a member of this pet',
+    ),
+  })
+  @ApiResponse({
+    status: 422,
+    description: 'Invalid invited email',
+    schema: errorSchema(['INVALID_EMAIL'], 'Email format is invalid'),
+  })
   async invite(
     @CurrentAccountId() invitedByAccountId: string,
     @Param('petId') petId: string,
@@ -160,6 +263,46 @@ export class PetsController {
   @Post()
   @UseGuards(AuthenticationGuard)
   @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({
+    summary: 'Register a pet',
+    description:
+      'The current account becomes the first owner. Birth dates use YYYY-MM-DD; accuracy says whether the date is exact or approximate.',
+  })
+  @ApiBody({
+    schema: registerPetRequestSchema,
+    examples: {
+      dog: {
+        value: {
+          name: 'Luna',
+          species: 'DOG',
+          breed: { name: 'Mixed breed', kind: 'CUSTOM' },
+          sex: 'FEMALE',
+          birthInformation: { date: '2022-05-15', accuracy: 'APPROXIMATE' },
+          color: 'Brown',
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Pet registered with owner membership',
+    schema: registeredPetResponseSchema,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid request body',
+    schema: errorSchema(['INVALID_REQUEST'], 'Request body is invalid'),
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Missing or invalid Bearer token',
+    schema: errorSchema(['UNAUTHENTICATED'], 'Authentication is required'),
+  })
+  @ApiResponse({
+    status: 422,
+    description: 'Invalid pet data',
+    schema: errorSchema(['INVALID_PET'], 'Pet data is invalid'),
+  })
   async create(
     @CurrentAccountId() ownerAccountId: string,
     @Body() body: unknown,
