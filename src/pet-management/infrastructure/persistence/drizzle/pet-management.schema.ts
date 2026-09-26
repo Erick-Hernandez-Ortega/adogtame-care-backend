@@ -1,5 +1,14 @@
 import { sql } from 'drizzle-orm';
-import { check, date, pgTable, text, unique, uuid } from 'drizzle-orm/pg-core';
+import {
+  check,
+  date,
+  pgTable,
+  text,
+  timestamp,
+  unique,
+  uniqueIndex,
+  uuid,
+} from 'drizzle-orm/pg-core';
 
 export const pets = pgTable(
   'pets',
@@ -76,5 +85,43 @@ export const petMemberships = pgTable(
       table.petId,
       table.accountId,
     ),
+  ],
+);
+
+export const petInvitations = pgTable(
+  'pet_invitations',
+  {
+    id: uuid('id').primaryKey(),
+    petId: uuid('pet_id')
+      .notNull()
+      .references(() => pets.id, { onDelete: 'restrict' }),
+    invitedEmail: text('invited_email').notNull(),
+    invitedByAccountId: uuid('invited_by_account_id').notNull(),
+    status: text('status').notNull(),
+    createdAt: timestamp('created_at', {
+      withTimezone: true,
+      mode: 'date',
+    }).notNull(),
+    expiresAt: timestamp('expires_at', {
+      withTimezone: true,
+      mode: 'date',
+    }).notNull(),
+  },
+  (table) => [
+    check(
+      'pet_invitations_email_normalized',
+      sql`${table.invitedEmail} <> '' and ${table.invitedEmail} = lower(btrim(${table.invitedEmail}))`,
+    ),
+    check(
+      'pet_invitations_status_supported',
+      sql`${table.status} in ('PENDING', 'ACCEPTED', 'REJECTED', 'CANCELLED', 'EXPIRED')`,
+    ),
+    check(
+      'pet_invitations_expires_after_created',
+      sql`${table.expiresAt} > ${table.createdAt}`,
+    ),
+    uniqueIndex('pet_invitations_one_pending_per_email')
+      .on(table.petId, table.invitedEmail)
+      .where(sql`${table.status} = 'PENDING'`),
   ],
 );

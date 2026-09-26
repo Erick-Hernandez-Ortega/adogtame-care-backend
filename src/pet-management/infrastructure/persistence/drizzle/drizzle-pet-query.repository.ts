@@ -9,7 +9,10 @@ import type {
 import type { BirthDateAccuracy } from '../../../domain/birth-information/birth-information.types';
 import type { BreedKind } from '../../../domain/breed/breed.types';
 import type { PetMembershipRole } from '../../../domain/pet-membership/pet-membership.types';
-import { PetMembershipStatus } from '../../../domain/pet-membership/pet-membership';
+import {
+  PetMembershipRole as PetMembershipRoleValue,
+  PetMembershipStatus,
+} from '../../../domain/pet-membership/pet-membership';
 import { PetStatus } from '../../../domain/pet/pet';
 import type {
   PetSex,
@@ -115,5 +118,46 @@ export class DrizzlePetQueryRepository implements PetQueryRepository {
       status: row.status as PetStatusType,
       role: row.role as PetMembershipRole,
     };
+  }
+
+  async hasActiveOwnerAccess(
+    petId: string,
+    accountId: string,
+  ): Promise<boolean> {
+    const rows = await this.databaseService.connection
+      .select({ id: pets.id })
+      .from(pets)
+      .innerJoin(petMemberships, eq(petMemberships.petId, pets.id))
+      .where(
+        and(
+          eq(pets.id, petId),
+          eq(pets.status, PetStatus.ACTIVE),
+          eq(petMemberships.accountId, accountId),
+          eq(petMemberships.status, PetMembershipStatus.ACTIVE),
+          eq(petMemberships.role, PetMembershipRoleValue.OWNER),
+        ),
+      )
+      .limit(1);
+
+    return rows.length > 0;
+  }
+
+  async hasActiveMembership(
+    petId: string,
+    accountId: string,
+  ): Promise<boolean> {
+    const rows = await this.databaseService.connection
+      .select({ id: petMemberships.id })
+      .from(petMemberships)
+      .where(
+        and(
+          eq(petMemberships.petId, petId),
+          eq(petMemberships.accountId, accountId),
+          eq(petMemberships.status, PetMembershipStatus.ACTIVE),
+        ),
+      )
+      .limit(1);
+
+    return rows.length > 0;
   }
 }

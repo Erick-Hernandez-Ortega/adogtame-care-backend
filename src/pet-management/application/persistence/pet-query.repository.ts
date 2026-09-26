@@ -45,4 +45,6 @@ export interface PetQueryRepository {
     petId: string,
     accountId: string,
   ): Promise<PetDetail | null>;
+  hasActiveOwnerAccess(petId: string, accountId: string): Promise<boolean>;
+  hasActiveMembership(petId: string, accountId: string): Promise<boolean>;
 }

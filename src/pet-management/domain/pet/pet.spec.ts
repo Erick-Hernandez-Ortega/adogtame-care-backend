@@ -4,7 +4,7 @@ import {
   PetMembershipRole,
   PetMembershipStatus,
 } from '../pet-membership/pet-membership';
-import { Pet, PetSex, PetSpecies, PetStatus } from './pet';
+import { Pet, PetId, PetSex, PetSpecies, PetStatus } from './pet';
 import type {
   PetSex as PetSexType,
   PetSpecies as PetSpeciesType,
@@ -121,6 +121,20 @@ describe('Pet', () => {
 
     expect(() => Pet.register(validPetInput({ sex: unsupportedSex }))).toThrow(
       'Pet sex is not supported',
+    );
+  });
+});
+
+describe('PetId', () => {
+  it('reconstitutes a valid existing ID', () => {
+    expect(PetId.from('B30A4C42-84E5-4765-99D4-1EFB17F09C12').value).toBe(
+      'b30a4c42-84e5-4765-99d4-1efb17f09c12',
+    );
+  });
+
+  it('rejects malformed IDs', () => {
+    expect(() => PetId.from('not-a-uuid')).toThrow(
+      'Pet ID must be a valid non-nil UUID',
     );
   });
 });

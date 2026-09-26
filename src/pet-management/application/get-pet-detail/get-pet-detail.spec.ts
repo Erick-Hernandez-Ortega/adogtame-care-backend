@@ -3,7 +3,8 @@ import type {
   PetDetail,
   PetQueryRepository,
 } from '../persistence/pet-query.repository';
-import { GetPetDetail, PetNotFoundError } from './get-pet-detail';
+import { PetNotFoundError } from '../errors/pet-not-found.error';
+import { GetPetDetail } from './get-pet-detail';
 
 const PET_ID: string = 'b30a4c42-84e5-4765-99d4-1efb17f09c12';
 const ACCOUNT_ID: string = '550e8400-e29b-41d4-a716-446655440000';
@@ -33,6 +34,16 @@ class InMemoryPetQueryRepository implements PetQueryRepository {
     }
 
     return Promise.resolve(this.detail);
+  }
+
+  hasActiveOwnerAccess(petId: string, accountId: string): Promise<boolean> {
+    this.requestedDetails.push({ petId, accountId });
+    return Promise.resolve(false);
+  }
+
+  hasActiveMembership(petId: string, accountId: string): Promise<boolean> {
+    this.requestedDetails.push({ petId, accountId });
+    return Promise.resolve(false);
   }
 }
 

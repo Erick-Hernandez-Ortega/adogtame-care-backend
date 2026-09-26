@@ -28,6 +28,16 @@ class InMemoryPetQueryRepository implements PetQueryRepository {
     this.requestedDetails.push({ petId, accountId });
     return Promise.resolve(null);
   }
+
+  hasActiveOwnerAccess(petId: string, accountId: string): Promise<boolean> {
+    this.requestedDetails.push({ petId, accountId });
+    return Promise.resolve(false);
+  }
+
+  hasActiveMembership(petId: string, accountId: string): Promise<boolean> {
+    this.requestedDetails.push({ petId, accountId });
+    return Promise.resolve(false);
+  }
 }
 
 describe('ListMyPets', () => {
@@ -75,6 +85,8 @@ describe('ListMyPets', () => {
         Promise<PetDetail | null>,
         [string, string]
       >(),
+      hasActiveOwnerAccess: jest.fn<Promise<boolean>, [string, string]>(),
+      hasActiveMembership: jest.fn<Promise<boolean>, [string, string]>(),
     };
     const listMyPets = new ListMyPets(repository);
 

@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Body,
+  ConflictException,
   Controller,
   Get,
   HttpCode,
@@ -13,10 +14,15 @@ import {
 } from '@nestjs/common';
 import { AuthenticationGuard } from '../../../../identity/infrastructure/http/authentication/authentication.guard';
 import { CurrentAccountId } from '../../../../identity/infrastructure/http/decorators/current-account-id.decorator';
+import { PetNotFoundError } from '../../../application/errors/pet-not-found.error';
+import { GetPetDetail } from '../../../application/get-pet-detail/get-pet-detail';
 import {
-  GetPetDetail,
-  PetNotFoundError,
-} from '../../../application/get-pet-detail/get-pet-detail';
+  AlreadyPetMemberError,
+  InvalidInvitedEmailError,
+  InvitationAlreadyPendingError,
+  InviteCollaborator,
+} from '../../../application/invite-collaborator/invite-collaborator';
+import type { CreatedPetInvitation } from '../../../application/invite-collaborator/invite-collaborator.types';
 import { ListMyPets } from '../../../application/list-my-pets/list-my-pets';
 import type {
   AccessiblePetSummary,
@@ -35,6 +41,10 @@ import {
   type RegisterPetRequest,
 } from '../schemas/register-pet.schema';
 import { petIdSchema } from '../schemas/get-pet-detail.schema';
+import {
+  inviteCollaboratorSchema,
+  type InviteCollaboratorRequest,
+} from '../schemas/invite-collaborator.schema';
 
 @Controller('pets')
 export class PetsController {
@@ -42,6 +52,7 @@ export class PetsController {
     private readonly registerPet: RegisterPet,
     private readonly listMyPets: ListMyPets,
     private readonly getPetDetail: GetPetDetail,
+    private readonly inviteCollaborator: InviteCollaborator,
   ) {}
 
   @Get()
@@ -71,6 +82,73 @@ export class PetsController {
       if (error instanceof PetNotFoundError) {
         throw new NotFoundException({
           code: 'PET_NOT_FOUND',
+          message: error.message,
+        });
+      }
+
+      throw error;
+    }
+  }
+
+  @Post(':petId/invitations')
+  @UseGuards(AuthenticationGuard)
+  @HttpCode(HttpStatus.CREATED)
+  async invite(
+    @CurrentAccountId() invitedByAccountId: string,
+    @Param('petId') petId: string,
+    @Body() body: unknown,
+  ): Promise<CreatedPetInvitation> {
+    const petIdResult = petIdSchema.safeParse(petId);
+
+    if (!petIdResult.success) {
+      throw new BadRequestException({
+        code: 'INVALID_REQUEST',
+        message: 'Pet id is invalid',
+      });
+    }
+
+    const bodyResult = inviteCollaboratorSchema.safeParse(body);
+
+    if (!bodyResult.success) {
+      throw new BadRequestException({
+        code: 'INVALID_REQUEST',
+        message: 'Request body is invalid',
+      });
+    }
+
+    const request: InviteCollaboratorRequest = bodyResult.data;
+
+    try {
+      return await this.inviteCollaborator.execute({
+        petId: petIdResult.data,
+        invitedByAccountId,
+        email: request.email,
+      });
+    } catch (error: unknown) {
+      if (error instanceof PetNotFoundError) {
+        throw new NotFoundException({
+          code: 'PET_NOT_FOUND',
+          message: error.message,
+        });
+      }
+
+      if (error instanceof InvalidInvitedEmailError) {
+        throw new UnprocessableEntityException({
+          code: 'INVALID_EMAIL',
+          message: error.message,
+        });
+      }
+
+      if (error instanceof AlreadyPetMemberError) {
+        throw new ConflictException({
+          code: 'ALREADY_PET_MEMBER',
+          message: error.message,
+        });
+      }
+
+      if (error instanceof InvitationAlreadyPendingError) {
+        throw new ConflictException({
+          code: 'INVITATION_ALREADY_PENDING',
           message: error.message,
         });
       }

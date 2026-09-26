@@ -1,8 +1,17 @@
 import { Module } from '@nestjs/common';
 import { DatabaseModule } from '../../infrastructure/database/database.module';
 import { IdentityModule } from '../../identity/infrastructure/identity.module';
+import {
+  ACCOUNT_LOOKUP,
+  type AccountLookup,
+} from '../application/identity/account-lookup';
 import { GetPetDetail } from '../application/get-pet-detail/get-pet-detail';
+import { InviteCollaborator } from '../application/invite-collaborator/invite-collaborator';
 import { ListMyPets } from '../application/list-my-pets/list-my-pets';
+import {
+  PET_INVITATION_REPOSITORY,
+  type PetInvitationRepository,
+} from '../application/persistence/pet-invitation.repository';
 import {
   PET_QUERY_REPOSITORY,
   type PetQueryRepository,
@@ -12,8 +21,10 @@ import {
   type PetRepository,
 } from '../application/persistence/pet.repository';
 import { RegisterPet } from '../application/register-pet/register-pet';
+import { CLOCK, type Clock } from '../application/time/clock';
 import { PetsController } from './http/controllers/pets.controller';
 import { DrizzlePetQueryRepository } from './persistence/drizzle/drizzle-pet-query.repository';
+import { DrizzlePetInvitationRepository } from './persistence/drizzle/drizzle-pet-invitation.repository';
 import { DrizzlePetRepository } from './persistence/drizzle/drizzle-pet.repository';
 
 @Module({
@@ -21,6 +32,15 @@ import { DrizzlePetRepository } from './persistence/drizzle/drizzle-pet.reposito
   controllers: [PetsController],
   providers: [
     DrizzlePetQueryRepository,
+    DrizzlePetInvitationRepository,
+    {
+      provide: PET_INVITATION_REPOSITORY,
+      useExisting: DrizzlePetInvitationRepository,
+    },
+    {
+      provide: CLOCK,
+      useFactory: (): Clock => ({ now: (): Date => new Date() }),
+    },
     {
       provide: PET_QUERY_REPOSITORY,
       useExisting: DrizzlePetQueryRepository,
@@ -36,6 +56,27 @@ import { DrizzlePetRepository } from './persistence/drizzle/drizzle-pet.reposito
       inject: [PET_QUERY_REPOSITORY],
       useFactory: (petQueryRepository: PetQueryRepository): GetPetDetail =>
         new GetPetDetail(petQueryRepository),
+    },
+    {
+      provide: InviteCollaborator,
+      inject: [
+        PET_QUERY_REPOSITORY,
+        ACCOUNT_LOOKUP,
+        PET_INVITATION_REPOSITORY,
+        CLOCK,
+      ],
+      useFactory: (
+        petQueryRepository: PetQueryRepository,
+        accountLookup: AccountLookup,
+        petInvitationRepository: PetInvitationRepository,
+        clock: Clock,
+      ): InviteCollaborator =>
+        new InviteCollaborator(
+          petQueryRepository,
+          accountLookup,
+          petInvitationRepository,
+          clock,
+        ),
     },
     DrizzlePetRepository,
     {

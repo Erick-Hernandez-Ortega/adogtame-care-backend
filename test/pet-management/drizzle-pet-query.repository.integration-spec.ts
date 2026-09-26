@@ -219,6 +219,34 @@ describe('DrizzlePetQueryRepository (integration)', () => {
       await expect(
         repository.findAccessibleDetailById(randomUUID(), accountAId),
       ).resolves.toBeNull();
+
+      await expect(
+        repository.hasActiveOwnerAccess(pet1Id, accountAId),
+      ).resolves.toBe(true);
+      for (const inaccessiblePetId of [
+        pet2Id,
+        pet3Id,
+        pet4Id,
+        pet5Id,
+        randomUUID(),
+      ]) {
+        await expect(
+          repository.hasActiveOwnerAccess(inaccessiblePetId, accountAId),
+        ).resolves.toBe(false);
+      }
+
+      await expect(
+        repository.hasActiveMembership(pet1Id, accountAId),
+      ).resolves.toBe(true);
+      await expect(
+        repository.hasActiveMembership(pet2Id, accountAId),
+      ).resolves.toBe(true);
+      await expect(
+        repository.hasActiveMembership(pet3Id, accountAId),
+      ).resolves.toBe(false);
+      await expect(
+        repository.hasActiveMembership(pet5Id, accountAId),
+      ).resolves.toBe(false);
     } finally {
       await databaseService.connection
         .delete(petMemberships)

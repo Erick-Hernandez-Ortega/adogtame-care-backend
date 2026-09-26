@@ -1,7 +1,7 @@
 import { BirthInformation } from '../birth-information/birth-information';
 import { Breed } from '../breed/breed';
 import { AccountId, PetMembership } from '../pet-membership/pet-membership';
-import { generateUuid } from '../shared/uuid';
+import { generateUuid, isValidUuid } from '../shared/uuid';
 import type {
   PetProperties,
   PetSex as PetSexType,
@@ -31,6 +31,16 @@ export class PetId {
 
   static generate(): PetId {
     return new PetId(generateUuid());
+  }
+
+  static from(value: string): PetId {
+    const normalizedValue: string = value.toLowerCase();
+
+    if (!isValidUuid(normalizedValue)) {
+      throw new TypeError('Pet ID must be a valid non-nil UUID');
+    }
+
+    return new PetId(normalizedValue);
   }
 }
 

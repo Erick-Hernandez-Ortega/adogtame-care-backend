@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { DatabaseModule } from '../../infrastructure/database/database.module';
+import { ACCOUNT_LOOKUP } from '../../pet-management/application/identity/account-lookup';
 import type { EnvironmentVariables } from '../../infrastructure/config/environment.validation';
 import { AuthenticateAccount } from '../application/authenticate-account/authenticate-account';
 import {
@@ -24,6 +25,7 @@ import { AuthenticationGuard } from './http/authentication/authentication.guard'
 import { AccountsController } from './http/controllers/accounts.controller';
 import { AuthController } from './http/controllers/auth.controller';
 import { DrizzleAccountRepository } from './persistence/drizzle/drizzle-account.repository';
+import { DrizzleAccountLookup } from './persistence/drizzle/drizzle-account-lookup';
 import { Argon2idPasswordHasher } from './security/argon2id-password-hasher';
 import { JoseAccessTokenIssuer } from './security/jose-access-token-issuer';
 import { JoseAccessTokenVerifier } from './security/jose-access-token-verifier';
@@ -33,6 +35,11 @@ import { JoseAccessTokenVerifier } from './security/jose-access-token-verifier';
   controllers: [AccountsController, AuthController],
   providers: [
     DrizzleAccountRepository,
+    DrizzleAccountLookup,
+    {
+      provide: ACCOUNT_LOOKUP,
+      useExisting: DrizzleAccountLookup,
+    },
     Argon2idPasswordHasher,
     {
       provide: ACCOUNT_REPOSITORY,
@@ -90,6 +97,11 @@ import { JoseAccessTokenVerifier } from './security/jose-access-token-verifier';
         ),
     },
   ],
-  exports: [AuthenticationGuard, ACCOUNT_REPOSITORY, ACCESS_TOKEN_VERIFIER],
+  exports: [
+    AuthenticationGuard,
+    ACCOUNT_REPOSITORY,
+    ACCOUNT_LOOKUP,
+    ACCESS_TOKEN_VERIFIER,
+  ],
 })
 export class IdentityModule {}

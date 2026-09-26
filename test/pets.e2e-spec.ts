@@ -1,6 +1,6 @@
 import { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
 import request from 'supertest';
 import { App } from 'supertest/types';
@@ -12,7 +12,9 @@ import type {
   PetDetail,
 } from '../src/pet-management/application/persistence/pet-query.repository';
 import type { RegisteredPet } from '../src/pet-management/application/register-pet/register-pet.types';
+import type { CreatedPetInvitation } from '../src/pet-management/application/invite-collaborator/invite-collaborator.types';
 import {
+  petInvitations,
   petMemberships,
   pets,
 } from '../src/pet-management/infrastructure/persistence/drizzle/pet-management.schema';
@@ -591,6 +593,228 @@ describe('GET /pets/:petId (e2e)', () => {
       await databaseService.connection
         .delete(accounts)
         .where(eq(accounts.id, account.accountId));
+    }
+  });
+});
+
+describe('POST /pets/:petId/invitations (e2e)', () => {
+  let application: INestApplication<App>;
+  let databaseService: DatabaseService;
+
+  beforeAll(async () => {
+    const moduleFixture: TestingModule = await Test.createTestingModule({
+      imports: [AppModule],
+    }).compile();
+
+    application = moduleFixture.createNestApplication();
+    await application.init();
+    databaseService = application.get(DatabaseService);
+  });
+
+  afterAll(async () => {
+    await application.close();
+  });
+
+  it('creates an invitation only for the active owner and enforces public errors', async () => {
+    const owner: AuthenticatedAccountFixture = await registerAndAuthenticate(
+      application,
+      'invite-owner',
+    );
+    const collaborator: AuthenticatedAccountFixture =
+      await registerAndAuthenticate(application, 'invite-collaborator');
+    const outsider: AuthenticatedAccountFixture = await registerAndAuthenticate(
+      application,
+      'invite-outsider',
+    );
+    let petId: string | undefined;
+
+    try {
+      const petResponse = await request(application.getHttpServer())
+        .post('/pets')
+        .set('Authorization', `Bearer ${owner.accessToken}`)
+        .send(validPetRequest())
+        .expect(201);
+      petId = (petResponse.body as RegisteredPet).id;
+
+      await databaseService.connection.insert(petMemberships).values({
+        id: randomUUID(),
+        petId,
+        accountId: collaborator.accountId,
+        role: 'COLLABORATOR',
+        status: 'ACTIVE',
+      });
+
+      const invitedEmail: string = `new-${randomUUID()}@example.com`;
+      const response = await request(application.getHttpServer())
+        .post(`/pets/${petId}/invitations`)
+        .set('Authorization', `Bearer ${owner.accessToken}`)
+        .send({ email: `  ${invitedEmail.toUpperCase()}  ` })
+        .expect(201);
+      const invitation: CreatedPetInvitation =
+        response.body as CreatedPetInvitation;
+      expect(invitation).toEqual({
+        id: expect.any(String) as string,
+        petId,
+        email: invitedEmail,
+        status: 'PENDING',
+        createdAt: expect.any(String) as string,
+        expiresAt: expect.any(String) as string,
+      });
+      expect(
+        new Date(invitation.expiresAt).getTime() -
+          new Date(invitation.createdAt).getTime(),
+      ).toBe(604_800_000);
+
+      const saved = await databaseService.connection
+        .select()
+        .from(petInvitations)
+        .where(eq(petInvitations.id, invitation.id));
+      expect(saved).toHaveLength(1);
+      expect(saved[0]).toMatchObject({
+        petId,
+        invitedEmail,
+        invitedByAccountId: owner.accountId,
+        status: 'PENDING',
+      });
+
+      const duplicateResponse = await request(application.getHttpServer())
+        .post(`/pets/${petId}/invitations`)
+        .set('Authorization', `Bearer ${owner.accessToken}`)
+        .send({ email: invitedEmail })
+        .expect(409);
+      expect(duplicateResponse.body).toEqual({
+        code: 'INVITATION_ALREADY_PENDING',
+        message: 'An invitation is already pending for this email',
+      });
+
+      for (const memberEmail of [owner.email, collaborator.email]) {
+        const memberResponse = await request(application.getHttpServer())
+          .post(`/pets/${petId}/invitations`)
+          .set('Authorization', `Bearer ${owner.accessToken}`)
+          .send({ email: memberEmail })
+          .expect(409);
+        expect(memberResponse.body).toEqual({
+          code: 'ALREADY_PET_MEMBER',
+          message: 'Account is already a member of this pet',
+        });
+      }
+
+      const outsiderResponse = await request(application.getHttpServer())
+        .post(`/pets/${petId}/invitations`)
+        .set('Authorization', `Bearer ${outsider.accessToken}`)
+        .send({ email: invitedEmail })
+        .expect(404);
+      expect(outsiderResponse.body).toEqual({
+        code: 'PET_NOT_FOUND',
+        message: 'Pet was not found',
+      });
+
+      const collaboratorResponse = await request(application.getHttpServer())
+        .post(`/pets/${petId}/invitations`)
+        .set('Authorization', `Bearer ${collaborator.accessToken}`)
+        .send({ email: invitedEmail })
+        .expect(404);
+      expect(collaboratorResponse.body).toEqual(outsiderResponse.body);
+
+      const unauthenticatedResponse = await request(application.getHttpServer())
+        .post(`/pets/${petId}/invitations`)
+        .send({ email: invitedEmail })
+        .expect(401);
+      expect(unauthenticatedResponse.body).toEqual({
+        code: 'UNAUTHENTICATED',
+        message: 'Authentication is required',
+      });
+
+      const invalidPathResponse = await request(application.getHttpServer())
+        .post('/pets/not-a-uuid/invitations')
+        .set('Authorization', `Bearer ${owner.accessToken}`)
+        .send({ email: invitedEmail })
+        .expect(400);
+      expect(invalidPathResponse.body).toEqual({
+        code: 'INVALID_REQUEST',
+        message: 'Pet id is invalid',
+      });
+
+      const invalidBodyResponse = await request(application.getHttpServer())
+        .post(`/pets/${petId}/invitations`)
+        .set('Authorization', `Bearer ${owner.accessToken}`)
+        .send({ email: invitedEmail, role: 'OWNER' })
+        .expect(400);
+      expect(invalidBodyResponse.body).toEqual({
+        code: 'INVALID_REQUEST',
+        message: 'Request body is invalid',
+      });
+
+      const invalidEmailResponse = await request(application.getHttpServer())
+        .post(`/pets/${petId}/invitations`)
+        .set('Authorization', `Bearer ${owner.accessToken}`)
+        .send({ email: 'invalid' })
+        .expect(422);
+      expect(invalidEmailResponse.body).toEqual({
+        code: 'INVALID_EMAIL',
+        message: 'Email format is invalid',
+      });
+
+      const missingPetResponse = await request(application.getHttpServer())
+        .post(`/pets/${randomUUID()}/invitations`)
+        .set('Authorization', `Bearer ${owner.accessToken}`)
+        .send({ email: invitedEmail })
+        .expect(404);
+      expect(missingPetResponse.body).toEqual(outsiderResponse.body);
+
+      await databaseService.connection
+        .update(pets)
+        .set({ status: 'ARCHIVED' })
+        .where(eq(pets.id, petId));
+      const archivedPetResponse = await request(application.getHttpServer())
+        .post(`/pets/${petId}/invitations`)
+        .set('Authorization', `Bearer ${owner.accessToken}`)
+        .send({ email: invitedEmail })
+        .expect(404);
+      expect(archivedPetResponse.body).toEqual(outsiderResponse.body);
+
+      await databaseService.connection
+        .update(pets)
+        .set({ status: 'ACTIVE' })
+        .where(eq(pets.id, petId));
+      await databaseService.connection.insert(petMemberships).values({
+        id: randomUUID(),
+        petId,
+        accountId: outsider.accountId,
+        role: 'OWNER',
+        status: 'ACTIVE',
+      });
+      await databaseService.connection
+        .update(petMemberships)
+        .set({ status: 'INACTIVE' })
+        .where(
+          and(
+            eq(petMemberships.petId, petId),
+            eq(petMemberships.accountId, owner.accountId),
+          ),
+        );
+      const inactiveOwnerResponse = await request(application.getHttpServer())
+        .post(`/pets/${petId}/invitations`)
+        .set('Authorization', `Bearer ${owner.accessToken}`)
+        .send({ email: invitedEmail })
+        .expect(404);
+      expect(inactiveOwnerResponse.body).toEqual(outsiderResponse.body);
+    } finally {
+      if (petId !== undefined) {
+        await databaseService.connection
+          .delete(petInvitations)
+          .where(eq(petInvitations.petId, petId));
+        await databaseService.connection
+          .delete(petMemberships)
+          .where(eq(petMemberships.petId, petId));
+        await databaseService.connection.delete(pets).where(eq(pets.id, petId));
+      }
+
+      for (const account of [owner, collaborator, outsider]) {
+        await databaseService.connection
+          .delete(accounts)
+          .where(eq(accounts.id, account.accountId));
+      }
     }
   });
 });

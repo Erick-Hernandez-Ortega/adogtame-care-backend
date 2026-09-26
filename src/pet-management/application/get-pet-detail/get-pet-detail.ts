@@ -2,13 +2,7 @@ import type {
   PetDetail,
   PetQueryRepository,
 } from '../persistence/pet-query.repository';
-
-export class PetNotFoundError extends Error {
-  constructor() {
-    super('Pet was not found');
-    this.name = 'PetNotFoundError';
-  }
-}
+import { PetNotFoundError } from '../errors/pet-not-found.error';
 
 export class GetPetDetail {
   constructor(private readonly petQueryRepository: PetQueryRepository) {}
