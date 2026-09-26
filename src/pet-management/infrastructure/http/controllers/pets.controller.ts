@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Get,
   HttpCode,
   HttpStatus,
   Post,
@@ -10,6 +11,8 @@ import {
 } from '@nestjs/common';
 import { AuthenticationGuard } from '../../../../identity/infrastructure/http/authentication/authentication.guard';
 import { CurrentAccountId } from '../../../../identity/infrastructure/http/decorators/current-account-id.decorator';
+import { ListMyPets } from '../../../application/list-my-pets/list-my-pets';
+import type { AccessiblePetSummary } from '../../../application/persistence/pet-query.repository';
 import {
   InvalidPetRegistrationError,
   RegisterPet,
@@ -25,7 +28,16 @@ import {
 
 @Controller('pets')
 export class PetsController {
-  constructor(private readonly registerPet: RegisterPet) {}
+  constructor(
+    private readonly registerPet: RegisterPet,
+    private readonly listMyPets: ListMyPets,
+  ) {}
+
+  @Get()
+  @UseGuards(AuthenticationGuard)
+  list(@CurrentAccountId() accountId: string): Promise<AccessiblePetSummary[]> {
+    return this.listMyPets.execute(accountId);
+  }
 
   @Post()
   @UseGuards(AuthenticationGuard)

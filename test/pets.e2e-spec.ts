@@ -7,6 +7,7 @@ import { App } from 'supertest/types';
 import { AppModule } from '../src/app.module';
 import { accounts } from '../src/identity/infrastructure/persistence/drizzle/identity.schema';
 import { DatabaseService } from '../src/infrastructure/database/database.service';
+import type { AccessiblePetSummary } from '../src/pet-management/application/persistence/pet-query.repository';
 import type { RegisteredPet } from '../src/pet-management/application/register-pet/register-pet.types';
 import {
   petMemberships,
@@ -225,5 +226,157 @@ describe('POST /pets (e2e)', () => {
         .delete(accounts)
         .where(eq(accounts.email, fixture.email));
     }
+  });
+});
+
+describe('GET /pets (e2e)', () => {
+  let application: INestApplication<App>;
+  let databaseService: DatabaseService;
+
+  beforeAll(async () => {
+    const moduleFixture: TestingModule = await Test.createTestingModule({
+      imports: [AppModule],
+    }).compile();
+
+    application = moduleFixture.createNestApplication();
+    await application.init();
+    databaseService = application.get(DatabaseService);
+  });
+
+  afterAll(async () => {
+    await application.close();
+  });
+
+  it('lists only the authenticated account active pets in name order', async () => {
+    const accountA: AuthenticatedAccountFixture = await registerAndAuthenticate(
+      application,
+      'list-owner-a',
+    );
+    const accountB: AuthenticatedAccountFixture = await registerAndAuthenticate(
+      application,
+      'list-owner-b',
+    );
+    const createdPetIds: string[] = [];
+
+    try {
+      for (const name of ['Rocky', 'Luna']) {
+        const response = await request(application.getHttpServer())
+          .post('/pets')
+          .set('Authorization', `Bearer ${accountA.accessToken}`)
+          .send({ ...validPetRequest(), name })
+          .expect(201);
+        const pet: RegisteredPet = response.body as RegisteredPet;
+        createdPetIds.push(pet.id);
+      }
+
+      const response = await request(application.getHttpServer())
+        .get('/pets')
+        .set('Authorization', `Bearer ${accountA.accessToken}`)
+        .expect(200);
+      const summaries: AccessiblePetSummary[] =
+        response.body as AccessiblePetSummary[];
+
+      expect(summaries).toEqual([
+        {
+          id: createdPetIds[1],
+          name: 'Luna',
+          species: 'DOG',
+          breed: { name: 'Labrador Retriever', kind: 'KNOWN' },
+          sex: 'FEMALE',
+          role: 'OWNER',
+        },
+        {
+          id: createdPetIds[0],
+          name: 'Rocky',
+          species: 'DOG',
+          breed: { name: 'Labrador Retriever', kind: 'KNOWN' },
+          sex: 'FEMALE',
+          role: 'OWNER',
+        },
+      ]);
+
+      const ignoredAccountIdResponse = await request(
+        application.getHttpServer(),
+      )
+        .get('/pets')
+        .query({ accountId: accountB.accountId })
+        .set('Authorization', `Bearer ${accountA.accessToken}`)
+        .expect(200);
+      expect(ignoredAccountIdResponse.body).toEqual(summaries);
+
+      const otherAccountResponse = await request(application.getHttpServer())
+        .get('/pets')
+        .set('Authorization', `Bearer ${accountB.accessToken}`)
+        .expect(200);
+      expect(otherAccountResponse.body).toEqual([]);
+
+      await databaseService.connection
+        .update(pets)
+        .set({ status: 'ARCHIVED' })
+        .where(eq(pets.id, createdPetIds[0]));
+
+      const activeResponse = await request(application.getHttpServer())
+        .get('/pets')
+        .set('Authorization', `Bearer ${accountA.accessToken}`)
+        .expect(200);
+      expect(activeResponse.body).toEqual([summaries[0]]);
+    } finally {
+      for (const petId of createdPetIds) {
+        await databaseService.connection
+          .delete(petMemberships)
+          .where(eq(petMemberships.petId, petId));
+        await databaseService.connection.delete(pets).where(eq(pets.id, petId));
+      }
+
+      await databaseService.connection
+        .delete(accounts)
+        .where(eq(accounts.id, accountA.accountId));
+      await databaseService.connection
+        .delete(accounts)
+        .where(eq(accounts.id, accountB.accountId));
+    }
+  });
+
+  it('returns an empty list for an authenticated account without pets', async () => {
+    const fixture: AuthenticatedAccountFixture = await registerAndAuthenticate(
+      application,
+      'list-empty',
+    );
+
+    try {
+      const response = await request(application.getHttpServer())
+        .get('/pets')
+        .set('Authorization', `Bearer ${fixture.accessToken}`)
+        .expect(200);
+
+      expect(response.body).toEqual([]);
+    } finally {
+      await databaseService.connection
+        .delete(accounts)
+        .where(eq(accounts.id, fixture.accountId));
+    }
+  });
+
+  it('returns unauthenticated without Authorization', async () => {
+    const response = await request(application.getHttpServer())
+      .get('/pets')
+      .expect(401);
+
+    expect(response.body).toEqual({
+      code: 'UNAUTHENTICATED',
+      message: 'Authentication is required',
+    });
+  });
+
+  it('returns unauthenticated for an invalid JWT', async () => {
+    const response = await request(application.getHttpServer())
+      .get('/pets')
+      .set('Authorization', 'Bearer invalid-token')
+      .expect(401);
+
+    expect(response.body).toEqual({
+      code: 'UNAUTHENTICATED',
+      message: 'Authentication is required',
+    });
   });
 });
