@@ -31,6 +31,7 @@ export class DrizzlePetRepository implements PetRepository {
           petId: pet.id.value,
           accountId: membership.accountId.value,
           role: membership.role,
+          status: membership.status,
         })),
       );
     });

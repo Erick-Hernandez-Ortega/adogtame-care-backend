@@ -1,10 +1,18 @@
 import { generateUuid, isValidUuid } from '../shared/uuid';
-import type { PetMembershipRole as PetMembershipRoleType } from './pet-membership.types';
+import type {
+  PetMembershipRole as PetMembershipRoleType,
+  PetMembershipStatus as PetMembershipStatusType,
+} from './pet-membership.types';
 
 export const PetMembershipRole = {
   OWNER: 'OWNER',
   COLLABORATOR: 'COLLABORATOR',
 } as const satisfies Record<string, PetMembershipRoleType>;
+
+export const PetMembershipStatus = {
+  ACTIVE: 'ACTIVE',
+  INACTIVE: 'INACTIVE',
+} as const satisfies Record<string, PetMembershipStatusType>;
 
 export class MembershipId {
   private constructor(readonly value: string) {}
@@ -33,6 +41,7 @@ export class PetMembership {
     readonly id: MembershipId,
     readonly accountId: AccountId,
     readonly role: PetMembershipRoleType,
+    readonly status: PetMembershipStatusType,
   ) {}
 
   static createInitialOwner(accountId: AccountId): PetMembership {
@@ -40,6 +49,7 @@ export class PetMembership {
       MembershipId.generate(),
       accountId,
       PetMembershipRole.OWNER,
+      PetMembershipStatus.ACTIVE,
     );
   }
 }

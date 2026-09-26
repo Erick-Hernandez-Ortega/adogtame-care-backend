@@ -83,6 +83,7 @@ describe('DrizzlePetRepository (integration)', () => {
           petId: pet.id.value,
           accountId: OWNER_ACCOUNT_ID,
           role: 'OWNER',
+          status: 'ACTIVE',
         },
       ]);
     } finally {
@@ -120,6 +121,7 @@ describe('DrizzlePetRepository (integration)', () => {
         petId: blockerPetId,
         accountId: OWNER_ACCOUNT_ID,
         role: 'OWNER',
+        status: 'ACTIVE',
       });
 
       await expect(repository.save(pet)).rejects.toThrow();
@@ -143,6 +145,42 @@ describe('DrizzlePetRepository (integration)', () => {
       await databaseService.connection
         .delete(pets)
         .where(eq(pets.id, blockerPetId));
+    }
+  });
+
+  it('rejects another membership for the same pet and account regardless of status', async () => {
+    const pet: Pet = createPet();
+
+    try {
+      await repository.save(pet);
+
+      await expect(
+        databaseService.connection.insert(petMemberships).values({
+          id: randomUUID(),
+          petId: pet.id.value,
+          accountId: OWNER_ACCOUNT_ID,
+          role: 'OWNER',
+          status: 'INACTIVE',
+        }),
+      ).rejects.toMatchObject({
+        cause: {
+          code: '23505',
+          constraint_name: 'pet_memberships_pet_id_account_id_unique',
+        },
+      });
+
+      const savedMemberships = await databaseService.connection
+        .select({ id: petMemberships.id })
+        .from(petMemberships)
+        .where(eq(petMemberships.petId, pet.id.value));
+      expect(savedMemberships).toEqual([{ id: pet.memberships[0].id.value }]);
+    } finally {
+      await databaseService.connection
+        .delete(petMemberships)
+        .where(eq(petMemberships.petId, pet.id.value));
+      await databaseService.connection
+        .delete(pets)
+        .where(eq(pets.id, pet.id.value));
     }
   });
 });

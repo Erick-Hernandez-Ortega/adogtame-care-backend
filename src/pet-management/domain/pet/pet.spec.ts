@@ -1,6 +1,9 @@
 import { BirthInformation } from '../birth-information/birth-information';
 import { Breed } from '../breed/breed';
-import { PetMembershipRole } from '../pet-membership/pet-membership';
+import {
+  PetMembershipRole,
+  PetMembershipStatus,
+} from '../pet-membership/pet-membership';
 import { Pet, PetSex, PetSpecies, PetStatus } from './pet';
 import type {
   PetSex as PetSexType,
@@ -67,6 +70,7 @@ describe('Pet', () => {
     expect(pet.memberships).toHaveLength(1);
     expect(pet.memberships[0]).toMatchObject({
       role: PetMembershipRole.OWNER,
+      status: PetMembershipStatus.ACTIVE,
       accountId: { value: OWNER_ACCOUNT_ID_V1 },
     });
     expect(pet.memberships[0].id.value).toMatch(UUID_PATTERN);

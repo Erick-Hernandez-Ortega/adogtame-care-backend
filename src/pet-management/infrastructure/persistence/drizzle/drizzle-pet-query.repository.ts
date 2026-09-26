@@ -9,6 +9,7 @@ import type {
 import type { BirthDateAccuracy } from '../../../domain/birth-information/birth-information.types';
 import type { BreedKind } from '../../../domain/breed/breed.types';
 import type { PetMembershipRole } from '../../../domain/pet-membership/pet-membership.types';
+import { PetMembershipStatus } from '../../../domain/pet-membership/pet-membership';
 import { PetStatus } from '../../../domain/pet/pet';
 import type {
   PetSex,
@@ -39,6 +40,7 @@ export class DrizzlePetQueryRepository implements PetQueryRepository {
       .where(
         and(
           eq(petMemberships.accountId, accountId),
+          eq(petMemberships.status, PetMembershipStatus.ACTIVE),
           eq(pets.status, PetStatus.ACTIVE),
         ),
       )
@@ -83,10 +85,10 @@ export class DrizzlePetQueryRepository implements PetQueryRepository {
         and(
           eq(pets.id, petId),
           eq(petMemberships.accountId, accountId),
+          eq(petMemberships.status, PetMembershipStatus.ACTIVE),
           eq(pets.status, PetStatus.ACTIVE),
         ),
       )
-      // One membership per pet and account is assumed until its lifecycle is modeled.
       .limit(1);
     const row = rows[0];
 

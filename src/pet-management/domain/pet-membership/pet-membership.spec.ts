@@ -1,4 +1,9 @@
-import { AccountId, PetMembership, PetMembershipRole } from './pet-membership';
+import {
+  AccountId,
+  PetMembership,
+  PetMembershipRole,
+  PetMembershipStatus,
+} from './pet-membership';
 
 const UUID_PATTERN: RegExp =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -15,6 +20,7 @@ describe('PetMembership', () => {
     expect(membership.id.value).toMatch(UUID_PATTERN);
     expect(membership.accountId).toBe(accountId);
     expect(membership.role).toBe(PetMembershipRole.OWNER);
+    expect(membership.status).toBe(PetMembershipStatus.ACTIVE);
   });
 });
 

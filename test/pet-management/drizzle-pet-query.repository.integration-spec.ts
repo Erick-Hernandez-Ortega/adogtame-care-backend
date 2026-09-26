@@ -41,7 +41,8 @@ describe('DrizzlePetQueryRepository (integration)', () => {
     const pet2Id: string = randomUUID();
     const pet3Id: string = randomUUID();
     const pet4Id: string = randomUUID();
-    const petIds: string[] = [pet1Id, pet2Id, pet3Id, pet4Id];
+    const pet5Id: string = randomUUID();
+    const petIds: string[] = [pet1Id, pet2Id, pet3Id, pet4Id, pet5Id];
 
     try {
       await databaseService.connection.insert(pets).values([
@@ -72,6 +73,17 @@ describe('DrizzlePetQueryRepository (integration)', () => {
         },
         {
           id: pet3Id,
+          name: 'Inactive membership',
+          species: 'DOG',
+          breedName: 'Mixed',
+          breedKind: 'CUSTOM',
+          sex: 'UNKNOWN',
+          birthDate: '2019-01-01',
+          birthDateAccuracy: 'APPROXIMATE',
+          status: 'ACTIVE',
+        },
+        {
+          id: pet4Id,
           name: 'Archived',
           species: 'DOG',
           breedName: 'Mixed',
@@ -82,7 +94,7 @@ describe('DrizzlePetQueryRepository (integration)', () => {
           status: 'ARCHIVED',
         },
         {
-          id: pet4Id,
+          id: pet5Id,
           name: 'Other account',
           species: 'CAT',
           breedName: 'Domestic Shorthair',
@@ -99,30 +111,42 @@ describe('DrizzlePetQueryRepository (integration)', () => {
           petId: pet1Id,
           accountId: accountAId,
           role: 'OWNER',
+          status: 'ACTIVE',
         },
         {
           id: randomUUID(),
           petId: pet2Id,
           accountId: otherOwnerId,
           role: 'OWNER',
+          status: 'ACTIVE',
         },
         {
           id: randomUUID(),
           petId: pet2Id,
           accountId: accountAId,
           role: 'COLLABORATOR',
+          status: 'ACTIVE',
         },
         {
           id: randomUUID(),
           petId: pet3Id,
           accountId: accountAId,
           role: 'OWNER',
+          status: 'INACTIVE',
         },
         {
           id: randomUUID(),
           petId: pet4Id,
+          accountId: accountAId,
+          role: 'OWNER',
+          status: 'ACTIVE',
+        },
+        {
+          id: randomUUID(),
+          petId: pet5Id,
           accountId: accountBId,
           role: 'OWNER',
+          status: 'ACTIVE',
         },
       ]);
 
@@ -190,6 +214,9 @@ describe('DrizzlePetQueryRepository (integration)', () => {
         repository.findAccessibleDetailById(pet4Id, accountAId),
       ).resolves.toBeNull();
       await expect(
+        repository.findAccessibleDetailById(pet5Id, accountAId),
+      ).resolves.toBeNull();
+      await expect(
         repository.findAccessibleDetailById(randomUUID(), accountAId),
       ).resolves.toBeNull();
     } finally {
@@ -229,6 +256,7 @@ describe('DrizzlePetQueryRepository (integration)', () => {
           petId,
           accountId,
           role: 'OWNER',
+          status: 'ACTIVE',
         })),
       );
 

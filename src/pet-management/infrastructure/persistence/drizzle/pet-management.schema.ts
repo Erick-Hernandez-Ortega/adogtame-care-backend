@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { check, date, pgTable, text, uuid } from 'drizzle-orm/pg-core';
+import { check, date, pgTable, text, unique, uuid } from 'drizzle-orm/pg-core';
 
 export const pets = pgTable(
   'pets',
@@ -61,11 +61,20 @@ export const petMemberships = pgTable(
       .references(() => pets.id, { onDelete: 'restrict' }),
     accountId: uuid('account_id').notNull(),
     role: text('role').notNull(),
+    status: text('status').notNull(),
   },
   (table) => [
     check(
       'pet_memberships_role_supported',
       sql`${table.role} in ('OWNER', 'COLLABORATOR')`,
+    ),
+    check(
+      'pet_memberships_status_supported',
+      sql`${table.status} in ('ACTIVE', 'INACTIVE')`,
+    ),
+    unique('pet_memberships_pet_id_account_id_unique').on(
+      table.petId,
+      table.accountId,
     ),
   ],
 );

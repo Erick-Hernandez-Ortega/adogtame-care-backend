@@ -115,12 +115,13 @@ describe('POST /pets (e2e)', () => {
         .select({
           accountId: petMemberships.accountId,
           role: petMemberships.role,
+          status: petMemberships.status,
         })
         .from(petMemberships)
         .where(eq(petMemberships.petId, body.id));
 
       expect(savedMemberships).toEqual([
-        { accountId: fixture.accountId, role: 'OWNER' },
+        { accountId: fixture.accountId, role: 'OWNER', status: 'ACTIVE' },
       ]);
     } finally {
       if (petId !== undefined) {
@@ -486,6 +487,73 @@ describe('GET /pets/:petId (e2e)', () => {
       await databaseService.connection
         .delete(accounts)
         .where(eq(accounts.id, accountB.accountId));
+    }
+  });
+
+  it('excludes a pet after its membership becomes inactive', async () => {
+    const account: AuthenticatedAccountFixture = await registerAndAuthenticate(
+      application,
+      'detail-inactive',
+    );
+    let petId: string | undefined;
+
+    try {
+      const registrationResponse = await request(application.getHttpServer())
+        .post('/pets')
+        .set('Authorization', `Bearer ${account.accessToken}`)
+        .send(validPetRequest())
+        .expect(201);
+      const registeredPet: RegisteredPet =
+        registrationResponse.body as RegisteredPet;
+      petId = registeredPet.id;
+
+      const activeListResponse = await request(application.getHttpServer())
+        .get('/pets')
+        .set('Authorization', `Bearer ${account.accessToken}`)
+        .expect(200);
+      const activeSummaries: AccessiblePetSummary[] =
+        activeListResponse.body as AccessiblePetSummary[];
+      expect(activeSummaries.map((summary) => summary.id)).toEqual([petId]);
+
+      const activeDetailResponse = await request(application.getHttpServer())
+        .get(`/pets/${petId}`)
+        .set('Authorization', `Bearer ${account.accessToken}`)
+        .expect(200);
+      expect(activeDetailResponse.body).toMatchObject({
+        id: petId,
+        role: 'OWNER',
+      });
+
+      await databaseService.connection
+        .update(petMemberships)
+        .set({ status: 'INACTIVE' })
+        .where(eq(petMemberships.petId, petId));
+
+      const inactiveListResponse = await request(application.getHttpServer())
+        .get('/pets')
+        .set('Authorization', `Bearer ${account.accessToken}`)
+        .expect(200);
+      expect(inactiveListResponse.body).toEqual([]);
+
+      const inactiveDetailResponse = await request(application.getHttpServer())
+        .get(`/pets/${petId}`)
+        .set('Authorization', `Bearer ${account.accessToken}`)
+        .expect(404);
+      expect(inactiveDetailResponse.body).toEqual({
+        code: 'PET_NOT_FOUND',
+        message: 'Pet was not found',
+      });
+    } finally {
+      if (petId !== undefined) {
+        await databaseService.connection
+          .delete(petMemberships)
+          .where(eq(petMemberships.petId, petId));
+        await databaseService.connection.delete(pets).where(eq(pets.id, petId));
+      }
+
+      await databaseService.connection
+        .delete(accounts)
+        .where(eq(accounts.id, account.accountId));
     }
   });
 
