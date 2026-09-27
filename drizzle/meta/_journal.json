@@ -50,6 +50,13 @@
       "when": 1790475908015,
       "tag": "0006_nasty_stingray",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1790537198845,
+      "tag": "0007_glossy_korath",
+      "breakpoints": true
     }
   ]
 }

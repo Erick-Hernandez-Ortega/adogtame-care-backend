@@ -2,6 +2,7 @@ import { sql } from 'drizzle-orm';
 import {
   check,
   date,
+  index,
   numeric,
   pgTable,
   timestamp,
@@ -30,6 +31,12 @@ export const healthWeightRecords = pgTable(
       .defaultNow(),
   },
   (table) => [
+    index('health_weight_records_pet_history_idx').on(
+      table.petId,
+      table.measuredDate.desc(),
+      table.createdAt.desc(),
+      table.id.desc(),
+    ),
     check(
       'health_weight_records_weight_kg_valid',
       sql`${table.weightKg} > 0 and ${table.weightKg} < 'Infinity'::numeric and scale(${table.weightKg}) <= 4`,

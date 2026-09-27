@@ -25,3 +25,24 @@ export const recordedPetWeightResponseSchema: SchemaObject = {
     recordedByAccountId: '9b4a221a-e6ad-41ab-b1b2-21230b8b65a4',
   },
 };
+
+export const petWeightHistoryResponseSchema: SchemaObject = {
+  type: 'object',
+  required: ['items', 'nextCursor'],
+  properties: {
+    items: {
+      type: 'array',
+      items: {
+        type: 'object',
+        required: ['id', 'weightKg', 'measuredDate', 'recordedByAccountId'],
+        properties: {
+          id: { type: 'string', format: 'uuid' },
+          weightKg: { type: 'string', example: '12.34' },
+          measuredDate: { type: 'string', format: 'date' },
+          recordedByAccountId: { type: 'string', format: 'uuid' },
+        },
+      },
+    },
+    nextCursor: { type: 'string', nullable: true },
+  },
+};

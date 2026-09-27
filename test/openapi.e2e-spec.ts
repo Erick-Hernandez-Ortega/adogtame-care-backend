@@ -38,7 +38,7 @@ describe('OpenAPI documentation (e2e)', () => {
     await application.close();
   });
 
-  it('serves Swagger UI and documents all twelve routes and their contracts', async () => {
+  it('serves Swagger UI and documents all thirteen routes and their contracts', async () => {
     const htmlResponse = await request(application.getHttpServer())
       .get('/docs')
       .expect(200);
@@ -59,6 +59,7 @@ describe('OpenAPI documentation (e2e)', () => {
       ['/pets/{petId}/invitations', 'post'],
       ['/pets/{petId}/leave', 'post'],
       ['/pets/{petId}/health/weight-records', 'post'],
+      ['/pets/{petId}/health/weight-records', 'get'],
       ['/pet-invitations/{invitationId}/accept', 'post'],
       ['/pet-invitations/{invitationId}/reject', 'post'],
       ['/pet-invitations/{invitationId}/cancel', 'post'],
@@ -75,7 +76,7 @@ describe('OpenAPI documentation (e2e)', () => {
           count + Number(Boolean(path?.get)) + Number(Boolean(path?.post)),
         0,
       ),
-    ).toBe(12);
+    ).toBe(13);
 
     expect(document.components?.securitySchemes?.bearer).toMatchObject({
       type: 'http',
@@ -100,6 +101,8 @@ describe('OpenAPI documentation (e2e)', () => {
     const invite = document.paths['/pets/{petId}/invitations']?.post;
     const leave = document.paths['/pets/{petId}/leave']?.post;
     const weight = document.paths['/pets/{petId}/health/weight-records']?.post;
+    const weightHistory =
+      document.paths['/pets/{petId}/health/weight-records']?.get;
     const accept =
       document.paths['/pet-invitations/{invitationId}/accept']?.post;
     const reject =
@@ -140,11 +143,12 @@ describe('OpenAPI documentation (e2e)', () => {
       accept,
       leave,
       weight,
+      weightHistory,
     ]) {
       expect(operation?.responses['401']).toBeDefined();
     }
 
-    for (const operation of [detail, invite, leave, weight]) {
+    for (const operation of [detail, invite, leave, weight, weightHistory]) {
       expect(operation?.parameters).toEqual(
         expect.arrayContaining([
           expect.objectContaining({
@@ -189,6 +193,36 @@ describe('OpenAPI documentation (e2e)', () => {
       ],
     });
     expect(weight?.responses['404']).toBeDefined();
+    expect(weightHistory?.requestBody).toBeUndefined();
+    expect(responseSchema(weightHistory, '200')?.required).toEqual([
+      'items',
+      'nextCursor',
+    ]);
+    expect(
+      responseSchema(weightHistory, '200')?.properties?.items,
+    ).toMatchObject({
+      type: 'array',
+      items: {
+        required: ['id', 'weightKg', 'measuredDate', 'recordedByAccountId'],
+      },
+    });
+    expect(weightHistory?.parameters).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: 'limit',
+          in: 'query',
+          required: false,
+        }) as object,
+        expect.objectContaining({
+          name: 'cursor',
+          in: 'query',
+          required: false,
+        }) as object,
+      ]),
+    );
+    for (const status of ['400', '401', '404']) {
+      expect(weightHistory?.responses[status]).toBeDefined();
+    }
     expect(responseSchema(weight, '400')?.oneOf).toMatchObject([
       { properties: { code: { enum: ['INVALID_REQUEST'] } } },
       { properties: { code: { enum: ['INVALID_WEIGHT'] } } },
@@ -313,6 +347,8 @@ describe('OpenAPI documentation (e2e)', () => {
       [leave, '401', ['UNAUTHENTICATED']],
       [leave, '404', ['PET_NOT_FOUND']],
       [leave, '409', ['OWNER_LEAVE_NOT_SUPPORTED']],
+      [weightHistory, '400', ['INVALID_REQUEST']],
+      [weightHistory, '404', ['PET_NOT_FOUND']],
     ];
     for (const [operation, status, codes] of errorCases) {
       expect(responseSchema(operation, status)?.required).toEqual([

@@ -1,0 +1,1 @@
+CREATE INDEX "health_weight_records_pet_history_idx" ON "health_weight_records" USING btree ("pet_id","measured_date" DESC NULLS LAST,"created_at" DESC NULLS LAST,"id" DESC NULLS LAST);
