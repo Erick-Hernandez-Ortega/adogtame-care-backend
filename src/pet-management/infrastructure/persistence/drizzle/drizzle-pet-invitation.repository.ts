@@ -6,7 +6,12 @@ import {
   CreatePendingInvitationOutcome,
   type AcceptInvitationPersistenceResult,
   type PetInvitationRepository,
+  type RejectInvitationPersistenceResult,
 } from '../../../application/persistence/pet-invitation.repository';
+import {
+  decideRejection,
+  type RejectionDecision,
+} from '../../../application/reject-invitation/reject-invitation';
 import {
   decideAcceptance,
   type AcceptanceDecision,
@@ -39,6 +44,66 @@ export class DrizzlePetInvitationRepository implements PetInvitationRepository {
     private readonly databaseService: DatabaseService,
     @Inject(CLOCK) private readonly clock: Clock,
   ) {}
+
+  async reject(
+    invitationId: string,
+    invitedEmail: string,
+  ): Promise<RejectInvitationPersistenceResult> {
+    return this.databaseService.connection.transaction(
+      async (transaction) => {
+        const invitationRows = await transaction
+          .select()
+          .from(petInvitations)
+          .where(
+            and(
+              eq(petInvitations.id, invitationId),
+              eq(petInvitations.invitedEmail, invitedEmail),
+            ),
+          )
+          .for('update');
+        const row = invitationRows[0];
+
+        if (row === undefined) {
+          return { outcome: 'NOT_FOUND' };
+        }
+
+        const invitation: PetInvitation = PetInvitation.reconstitute({
+          id: InvitationId.from(row.id),
+          petId: PetId.from(row.petId),
+          invitedEmail: InvitedEmail.from(row.invitedEmail),
+          invitedByAccountId: AccountId.from(row.invitedByAccountId),
+          status: row.status as PetInvitationStatusType,
+          createdAt: row.createdAt.toISOString(),
+          expiresAt: row.expiresAt.toISOString(),
+        });
+        const decision: RejectionDecision = decideRejection(
+          invitation,
+          this.clock.now(),
+        );
+
+        if (decision.invitationToSave !== null) {
+          const changedRows = await transaction
+            .update(petInvitations)
+            .set({ status: decision.invitationToSave.status })
+            .where(
+              and(
+                eq(petInvitations.id, invitationId),
+                eq(petInvitations.status, PetInvitationStatus.PENDING),
+              ),
+            )
+            .returning({ id: petInvitations.id });
+          if (changedRows.length !== 1) {
+            throw new Error('Invitation transition did not update one row');
+          }
+        }
+
+        return decision.outcome === 'REJECTED'
+          ? { outcome: 'REJECTED', id: row.id, petId: row.petId }
+          : { outcome: decision.outcome };
+      },
+      { isolationLevel: 'read committed' },
+    );
+  }
 
   async accept(
     invitationId: string,

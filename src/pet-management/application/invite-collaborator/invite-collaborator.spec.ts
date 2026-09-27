@@ -97,6 +97,10 @@ class FakePetInvitationRepository implements PetInvitationRepository {
     return Promise.resolve({ outcome: 'NOT_FOUND' });
   }
 
+  reject(): Promise<{ outcome: 'NOT_FOUND' }> {
+    return Promise.resolve({ outcome: 'NOT_FOUND' });
+  }
+
   findPending(petId: string, email: string): Promise<PetInvitation | null> {
     this.pendingRequests.push({ petId, email });
     return Promise.resolve(this.pending);

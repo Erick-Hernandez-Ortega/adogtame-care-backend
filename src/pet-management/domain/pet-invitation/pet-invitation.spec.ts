@@ -75,6 +75,45 @@ describe('PetInvitation', () => {
     ).toThrow('Only a pending invitation can be accepted');
   });
 
+  it('rejects a pending invitation before its deadline', () => {
+    const invitation = createInvitation();
+    invitation.reject(new Date('2026-10-03T12:29:59.999Z'));
+    expect(invitation.status).toBe(PetInvitationStatus.REJECTED);
+    expect(() =>
+      invitation.reject(new Date('2026-10-03T12:29:59.999Z')),
+    ).toThrow('Only a pending invitation can be rejected');
+  });
+
+  it('materializes expiry at the exact deadline rather than rejecting', () => {
+    const invitation = createInvitation();
+    expect(() =>
+      invitation.reject(new Date('2026-10-03T12:30:00.000Z')),
+    ).toThrow('An expired invitation cannot be rejected');
+    expect(invitation.status).toBe(PetInvitationStatus.EXPIRED);
+  });
+
+  it.each([
+    PetInvitationStatus.ACCEPTED,
+    PetInvitationStatus.REJECTED,
+    PetInvitationStatus.CANCELLED,
+    PetInvitationStatus.EXPIRED,
+  ])('does not reject a %s invitation', (status) => {
+    const pending = createInvitation();
+    const invitation = PetInvitation.reconstitute({
+      id: pending.id,
+      petId: pending.petId,
+      invitedEmail: pending.invitedEmail,
+      invitedByAccountId: pending.invitedByAccountId,
+      status,
+      createdAt: pending.createdAt,
+      expiresAt: pending.expiresAt,
+    });
+    expect(() => invitation.reject(CREATED_AT)).toThrow(
+      'Only a pending invitation can be rejected',
+    );
+    expect(invitation.status).toBe(status);
+  });
+
   it('materializes expiry at the exact deadline rather than accepting', () => {
     const invitation = createInvitation();
     expect(() =>

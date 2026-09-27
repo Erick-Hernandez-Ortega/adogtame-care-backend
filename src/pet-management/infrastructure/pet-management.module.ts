@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AcceptInvitation } from '../application/accept-invitation/accept-invitation';
+import { RejectInvitation } from '../application/reject-invitation/reject-invitation';
 import { DatabaseModule } from '../../infrastructure/database/database.module';
 import { IdentityModule } from '../../identity/infrastructure/identity.module';
 import {
@@ -88,6 +89,15 @@ import { DrizzlePetRepository } from './persistence/drizzle/drizzle-pet.reposito
         invitationRepository: PetInvitationRepository,
       ): AcceptInvitation =>
         new AcceptInvitation(accountLookup, invitationRepository),
+    },
+    {
+      provide: RejectInvitation,
+      inject: [ACCOUNT_LOOKUP, PET_INVITATION_REPOSITORY],
+      useFactory: (
+        accountLookup: AccountLookup,
+        invitationRepository: PetInvitationRepository,
+      ): RejectInvitation =>
+        new RejectInvitation(accountLookup, invitationRepository),
     },
     DrizzlePetRepository,
     {

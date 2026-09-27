@@ -226,6 +226,9 @@ describe('AcceptInvitation', () => {
           'CREATED',
         ) as PetInvitationRepository['createPending'],
       accept,
+      reject: jest.fn().mockResolvedValue({
+        outcome: 'NOT_FOUND',
+      }) as PetInvitationRepository['reject'],
     };
     return { useCase: new AcceptInvitation(accountLookup, repository), accept };
   }

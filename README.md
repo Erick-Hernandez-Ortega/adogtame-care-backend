@@ -73,6 +73,7 @@ Bearer prefix to requests automatically.
 | `POST /pets`                                  | Register pet         | Yes          |
 | `POST /pets/{petId}/invitations`              | Invite collaborator  | Yes          |
 | `POST /pet-invitations/{invitationId}/accept` | Accept invitation    | Yes          |
+| `POST /pet-invitations/{invitationId}/reject` | Reject invitation    | Yes          |
 
 ## Migrations
 
