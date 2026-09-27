@@ -38,7 +38,7 @@ describe('OpenAPI documentation (e2e)', () => {
     await application.close();
   });
 
-  it('serves Swagger UI and documents all fifteen routes and their contracts', async () => {
+  it('serves Swagger UI and documents all sixteen routes and their contracts', async () => {
     const htmlResponse = await request(application.getHttpServer())
       .get('/docs')
       .expect(200);
@@ -62,6 +62,7 @@ describe('OpenAPI documentation (e2e)', () => {
       ['/pets/{petId}/health/weight-records', 'get'],
       ['/pets/{petId}/health/weight-records/{weightRecordId}', 'patch'],
       ['/pets/{petId}/health/weight-records/{weightRecordId}', 'delete'],
+      ['/pets/{petId}/health/vaccination-records', 'post'],
       ['/pet-invitations/{invitationId}/accept', 'post'],
       ['/pet-invitations/{invitationId}/reject', 'post'],
       ['/pet-invitations/{invitationId}/cancel', 'post'],
@@ -82,7 +83,7 @@ describe('OpenAPI documentation (e2e)', () => {
           Number(Boolean(path?.delete)),
         0,
       ),
-    ).toBe(15);
+    ).toBe(16);
 
     expect(document.components?.securitySchemes?.bearer).toMatchObject({
       type: 'http',
@@ -115,6 +116,27 @@ describe('OpenAPI documentation (e2e)', () => {
     const weightDelete =
       document.paths['/pets/{petId}/health/weight-records/{weightRecordId}']
         ?.delete;
+    const vaccination =
+      document.paths['/pets/{petId}/health/vaccination-records']?.post;
+    expect(vaccination?.responses['201']).toBeDefined();
+    expect(vaccination?.responses['400']).toBeDefined();
+    expect(vaccination?.responses['401']).toBeDefined();
+    expect(vaccination?.responses['404']).toBeDefined();
+    const vaccinationRequest =
+      vaccination?.requestBody && 'content' in vaccination.requestBody
+        ? (vaccination.requestBody.content['application/json']
+            ?.schema as SchemaObject)
+        : undefined;
+    expect(vaccinationRequest?.required).toEqual([
+      'vaccineName',
+      'appliedDate',
+    ]);
+    expect(vaccinationRequest?.properties?.nextDueDate).toMatchObject({
+      nullable: true,
+    });
+    expect(responseSchema(vaccination, '201')?.required).toContain(
+      'nextDueDate',
+    );
     expect(weightUpdate?.responses['200']).toBeDefined();
     expect(weightUpdate?.responses['400']).toBeDefined();
     expect(weightUpdate?.responses['404']).toBeDefined();
@@ -128,7 +150,14 @@ describe('OpenAPI documentation (e2e)', () => {
     const cancel =
       document.paths['/pet-invitations/{invitationId}/cancel']?.post;
 
-    for (const operation of [account, login, create, invite, weight]) {
+    for (const operation of [
+      account,
+      login,
+      create,
+      invite,
+      weight,
+      vaccination,
+    ]) {
       const requestSchema =
         operation?.requestBody && 'content' in operation.requestBody
           ? (operation.requestBody.content['application/json']
@@ -164,11 +193,19 @@ describe('OpenAPI documentation (e2e)', () => {
       weightHistory,
       weightUpdate,
       weightDelete,
+      vaccination,
     ]) {
       expect(operation?.responses['401']).toBeDefined();
     }
 
-    for (const operation of [detail, invite, leave, weight, weightHistory]) {
+    for (const operation of [
+      detail,
+      invite,
+      leave,
+      weight,
+      weightHistory,
+      vaccination,
+    ]) {
       expect(operation?.parameters).toEqual(
         expect.arrayContaining([
           expect.objectContaining({

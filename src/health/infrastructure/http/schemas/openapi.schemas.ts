@@ -4,6 +4,51 @@ import {
   recordPetWeightSchema,
   updatePetWeightRecordSchema,
 } from './record-pet-weight.schema';
+import { recordVaccinationSchema } from './record-vaccination.schema';
+
+export const recordVaccinationRequestSchema: SchemaObject = {
+  ...(z.toJSONSchema(recordVaccinationSchema, {
+    target: 'openapi-3.0',
+  }) as SchemaObject),
+  properties: {
+    vaccineName: { type: 'string', maxLength: 255 },
+    appliedDate: { type: 'string', format: 'date' },
+    nextDueDate: { type: 'string', format: 'date', nullable: true },
+  },
+};
+
+export const recordedVaccinationResponseSchema: SchemaObject = {
+  type: 'object',
+  required: [
+    'id',
+    'petId',
+    'vaccineName',
+    'appliedDate',
+    'nextDueDate',
+    'recordedByAccountId',
+  ],
+  properties: {
+    id: { type: 'string', format: 'uuid' },
+    petId: { type: 'string', format: 'uuid' },
+    vaccineName: { type: 'string', maxLength: 255, example: 'Rabies' },
+    appliedDate: { type: 'string', format: 'date', example: '2026-09-20' },
+    nextDueDate: {
+      type: 'string',
+      format: 'date',
+      nullable: true,
+      example: '2027-09-20',
+    },
+    recordedByAccountId: { type: 'string', format: 'uuid' },
+  },
+  example: {
+    id: '6fe44a29-206e-4875-9f3e-72026868135e',
+    petId: '42b30488-fd7c-4c5d-b9cc-8c7aa5d171dd',
+    vaccineName: 'Rabies',
+    appliedDate: '2026-09-20',
+    nextDueDate: '2027-09-20',
+    recordedByAccountId: '9b4a221a-e6ad-41ab-b1b2-21230b8b65a4',
+  },
+};
 
 export const recordPetWeightRequestSchema = z.toJSONSchema(
   recordPetWeightSchema,

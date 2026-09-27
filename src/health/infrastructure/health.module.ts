@@ -17,13 +17,25 @@ import { HEALTH_CLOCK, type Clock } from '../application/time/clock';
 import { WeightRecordsController } from './http/controllers/weight-records.controller';
 import { DrizzleWeightRecordRepository } from './persistence/drizzle/drizzle-weight-record.repository';
 import { DrizzleWeightHistoryReader } from './persistence/drizzle/drizzle-weight-history.reader';
+import { VaccinationRecordsController } from './http/controllers/vaccination-records.controller';
+import { DrizzleVaccinationRecordRepository } from './persistence/drizzle/drizzle-vaccination-record.repository';
+import {
+  VACCINATION_RECORD_REPOSITORY,
+  type VaccinationRecordRepository,
+} from '../application/persistence/vaccination-record.repository';
+import { RecordVaccination } from '../application/record-vaccination/record-vaccination';
 
 @Module({
   imports: [DatabaseModule, IdentityModule],
-  controllers: [WeightRecordsController],
+  controllers: [WeightRecordsController, VaccinationRecordsController],
   providers: [
     DrizzleWeightRecordRepository,
     DrizzleWeightHistoryReader,
+    DrizzleVaccinationRecordRepository,
+    {
+      provide: VACCINATION_RECORD_REPOSITORY,
+      useExisting: DrizzleVaccinationRecordRepository,
+    },
     {
       provide: WEIGHT_HISTORY_READER,
       useExisting: DrizzleWeightHistoryReader,
@@ -63,6 +75,14 @@ import { DrizzleWeightHistoryReader } from './persistence/drizzle/drizzle-weight
       inject: [WEIGHT_RECORD_REPOSITORY],
       useFactory: (repository: WeightRecordRepository): DeletePetWeightRecord =>
         new DeletePetWeightRecord(repository),
+    },
+    {
+      provide: RecordVaccination,
+      inject: [VACCINATION_RECORD_REPOSITORY, HEALTH_CLOCK],
+      useFactory: (
+        repository: VaccinationRecordRepository,
+        clock: Clock,
+      ): RecordVaccination => new RecordVaccination(repository, clock),
     },
   ],
 })

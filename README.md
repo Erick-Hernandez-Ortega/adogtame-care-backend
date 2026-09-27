@@ -77,6 +77,7 @@ Bearer prefix to requests automatically.
 | `GET /pets/{petId}/health/weight-records`     | List pet weight history | Yes          |
 | `PATCH /pets/{petId}/health/weight-records/{weightRecordId}` | Correct pet weight record | Yes |
 | `DELETE /pets/{petId}/health/weight-records/{weightRecordId}` | Delete pet weight record | Yes |
+| `POST /pets/{petId}/health/vaccination-records` | Record pet vaccination | Yes |
 | `POST /pet-invitations/{invitationId}/accept` | Accept invitation       | Yes          |
 | `POST /pet-invitations/{invitationId}/reject` | Reject invitation       | Yes          |
 | `POST /pet-invitations/{invitationId}/cancel` | Cancel invitation       | Yes          |
@@ -86,6 +87,8 @@ To record a weight, send `POST /pets/{petId}/health/weight-records` with a Beare
 To read weight history, send `GET /pets/{petId}/health/weight-records` with a Bearer token. Active owners and collaborators can read active or archived pets. Results are ordered by measured date, newest first. Optional `limit` defaults to 20 (maximum 100); pass the opaque `nextCursor` as `cursor` for the next page. The `200` response contains `items` and `nextCursor` (`null` on the last page). Each item contains `id`, decimal string `weightKg`, `measuredDate`, and `recordedByAccountId`. Missing or inaccessible pets return `404 PET_NOT_FOUND`.
 
 To correct a record, send `PATCH /pets/{petId}/health/weight-records/{weightRecordId}` with `weightKg`, `measuredDate`, or both. The response is `200` with the canonical values and original recorder. To permanently delete it, send `DELETE` to the same path without a body or with `{}`; the response is `204`. Both actions require an active owner or collaborator of an active pet, regardless of who recorded the weight. Missing or inaccessible pets return `404 PET_NOT_FOUND`; a missing record or one belonging to another pet returns `404 WEIGHT_RECORD_NOT_FOUND` once pet access is confirmed.
+
+To record a vaccination, send `POST /pets/{petId}/health/vaccination-records` with a Bearer token and JSON such as `{"vaccineName":"Rabies","appliedDate":"2026-09-20","nextDueDate":"2027-09-20"}`. `nextDueDate` may be omitted or `null`; the `201` response always includes it, using `null` when unknown. The vaccine name is trimmed, preserves casing, and allows up to 255 characters. Applied date must be a valid date no later than today UTC; a known next due date must be after it, even if already overdue. Active owners and collaborators of an active pet may create multiple identical records. Missing, archived, or inaccessible pets return `404 PET_NOT_FOUND`.
 
 ## Migrations
 

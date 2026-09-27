@@ -57,6 +57,13 @@
       "when": 1790537198845,
       "tag": "0007_glossy_korath",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1790540776970,
+      "tag": "0008_loose_lester",
+      "breakpoints": true
     }
   ]
 }

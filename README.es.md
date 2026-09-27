@@ -77,6 +77,7 @@ token. Swagger añade automáticamente el prefijo Bearer a las peticiones.
 | `GET /pets/{petId}/health/weight-records`     | Consultar historial de peso | Sí           |
 | `PATCH /pets/{petId}/health/weight-records/{weightRecordId}` | Corregir registro de peso | Sí |
 | `DELETE /pets/{petId}/health/weight-records/{weightRecordId}` | Eliminar registro de peso | Sí |
+| `POST /pets/{petId}/health/vaccination-records` | Registrar aplicación de vacuna | Sí |
 | `POST /pet-invitations/{invitationId}/accept` | Aceptar invitación          | Sí           |
 | `POST /pet-invitations/{invitationId}/reject` | Rechazar invitación         | Sí           |
 | `POST /pet-invitations/{invitationId}/cancel` | Cancelar invitación         | Sí           |
@@ -86,6 +87,8 @@ Para registrar un peso, envía `POST /pets/{petId}/health/weight-records` con un
 Para consultar el historial, envía `GET /pets/{petId}/health/weight-records` con un token Bearer. Owners y collaborators activos pueden consultar mascotas activas o archivadas. Los resultados se ordenan por fecha de medición, de más reciente a más antigua. `limit` es opcional, tiene valor predeterminado 20 y máximo 100; envía el `nextCursor` opaco como `cursor` para obtener la página siguiente. La respuesta `200` contiene `items` y `nextCursor` (`null` en la última página). Cada elemento contiene `id`, `weightKg` como string decimal, `measuredDate` y `recordedByAccountId`. Una mascota inexistente o inaccesible devuelve `404 PET_NOT_FOUND`.
 
 Para corregir un registro, envía `PATCH /pets/{petId}/health/weight-records/{weightRecordId}` con `weightKg`, `measuredDate` o ambos. La respuesta `200` incluye los valores canónicos y el autor original. Para eliminarlo permanentemente, envía `DELETE` a la misma ruta sin body o con `{}`; la respuesta es `204`. Ambas acciones requieren ser owner o collaborator activo de una mascota activa, sin importar quién registró el peso. Una mascota inexistente o inaccesible devuelve `404 PET_NOT_FOUND`; si el registro falta o pertenece a otra mascota, devuelve `404 WEIGHT_RECORD_NOT_FOUND` después de confirmar el acceso.
+
+Para registrar una vacuna, envía `POST /pets/{petId}/health/vaccination-records` con un token Bearer y JSON como `{"vaccineName":"Rabies","appliedDate":"2026-09-20","nextDueDate":"2027-09-20"}`. `nextDueDate` puede omitirse o ser `null`; la respuesta `201` siempre lo incluye y usa `null` cuando se desconoce. El nombre se recorta, conserva las mayúsculas y admite hasta 255 caracteres. La fecha de aplicación debe ser válida y no posterior a hoy UTC; la próxima fecha, si existe, debe ser posterior a la aplicación aunque ya haya vencido. Owners y collaborators activos de una mascota activa pueden crear registros idénticos. Una mascota inexistente, archivada o inaccesible devuelve `404 PET_NOT_FOUND`.
 
 ## Migraciones
 
