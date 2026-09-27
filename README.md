@@ -72,6 +72,7 @@ Bearer prefix to requests automatically.
 | `GET /pets/{petId}`                           | Get pet profile      | Yes          |
 | `POST /pets`                                  | Register pet         | Yes          |
 | `POST /pets/{petId}/invitations`              | Invite collaborator  | Yes          |
+| `POST /pets/{petId}/leave`                    | Leave as collaborator | Yes          |
 | `POST /pet-invitations/{invitationId}/accept` | Accept invitation    | Yes          |
 | `POST /pet-invitations/{invitationId}/reject` | Reject invitation    | Yes          |
 | `POST /pet-invitations/{invitationId}/cancel` | Cancel invitation    | Yes          |

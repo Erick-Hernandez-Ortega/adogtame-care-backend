@@ -38,7 +38,7 @@ describe('OpenAPI documentation (e2e)', () => {
     await application.close();
   });
 
-  it('serves Swagger UI and documents all ten routes and their contracts', async () => {
+  it('serves Swagger UI and documents all eleven routes and their contracts', async () => {
     const htmlResponse = await request(application.getHttpServer())
       .get('/docs')
       .expect(200);
@@ -57,6 +57,7 @@ describe('OpenAPI documentation (e2e)', () => {
       ['/pets/{petId}', 'get'],
       ['/pets', 'post'],
       ['/pets/{petId}/invitations', 'post'],
+      ['/pets/{petId}/leave', 'post'],
       ['/pet-invitations/{invitationId}/accept', 'post'],
       ['/pet-invitations/{invitationId}/reject', 'post'],
       ['/pet-invitations/{invitationId}/cancel', 'post'],
@@ -73,7 +74,7 @@ describe('OpenAPI documentation (e2e)', () => {
           count + Number(Boolean(path?.get)) + Number(Boolean(path?.post)),
         0,
       ),
-    ).toBe(10);
+    ).toBe(11);
 
     expect(document.components?.securitySchemes?.bearer).toMatchObject({
       type: 'http',
@@ -96,6 +97,7 @@ describe('OpenAPI documentation (e2e)', () => {
     const detail = document.paths['/pets/{petId}']?.get;
     const create = document.paths['/pets']?.post;
     const invite = document.paths['/pets/{petId}/invitations']?.post;
+    const leave = document.paths['/pets/{petId}/leave']?.post;
     const accept =
       document.paths['/pet-invitations/{invitationId}/accept']?.post;
     const reject =
@@ -128,11 +130,11 @@ describe('OpenAPI documentation (e2e)', () => {
     expect(invite?.responses['409']).toBeDefined();
     expect(invite?.responses['422']).toBeDefined();
 
-    for (const operation of [list, detail, create, invite, accept]) {
+    for (const operation of [list, detail, create, invite, accept, leave]) {
       expect(operation?.responses['401']).toBeDefined();
     }
 
-    for (const operation of [detail, invite]) {
+    for (const operation of [detail, invite, leave]) {
       expect(operation?.parameters).toEqual(
         expect.arrayContaining([
           expect.objectContaining({
@@ -166,9 +168,20 @@ describe('OpenAPI documentation (e2e)', () => {
     expect(accept?.requestBody).toBeUndefined();
     expect(reject?.requestBody).toBeUndefined();
     expect(cancel?.requestBody).toBeUndefined();
+    expect(leave?.requestBody).toBeUndefined();
     expect(accept?.responses['200']).toBeDefined();
     expect(reject?.responses['200']).toBeDefined();
     expect(cancel?.responses['200']).toBeDefined();
+    expect(responseSchema(leave, '200')).toMatchObject({
+      required: ['petId', 'membershipId', 'role', 'status'],
+      properties: {
+        role: { enum: ['COLLABORATOR'] },
+        status: { enum: ['INACTIVE'] },
+      },
+    });
+    for (const status of ['400', '401', '404', '409']) {
+      expect(leave?.responses[status]).toBeDefined();
+    }
     for (const status of ['400', '401', '404', '409', '410']) {
       expect(accept?.responses[status]).toBeDefined();
       expect(reject?.responses[status]).toBeDefined();
@@ -271,6 +284,10 @@ describe('OpenAPI documentation (e2e)', () => {
       [cancel, '401', ['UNAUTHENTICATED']],
       [cancel, '409', ['INVITATION_NOT_PENDING']],
       [cancel, '410', ['INVITATION_EXPIRED']],
+      [leave, '400', ['INVALID_REQUEST']],
+      [leave, '401', ['UNAUTHENTICATED']],
+      [leave, '404', ['PET_NOT_FOUND']],
+      [leave, '409', ['OWNER_LEAVE_NOT_SUPPORTED']],
     ];
     for (const [operation, status, codes] of errorCases) {
       expect(responseSchema(operation, status)?.required).toEqual([

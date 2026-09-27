@@ -8,6 +8,10 @@ const OWNER_ACCOUNT_ID: string = '550e8400-e29b-41d4-a716-446655440000';
 class InMemoryPetRepository implements PetRepository {
   readonly savedPets: Pet[] = [];
 
+  leaveAsCollaborator(): Promise<{ outcome: 'PET_NOT_FOUND' }> {
+    return Promise.resolve({ outcome: 'PET_NOT_FOUND' });
+  }
+
   save(pet: Pet): Promise<void> {
     this.savedPets.push(pet);
 
@@ -113,6 +117,7 @@ describe('RegisterPet', () => {
     const persistenceError = new Error('Database unavailable');
     const repository: PetRepository = {
       save: jest.fn<Promise<void>, [Pet]>().mockRejectedValue(persistenceError),
+      leaveAsCollaborator: jest.fn() as PetRepository['leaveAsCollaborator'],
     };
     const registerPet = new RegisterPet(repository);
 

@@ -59,6 +59,38 @@ describe('PetMembership', () => {
     );
     expect(membership.role).toBe(PetMembershipRole.OWNER);
   });
+
+  it('leaves an active collaborator without changing identity or role', () => {
+    const membership = PetMembership.createCollaborator(
+      AccountId.from(ACCOUNT_ID_V1),
+    );
+    const left = membership.leaveAsCollaborator();
+    expect(left.id).toBe(membership.id);
+    expect(left.accountId).toBe(membership.accountId);
+    expect(left.role).toBe(PetMembershipRole.COLLABORATOR);
+    expect(left.status).toBe(PetMembershipStatus.INACTIVE);
+    expect(membership.status).toBe(PetMembershipStatus.ACTIVE);
+    expect(() => left.leaveAsCollaborator()).toThrow(
+      'Only an active collaborator can leave a pet',
+    );
+  });
+
+  it.each([PetMembershipStatus.ACTIVE, PetMembershipStatus.INACTIVE])(
+    'does not let a %s owner leave as collaborator',
+    (status) => {
+      const membership = PetMembership.reconstitute({
+        id: MembershipId.from(ACCOUNT_ID_V7),
+        accountId: AccountId.from(ACCOUNT_ID_V1),
+        role: PetMembershipRole.OWNER,
+        status,
+      });
+      expect(() => membership.leaveAsCollaborator()).toThrow(
+        'Only an active collaborator can leave a pet',
+      );
+      expect(membership.role).toBe(PetMembershipRole.OWNER);
+      expect(membership.status).toBe(status);
+    },
+  );
 });
 
 describe('AccountId', () => {

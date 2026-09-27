@@ -105,4 +105,20 @@ export class PetMembership {
       PetMembershipStatus.ACTIVE,
     );
   }
+
+  leaveAsCollaborator(): PetMembership {
+    if (
+      this.role !== PetMembershipRole.COLLABORATOR ||
+      this.status !== PetMembershipStatus.ACTIVE
+    ) {
+      throw new TypeError('Only an active collaborator can leave a pet');
+    }
+
+    return new PetMembership(
+      this.id,
+      this.accountId,
+      this.role,
+      PetMembershipStatus.INACTIVE,
+    );
+  }
 }

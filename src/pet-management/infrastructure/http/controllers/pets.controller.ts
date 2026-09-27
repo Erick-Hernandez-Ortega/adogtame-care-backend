@@ -9,6 +9,7 @@ import {
   NotFoundException,
   Param,
   Post,
+  Req,
   UnprocessableEntityException,
   UseGuards,
 } from '@nestjs/common';
@@ -20,6 +21,7 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import type { Request } from 'express';
 import { errorSchema } from '../../../../infrastructure/http/openapi-error.schema';
 import { AuthenticationGuard } from '../../../../identity/infrastructure/http/authentication/authentication.guard';
 import { CurrentAccountId } from '../../../../identity/infrastructure/http/decorators/current-account-id.decorator';
@@ -33,6 +35,11 @@ import {
 } from '../../../application/invite-collaborator/invite-collaborator';
 import type { CreatedPetInvitation } from '../../../application/invite-collaborator/invite-collaborator.types';
 import { ListMyPets } from '../../../application/list-my-pets/list-my-pets';
+import {
+  LeavePetAsCollaborator,
+  type LeftPetAsCollaborator,
+  OwnerLeaveNotSupportedError,
+} from '../../../application/leave-pet-as-collaborator/leave-pet-as-collaborator';
 import type {
   AccessiblePetSummary,
   PetDetail,
@@ -51,12 +58,17 @@ import {
 } from '../schemas/register-pet.schema';
 import { petIdSchema } from '../schemas/get-pet-detail.schema';
 import {
+  emptyLeavePetBodySchema,
+  leavePetIdSchema,
+} from '../schemas/leave-pet.schema';
+import {
   inviteCollaboratorSchema,
   type InviteCollaboratorRequest,
 } from '../schemas/invite-collaborator.schema';
 import {
   createdInvitationResponseSchema,
   inviteCollaboratorRequestSchema,
+  leftPetAsCollaboratorResponseSchema,
   petDetailResponseSchema,
   petSummaryResponseSchema,
   registeredPetResponseSchema,
@@ -72,6 +84,7 @@ export class PetsController {
     private readonly listMyPets: ListMyPets,
     private readonly getPetDetail: GetPetDetail,
     private readonly inviteCollaborator: InviteCollaborator,
+    private readonly leavePetAsCollaborator: LeavePetAsCollaborator,
   ) {}
 
   @Get()
@@ -142,6 +155,91 @@ export class PetsController {
         });
       }
 
+      throw error;
+    }
+  }
+
+  @Post(':petId/leave')
+  @UseGuards(AuthenticationGuard)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Leave a pet as a collaborator',
+    description:
+      'An active or inactive collaborator may leave an active or archived pet. Owner leave is not supported.',
+  })
+  @ApiParam({
+    name: 'petId',
+    description: 'Pet UUID',
+    schema: { type: 'string', format: 'uuid' },
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Collaborator membership is inactive',
+    schema: leftPetAsCollaboratorResponseSchema,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid pet UUID or nonempty request body',
+    schema: errorSchema(['INVALID_REQUEST'], 'Pet id is invalid'),
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Missing or invalid Bearer token',
+    schema: errorSchema(['UNAUTHENTICATED'], 'Authentication is required'),
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Pet or membership is missing',
+    schema: errorSchema(['PET_NOT_FOUND'], 'Pet was not found'),
+  })
+  @ApiResponse({
+    status: 409,
+    description: 'Owner leave is not supported',
+    schema: errorSchema(
+      ['OWNER_LEAVE_NOT_SUPPORTED'],
+      'Owner leave is not supported',
+    ),
+  })
+  async leave(
+    @CurrentAccountId() accountId: string,
+    @Param('petId') petId: string,
+    @Req() request: Request,
+  ): Promise<LeftPetAsCollaborator> {
+    const body: unknown = request.body as unknown;
+    const parsedId = leavePetIdSchema.safeParse(petId);
+    if (!parsedId.success) {
+      throw new BadRequestException({
+        code: 'INVALID_REQUEST',
+        message: 'Pet id is invalid',
+      });
+    }
+    if (
+      body !== undefined &&
+      !emptyLeavePetBodySchema.safeParse(body).success
+    ) {
+      throw new BadRequestException({
+        code: 'INVALID_REQUEST',
+        message: 'Request body is invalid',
+      });
+    }
+    try {
+      return await this.leavePetAsCollaborator.execute(
+        parsedId.data,
+        accountId,
+      );
+    } catch (error: unknown) {
+      if (error instanceof PetNotFoundError) {
+        throw new NotFoundException({
+          code: 'PET_NOT_FOUND',
+          message: error.message,
+        });
+      }
+      if (error instanceof OwnerLeaveNotSupportedError) {
+        throw new ConflictException({
+          code: 'OWNER_LEAVE_NOT_SUPPORTED',
+          message: error.message,
+        });
+      }
       throw error;
     }
   }

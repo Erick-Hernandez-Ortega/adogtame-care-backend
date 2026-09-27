@@ -72,6 +72,7 @@ token. Swagger añade automáticamente el prefijo Bearer a las peticiones.
 | `GET /pets/{petId}`                           | Consultar perfil de mascota | Sí           |
 | `POST /pets`                                  | Registrar mascota           | Sí           |
 | `POST /pets/{petId}/invitations`              | Invitar colaborador         | Sí           |
+| `POST /pets/{petId}/leave`                    | Abandonar como colaborador  | Sí           |
 | `POST /pet-invitations/{invitationId}/accept` | Aceptar invitación          | Sí           |
 | `POST /pet-invitations/{invitationId}/reject` | Rechazar invitación         | Sí           |
 | `POST /pet-invitations/{invitationId}/cancel` | Cancelar invitación         | Sí           |

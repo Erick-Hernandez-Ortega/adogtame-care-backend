@@ -11,6 +11,7 @@ import {
 import { GetPetDetail } from '../application/get-pet-detail/get-pet-detail';
 import { InviteCollaborator } from '../application/invite-collaborator/invite-collaborator';
 import { ListMyPets } from '../application/list-my-pets/list-my-pets';
+import { LeavePetAsCollaborator } from '../application/leave-pet-as-collaborator/leave-pet-as-collaborator';
 import {
   PET_INVITATION_REPOSITORY,
   type PetInvitationRepository,
@@ -117,6 +118,12 @@ import { DrizzlePetRepository } from './persistence/drizzle/drizzle-pet.reposito
       inject: [PET_REPOSITORY],
       useFactory: (petRepository: PetRepository): RegisterPet =>
         new RegisterPet(petRepository),
+    },
+    {
+      provide: LeavePetAsCollaborator,
+      inject: [PET_REPOSITORY],
+      useFactory: (petRepository: PetRepository): LeavePetAsCollaborator =>
+        new LeavePetAsCollaborator(petRepository),
     },
   ],
 })
