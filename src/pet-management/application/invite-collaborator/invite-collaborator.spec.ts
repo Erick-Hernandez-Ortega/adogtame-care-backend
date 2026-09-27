@@ -75,6 +75,11 @@ class FakeAccountLookup implements AccountLookup {
     this.emails.push(email);
     return Promise.resolve(this.accountId);
   }
+
+  findEmailByAccountId(accountId: string): Promise<string | null> {
+    void accountId;
+    return Promise.resolve(null);
+  }
 }
 
 class FakePetInvitationRepository implements PetInvitationRepository {
@@ -87,6 +92,10 @@ class FakePetInvitationRepository implements PetInvitationRepository {
     invitation: PetInvitation;
     expiredInvitation: PetInvitation | null;
   }[] = [];
+
+  accept(): Promise<{ outcome: 'NOT_FOUND' }> {
+    return Promise.resolve({ outcome: 'NOT_FOUND' });
+  }
 
   findPending(petId: string, email: string): Promise<PetInvitation | null> {
     this.pendingRequests.push({ petId, email });

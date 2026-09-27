@@ -63,15 +63,16 @@ después llama a `POST /auth/login` con tu correo y contraseña. Copia
 `accessToken` de la respuesta, pulsa **Authorize** en Swagger e introduce el
 token. Swagger añade automáticamente el prefijo Bearer a las peticiones.
 
-| Ruta                             | Descripción                 | Token Bearer |
-| -------------------------------- | --------------------------- | ------------ |
-| `GET /`                          | Mensaje de bienvenida       | No           |
-| `POST /accounts`                 | Registrar cuenta            | No           |
-| `POST /auth/login`               | Obtener token               | No           |
-| `GET /pets`                      | Listar mascotas accesibles  | Sí           |
-| `GET /pets/{petId}`              | Consultar perfil de mascota | Sí           |
-| `POST /pets`                     | Registrar mascota           | Sí           |
-| `POST /pets/{petId}/invitations` | Invitar colaborador         | Sí           |
+| Ruta                                          | Descripción                 | Token Bearer |
+| --------------------------------------------- | --------------------------- | ------------ |
+| `GET /`                                       | Mensaje de bienvenida       | No           |
+| `POST /accounts`                              | Registrar cuenta            | No           |
+| `POST /auth/login`                            | Obtener token               | No           |
+| `GET /pets`                                   | Listar mascotas accesibles  | Sí           |
+| `GET /pets/{petId}`                           | Consultar perfil de mascota | Sí           |
+| `POST /pets`                                  | Registrar mascota           | Sí           |
+| `POST /pets/{petId}/invitations`              | Invitar colaborador         | Sí           |
+| `POST /pet-invitations/{invitationId}/accept` | Aceptar invitación          | Sí           |
 
 ## Migraciones
 

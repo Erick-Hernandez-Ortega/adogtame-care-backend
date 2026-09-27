@@ -12,10 +12,19 @@ export const CreatePendingInvitationOutcome = {
 export type CreatePendingInvitationOutcome =
   (typeof CreatePendingInvitationOutcome)[keyof typeof CreatePendingInvitationOutcome];
 
+export type AcceptInvitationPersistenceResult =
+  | { outcome: 'NOT_FOUND' | 'EXPIRED' | 'NOT_PENDING' | 'NOT_ACCEPTABLE' }
+  | { outcome: 'ACCEPTED'; id: string; petId: string };
+
 export interface PetInvitationRepository {
   findPending(petId: string, email: string): Promise<PetInvitation | null>;
   createPending(
     invitation: PetInvitation,
     expiredInvitation: PetInvitation | null,
   ): Promise<CreatePendingInvitationOutcome>;
+  accept(
+    invitationId: string,
+    invitedEmail: string,
+    accountId: string,
+  ): Promise<AcceptInvitationPersistenceResult>;
 }

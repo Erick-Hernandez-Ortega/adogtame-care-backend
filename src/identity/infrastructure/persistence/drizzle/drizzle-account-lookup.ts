@@ -3,6 +3,7 @@ import { eq } from 'drizzle-orm';
 import { DatabaseService } from '../../../../infrastructure/database/database.service';
 import type { AccountLookup } from '../../../../pet-management/application/identity/account-lookup';
 import { accounts } from './identity.schema';
+import { Email } from '../../../domain/email/email';
 
 @Injectable()
 export class DrizzleAccountLookup implements AccountLookup {
@@ -16,5 +17,15 @@ export class DrizzleAccountLookup implements AccountLookup {
       .limit(1);
 
     return rows[0]?.id ?? null;
+  }
+
+  async findEmailByAccountId(accountId: string): Promise<string | null> {
+    const rows = await this.databaseService.connection
+      .select({ email: accounts.email })
+      .from(accounts)
+      .where(eq(accounts.id, accountId))
+      .limit(1);
+
+    return rows[0] === undefined ? null : Email.from(rows[0].email).value;
   }
 }

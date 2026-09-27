@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { AcceptInvitation } from '../application/accept-invitation/accept-invitation';
 import { DatabaseModule } from '../../infrastructure/database/database.module';
 import { IdentityModule } from '../../identity/infrastructure/identity.module';
 import {
@@ -23,13 +24,14 @@ import {
 import { RegisterPet } from '../application/register-pet/register-pet';
 import { CLOCK, type Clock } from '../application/time/clock';
 import { PetsController } from './http/controllers/pets.controller';
+import { PetInvitationsController } from './http/controllers/pet-invitations.controller';
 import { DrizzlePetQueryRepository } from './persistence/drizzle/drizzle-pet-query.repository';
 import { DrizzlePetInvitationRepository } from './persistence/drizzle/drizzle-pet-invitation.repository';
 import { DrizzlePetRepository } from './persistence/drizzle/drizzle-pet.repository';
 
 @Module({
   imports: [DatabaseModule, IdentityModule],
-  controllers: [PetsController],
+  controllers: [PetsController, PetInvitationsController],
   providers: [
     DrizzlePetQueryRepository,
     DrizzlePetInvitationRepository,
@@ -77,6 +79,15 @@ import { DrizzlePetRepository } from './persistence/drizzle/drizzle-pet.reposito
           petInvitationRepository,
           clock,
         ),
+    },
+    {
+      provide: AcceptInvitation,
+      inject: [ACCOUNT_LOOKUP, PET_INVITATION_REPOSITORY],
+      useFactory: (
+        accountLookup: AccountLookup,
+        invitationRepository: PetInvitationRepository,
+      ): AcceptInvitation =>
+        new AcceptInvitation(accountLookup, invitationRepository),
     },
     DrizzlePetRepository,
     {

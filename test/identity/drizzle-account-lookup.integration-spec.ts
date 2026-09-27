@@ -38,6 +38,10 @@ describe('DrizzleAccountLookup (integration)', () => {
       });
 
       await expect(lookup.findAccountIdByEmail(email)).resolves.toBe(accountId);
+      await expect(lookup.findEmailByAccountId(accountId)).resolves.toBe(email);
+      await expect(
+        lookup.findEmailByAccountId(randomUUID()),
+      ).resolves.toBeNull();
       await expect(
         lookup.findAccountIdByEmail(`missing-${randomUUID()}@example.com`),
       ).resolves.toBeNull();

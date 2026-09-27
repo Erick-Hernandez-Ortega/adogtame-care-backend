@@ -63,15 +63,16 @@ To try protected routes, register with `POST /accounts` if needed, then call
 response, click **Authorize** in Swagger, and enter the token. Swagger adds the
 Bearer prefix to requests automatically.
 
-| Route                            | Description          | Bearer token |
-| -------------------------------- | -------------------- | ------------ |
-| `GET /`                          | Welcome message      | No           |
-| `POST /accounts`                 | Register account     | No           |
-| `POST /auth/login`               | Get access token     | No           |
-| `GET /pets`                      | List accessible pets | Yes          |
-| `GET /pets/{petId}`              | Get pet profile      | Yes          |
-| `POST /pets`                     | Register pet         | Yes          |
-| `POST /pets/{petId}/invitations` | Invite collaborator  | Yes          |
+| Route                                         | Description          | Bearer token |
+| --------------------------------------------- | -------------------- | ------------ |
+| `GET /`                                       | Welcome message      | No           |
+| `POST /accounts`                              | Register account     | No           |
+| `POST /auth/login`                            | Get access token     | No           |
+| `GET /pets`                                   | List accessible pets | Yes          |
+| `GET /pets/{petId}`                           | Get pet profile      | Yes          |
+| `POST /pets`                                  | Register pet         | Yes          |
+| `POST /pets/{petId}/invitations`              | Invite collaborator  | Yes          |
+| `POST /pet-invitations/{invitationId}/accept` | Accept invitation    | Yes          |
 
 ## Migrations
 

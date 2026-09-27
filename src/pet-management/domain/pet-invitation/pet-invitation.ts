@@ -145,6 +145,18 @@ export class PetInvitation {
     return true;
   }
 
+  accept(now: Date): void {
+    if (this.statusValue !== PetInvitationStatus.PENDING) {
+      throw new TypeError('Only a pending invitation can be accepted');
+    }
+
+    if (this.expireIfDue(now)) {
+      throw new TypeError('An expired invitation cannot be accepted');
+    }
+
+    this.statusValue = PetInvitationStatus.ACCEPTED;
+  }
+
   private static assertIdentities(input: {
     petId: PetId;
     invitedEmail: InvitedEmail;

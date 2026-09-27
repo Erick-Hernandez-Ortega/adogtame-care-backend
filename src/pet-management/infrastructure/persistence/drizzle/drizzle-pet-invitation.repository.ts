@@ -1,12 +1,23 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { and, DrizzleQueryError, eq, lte } from 'drizzle-orm';
 import postgres from 'postgres';
 import { DatabaseService } from '../../../../infrastructure/database/database.service';
 import {
   CreatePendingInvitationOutcome,
+  type AcceptInvitationPersistenceResult,
   type PetInvitationRepository,
 } from '../../../application/persistence/pet-invitation.repository';
-import { AccountId } from '../../../domain/pet-membership/pet-membership';
+import {
+  decideAcceptance,
+  type AcceptanceDecision,
+} from '../../../application/accept-invitation/accept-invitation';
+import { CLOCK, type Clock } from '../../../application/time/clock';
+import {
+  AccountId,
+  MembershipId,
+  PetMembership,
+  PetMembershipStatus,
+} from '../../../domain/pet-membership/pet-membership';
 import {
   InvitationId,
   InvitedEmail,
@@ -15,11 +26,150 @@ import {
 } from '../../../domain/pet-invitation/pet-invitation';
 import type { PetInvitationStatus as PetInvitationStatusType } from '../../../domain/pet-invitation/pet-invitation.types';
 import { PetId } from '../../../domain/pet/pet';
-import { petInvitations } from './pet-management.schema';
+import type { PetStatus as PetStatusType } from '../../../domain/pet/pet.types';
+import type {
+  PetMembershipRole,
+  PetMembershipStatus as PetMembershipStatusType,
+} from '../../../domain/pet-membership/pet-membership.types';
+import { petInvitations, petMemberships, pets } from './pet-management.schema';
 
 @Injectable()
 export class DrizzlePetInvitationRepository implements PetInvitationRepository {
-  constructor(private readonly databaseService: DatabaseService) {}
+  constructor(
+    private readonly databaseService: DatabaseService,
+    @Inject(CLOCK) private readonly clock: Clock,
+  ) {}
+
+  async accept(
+    invitationId: string,
+    invitedEmail: string,
+    accountId: string,
+  ): Promise<AcceptInvitationPersistenceResult> {
+    return this.databaseService.connection.transaction(
+      async (transaction) => {
+        const invitationRows = await transaction
+          .select()
+          .from(petInvitations)
+          .where(
+            and(
+              eq(petInvitations.id, invitationId),
+              eq(petInvitations.invitedEmail, invitedEmail),
+            ),
+          )
+          .for('update');
+        const row = invitationRows[0];
+
+        if (row === undefined) {
+          return { outcome: 'NOT_FOUND' };
+        }
+
+        const invitation: PetInvitation = PetInvitation.reconstitute({
+          id: InvitationId.from(row.id),
+          petId: PetId.from(row.petId),
+          invitedEmail: InvitedEmail.from(row.invitedEmail),
+          invitedByAccountId: AccountId.from(row.invitedByAccountId),
+          status: row.status as PetInvitationStatusType,
+          createdAt: row.createdAt.toISOString(),
+          expiresAt: row.expiresAt.toISOString(),
+        });
+        const petRows = await transaction
+          .select({ status: pets.status })
+          .from(pets)
+          .where(eq(pets.id, row.petId))
+          .for('update');
+        const petRow = petRows[0];
+
+        if (petRow === undefined) {
+          throw new Error('Invitation pet is missing');
+        }
+
+        const membershipRows = await transaction
+          .select()
+          .from(petMemberships)
+          .where(
+            and(
+              eq(petMemberships.petId, row.petId),
+              eq(petMemberships.accountId, accountId),
+            ),
+          )
+          .for('update');
+        const membershipRow = membershipRows[0];
+        const membership: PetMembership | null =
+          membershipRow === undefined
+            ? null
+            : PetMembership.reconstitute({
+                id: MembershipId.from(membershipRow.id),
+                accountId: AccountId.from(membershipRow.accountId),
+                role: membershipRow.role as PetMembershipRole,
+                status: membershipRow.status as PetMembershipStatusType,
+              });
+        const now: Date = this.clock.now();
+        const decision: AcceptanceDecision = decideAcceptance(
+          invitation,
+          petRow.status as PetStatusType,
+          membership,
+          accountId,
+          now,
+        );
+
+        if (
+          decision.outcome === 'ACCEPTED' &&
+          decision.membershipChange !== null
+        ) {
+          const change = decision.membershipChange;
+          if (change.kind === 'CREATE') {
+            await transaction.insert(petMemberships).values({
+              id: change.membership.id.value,
+              petId: row.petId,
+              accountId: change.membership.accountId.value,
+              role: change.membership.role,
+              status: change.membership.status,
+            });
+          } else {
+            const changedRows = await transaction
+              .update(petMemberships)
+              .set({
+                role: change.membership.role,
+                status: change.membership.status,
+              })
+              .where(
+                and(
+                  eq(petMemberships.id, change.membership.id.value),
+                  eq(petMemberships.petId, row.petId),
+                  eq(petMemberships.accountId, accountId),
+                  eq(petMemberships.status, PetMembershipStatus.INACTIVE),
+                ),
+              )
+              .returning({ id: petMemberships.id });
+            if (changedRows.length !== 1) {
+              throw new Error('Membership reactivation did not update one row');
+            }
+          }
+        }
+
+        if (decision.invitationToSave !== null) {
+          const changedRows = await transaction
+            .update(petInvitations)
+            .set({ status: decision.invitationToSave.status })
+            .where(
+              and(
+                eq(petInvitations.id, invitationId),
+                eq(petInvitations.status, PetInvitationStatus.PENDING),
+              ),
+            )
+            .returning({ id: petInvitations.id });
+          if (changedRows.length !== 1) {
+            throw new Error('Invitation transition did not update one row');
+          }
+        }
+
+        return decision.outcome === 'ACCEPTED'
+          ? { outcome: 'ACCEPTED', id: row.id, petId: row.petId }
+          : { outcome: decision.outcome };
+      },
+      { isolationLevel: 'read committed' },
+    );
+  }
 
   async findPending(
     petId: string,

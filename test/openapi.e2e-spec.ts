@@ -38,7 +38,7 @@ describe('OpenAPI documentation (e2e)', () => {
     await application.close();
   });
 
-  it('serves Swagger UI and documents all seven routes and their contracts', async () => {
+  it('serves Swagger UI and documents all eight routes and their contracts', async () => {
     const htmlResponse = await request(application.getHttpServer())
       .get('/docs')
       .expect(200);
@@ -57,6 +57,7 @@ describe('OpenAPI documentation (e2e)', () => {
       ['/pets/{petId}', 'get'],
       ['/pets', 'post'],
       ['/pets/{petId}/invitations', 'post'],
+      ['/pet-invitations/{invitationId}/accept', 'post'],
     ];
     for (const [path, method] of routes) {
       const operation: OperationObject | undefined =
@@ -70,7 +71,7 @@ describe('OpenAPI documentation (e2e)', () => {
           count + Number(Boolean(path?.get)) + Number(Boolean(path?.post)),
         0,
       ),
-    ).toBe(7);
+    ).toBe(8);
 
     expect(document.components?.securitySchemes?.bearer).toMatchObject({
       type: 'http',
@@ -81,7 +82,9 @@ describe('OpenAPI documentation (e2e)', () => {
       const operation: OperationObject | undefined =
         document.paths[path]?.[method as 'get' | 'post'];
       expect(operation?.security ?? []).toEqual(
-        path.startsWith('/pets') ? [{ bearer: [] }] : [],
+        path.startsWith('/pets') || path.startsWith('/pet-invitations')
+          ? [{ bearer: [] }]
+          : [],
       );
     }
 
@@ -91,6 +94,8 @@ describe('OpenAPI documentation (e2e)', () => {
     const detail = document.paths['/pets/{petId}']?.get;
     const create = document.paths['/pets']?.post;
     const invite = document.paths['/pets/{petId}/invitations']?.post;
+    const accept =
+      document.paths['/pet-invitations/{invitationId}/accept']?.post;
 
     for (const operation of [account, login, create, invite]) {
       const requestSchema =
@@ -117,7 +122,7 @@ describe('OpenAPI documentation (e2e)', () => {
     expect(invite?.responses['409']).toBeDefined();
     expect(invite?.responses['422']).toBeDefined();
 
-    for (const operation of [list, detail, create, invite]) {
+    for (const operation of [list, detail, create, invite, accept]) {
       expect(operation?.responses['401']).toBeDefined();
     }
 
@@ -152,6 +157,26 @@ describe('OpenAPI documentation (e2e)', () => {
       enum: ['DOG', 'CAT'],
     });
     expect(petRequestSchema?.properties?.color).toBeDefined();
+    expect(accept?.requestBody).toBeUndefined();
+    expect(accept?.responses['200']).toBeDefined();
+    for (const status of ['400', '401', '404', '409', '410']) {
+      expect(accept?.responses[status]).toBeDefined();
+    }
+    expect(responseSchema(accept, '200')?.required).toEqual([
+      'id',
+      'petId',
+      'status',
+    ]);
+    expect(accept?.parameters).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: 'invitationId',
+          in: 'path',
+          required: true,
+          schema: expect.objectContaining({ format: 'uuid' }) as object,
+        }) as object,
+      ]),
+    );
     expect(petRequestSchema?.required).not.toContain('color');
     expect(petRequestSchema?.additionalProperties).toBe(false);
 

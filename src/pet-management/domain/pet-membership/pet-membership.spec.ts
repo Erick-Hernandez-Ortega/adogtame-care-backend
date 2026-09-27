@@ -1,5 +1,6 @@
 import {
   AccountId,
+  MembershipId,
   PetMembership,
   PetMembershipRole,
   PetMembershipStatus,
@@ -21,6 +22,42 @@ describe('PetMembership', () => {
     expect(membership.accountId).toBe(accountId);
     expect(membership.role).toBe(PetMembershipRole.OWNER);
     expect(membership.status).toBe(PetMembershipStatus.ACTIVE);
+  });
+
+  it('creates an active collaborator', () => {
+    const membership = PetMembership.createCollaborator(
+      AccountId.from(ACCOUNT_ID_V1),
+    );
+    expect(membership.id.value).toMatch(UUID_PATTERN);
+    expect(membership.role).toBe(PetMembershipRole.COLLABORATOR);
+    expect(membership.status).toBe(PetMembershipStatus.ACTIVE);
+  });
+
+  it.each([PetMembershipRole.OWNER, PetMembershipRole.COLLABORATOR])(
+    'reactivates an inactive %s as collaborator without changing identity',
+    (role) => {
+      const membership = PetMembership.reconstitute({
+        id: MembershipId.from(ACCOUNT_ID_V7),
+        accountId: AccountId.from(ACCOUNT_ID_V1),
+        role,
+        status: PetMembershipStatus.INACTIVE,
+      });
+      const reactivated = membership.reactivateAsCollaborator();
+      expect(reactivated.id).toBe(membership.id);
+      expect(reactivated.accountId).toBe(membership.accountId);
+      expect(reactivated.role).toBe(PetMembershipRole.COLLABORATOR);
+      expect(reactivated.status).toBe(PetMembershipStatus.ACTIVE);
+    },
+  );
+
+  it('does not reactivate or downgrade an active owner', () => {
+    const membership = PetMembership.createInitialOwner(
+      AccountId.from(ACCOUNT_ID_V1),
+    );
+    expect(() => membership.reactivateAsCollaborator()).toThrow(
+      'Only an inactive membership can be reactivated',
+    );
+    expect(membership.role).toBe(PetMembershipRole.OWNER);
   });
 });
 
