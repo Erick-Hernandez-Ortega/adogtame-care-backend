@@ -4,6 +4,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { validateEnvironment } from './infrastructure/config/environment.validation';
 import { DatabaseModule } from './infrastructure/database/database.module';
+import { HealthModule } from './health/infrastructure/health.module';
 import { IdentityModule } from './identity/infrastructure/identity.module';
 import { PetManagementModule } from './pet-management/infrastructure/pet-management.module';
 
@@ -17,6 +18,7 @@ import { PetManagementModule } from './pet-management/infrastructure/pet-managem
     DatabaseModule,
     IdentityModule,
     PetManagementModule,
+    HealthModule,
   ],
   controllers: [AppController],
   providers: [AppService],

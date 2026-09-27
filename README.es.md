@@ -73,9 +73,12 @@ token. Swagger añade automáticamente el prefijo Bearer a las peticiones.
 | `POST /pets`                                  | Registrar mascota           | Sí           |
 | `POST /pets/{petId}/invitations`              | Invitar colaborador         | Sí           |
 | `POST /pets/{petId}/leave`                    | Abandonar como colaborador  | Sí           |
+| `POST /pets/{petId}/health/weight-records`    | Registrar peso (kg)         | Sí           |
 | `POST /pet-invitations/{invitationId}/accept` | Aceptar invitación          | Sí           |
 | `POST /pet-invitations/{invitationId}/reject` | Rechazar invitación         | Sí           |
 | `POST /pet-invitations/{invitationId}/cancel` | Cancelar invitación         | Sí           |
+
+Para registrar un peso, envía `POST /pets/{petId}/health/weight-records` con un token Bearer y JSON como `{"weightKg":"12.3456","measuredDate":"2026-09-26"}`. El peso es un string decimal positivo en kilogramos con un máximo de cuatro decimales. La fecha de medición debe ser una fecha calendario válida no posterior a hoy en UTC. Un owner o collaborator activo de una mascota activa recibe `201` con el ID del registro, ID de la mascota, `weightKg` canónico, `measuredDate` y `recordedByAccountId`. Una mascota inaccesible o archivada devuelve `404 PET_NOT_FOUND`.
 
 ## Migraciones
 

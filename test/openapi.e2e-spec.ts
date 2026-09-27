@@ -38,7 +38,7 @@ describe('OpenAPI documentation (e2e)', () => {
     await application.close();
   });
 
-  it('serves Swagger UI and documents all eleven routes and their contracts', async () => {
+  it('serves Swagger UI and documents all twelve routes and their contracts', async () => {
     const htmlResponse = await request(application.getHttpServer())
       .get('/docs')
       .expect(200);
@@ -58,6 +58,7 @@ describe('OpenAPI documentation (e2e)', () => {
       ['/pets', 'post'],
       ['/pets/{petId}/invitations', 'post'],
       ['/pets/{petId}/leave', 'post'],
+      ['/pets/{petId}/health/weight-records', 'post'],
       ['/pet-invitations/{invitationId}/accept', 'post'],
       ['/pet-invitations/{invitationId}/reject', 'post'],
       ['/pet-invitations/{invitationId}/cancel', 'post'],
@@ -74,7 +75,7 @@ describe('OpenAPI documentation (e2e)', () => {
           count + Number(Boolean(path?.get)) + Number(Boolean(path?.post)),
         0,
       ),
-    ).toBe(11);
+    ).toBe(12);
 
     expect(document.components?.securitySchemes?.bearer).toMatchObject({
       type: 'http',
@@ -98,6 +99,7 @@ describe('OpenAPI documentation (e2e)', () => {
     const create = document.paths['/pets']?.post;
     const invite = document.paths['/pets/{petId}/invitations']?.post;
     const leave = document.paths['/pets/{petId}/leave']?.post;
+    const weight = document.paths['/pets/{petId}/health/weight-records']?.post;
     const accept =
       document.paths['/pet-invitations/{invitationId}/accept']?.post;
     const reject =
@@ -105,7 +107,7 @@ describe('OpenAPI documentation (e2e)', () => {
     const cancel =
       document.paths['/pet-invitations/{invitationId}/cancel']?.post;
 
-    for (const operation of [account, login, create, invite]) {
+    for (const operation of [account, login, create, invite, weight]) {
       const requestSchema =
         operation?.requestBody && 'content' in operation.requestBody
           ? (operation.requestBody.content['application/json']
@@ -130,11 +132,19 @@ describe('OpenAPI documentation (e2e)', () => {
     expect(invite?.responses['409']).toBeDefined();
     expect(invite?.responses['422']).toBeDefined();
 
-    for (const operation of [list, detail, create, invite, accept, leave]) {
+    for (const operation of [
+      list,
+      detail,
+      create,
+      invite,
+      accept,
+      leave,
+      weight,
+    ]) {
       expect(operation?.responses['401']).toBeDefined();
     }
 
-    for (const operation of [detail, invite, leave]) {
+    for (const operation of [detail, invite, leave, weight]) {
       expect(operation?.parameters).toEqual(
         expect.arrayContaining([
           expect.objectContaining({
@@ -169,6 +179,21 @@ describe('OpenAPI documentation (e2e)', () => {
     expect(reject?.requestBody).toBeUndefined();
     expect(cancel?.requestBody).toBeUndefined();
     expect(leave?.requestBody).toBeUndefined();
+    expect(responseSchema(weight, '201')).toMatchObject({
+      required: [
+        'id',
+        'petId',
+        'weightKg',
+        'measuredDate',
+        'recordedByAccountId',
+      ],
+    });
+    expect(weight?.responses['404']).toBeDefined();
+    expect(responseSchema(weight, '400')?.oneOf).toMatchObject([
+      { properties: { code: { enum: ['INVALID_REQUEST'] } } },
+      { properties: { code: { enum: ['INVALID_WEIGHT'] } } },
+      { properties: { code: { enum: ['INVALID_MEASURED_DATE'] } } },
+    ]);
     expect(accept?.responses['200']).toBeDefined();
     expect(reject?.responses['200']).toBeDefined();
     expect(cancel?.responses['200']).toBeDefined();

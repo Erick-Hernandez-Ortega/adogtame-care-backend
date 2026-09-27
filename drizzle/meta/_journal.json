@@ -43,6 +43,13 @@
       "when": 1790462390238,
       "tag": "0005_cool_ego",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1790475908015,
+      "tag": "0006_nasty_stingray",
+      "breakpoints": true
     }
   ]
 }
