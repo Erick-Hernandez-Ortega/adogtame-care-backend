@@ -22,6 +22,14 @@ import {
 import { AuthenticationGuard } from '../../../../identity/infrastructure/http/authentication/authentication.guard';
 import { CurrentAccountId } from '../../../../identity/infrastructure/http/decorators/current-account-id.decorator';
 import { errorSchema } from '../../../../infrastructure/http/openapi-error.schema';
+import { PetNotFoundError } from '../../../application/errors/pet-not-found.error';
+import {
+  CancelInvitation,
+  type CancelledPetInvitation,
+  CancelInvitationExpiredError,
+  CancelInvitationNotFoundError,
+  CancelInvitationNotPendingError,
+} from '../../../application/cancel-invitation/cancel-invitation';
 import {
   AcceptInvitation,
   type AcceptedPetInvitation,
@@ -46,7 +54,12 @@ import {
   rejectInvitationIdSchema,
 } from '../schemas/reject-invitation.schema';
 import {
+  cancelInvitationIdSchema,
+  emptyCancelInvitationBodySchema,
+} from '../schemas/cancel-invitation.schema';
+import {
   acceptedInvitationResponseSchema,
+  cancelledInvitationResponseSchema,
   rejectedInvitationResponseSchema,
 } from '../schemas/openapi.schemas';
 
@@ -57,6 +70,7 @@ export class PetInvitationsController {
   constructor(
     private readonly acceptInvitation: AcceptInvitation,
     private readonly rejectInvitation: RejectInvitation,
+    private readonly cancelInvitation: CancelInvitation,
   ) {}
 
   @Post(':invitationId/accept')
@@ -246,6 +260,110 @@ export class PetInvitationsController {
         });
       }
       if (error instanceof RejectInvitationNotPendingError) {
+        throw new ConflictException({
+          code: 'INVITATION_NOT_PENDING',
+          message: error.message,
+        });
+      }
+      throw error;
+    }
+  }
+
+  @Post(':invitationId/cancel')
+  @UseGuards(AuthenticationGuard)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Cancel a pet invitation',
+    description:
+      'Any active owner of an active pet may cancel its invitation. A successful retry requires the same authorization.',
+  })
+  @ApiParam({
+    name: 'invitationId',
+    description: 'Invitation UUID',
+    schema: { type: 'string', format: 'uuid' },
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Invitation cancelled',
+    schema: cancelledInvitationResponseSchema,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid invitation UUID or nonempty request body',
+    schema: errorSchema(['INVALID_REQUEST'], 'Invitation id is invalid'),
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Missing or invalid Bearer token',
+    schema: errorSchema(['UNAUTHENTICATED'], 'Authentication is required'),
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Invitation missing or pet inaccessible',
+    schema: {
+      oneOf: [
+        errorSchema(['INVITATION_NOT_FOUND'], 'Invitation was not found'),
+        errorSchema(['PET_NOT_FOUND'], 'Pet was not found'),
+      ],
+    },
+  })
+  @ApiResponse({
+    status: 409,
+    description: 'Invitation accepted or rejected',
+    schema: errorSchema(
+      ['INVITATION_NOT_PENDING'],
+      'Invitation is not pending',
+    ),
+  })
+  @ApiResponse({
+    status: 410,
+    description: 'Invitation expired',
+    schema: errorSchema(['INVITATION_EXPIRED'], 'Invitation has expired'),
+  })
+  async cancel(
+    @CurrentAccountId() accountId: string,
+    @Param('invitationId') invitationId: string,
+    @Req() request: Request,
+  ): Promise<CancelledPetInvitation> {
+    const body: unknown = request.body as unknown;
+    const parsedId = cancelInvitationIdSchema.safeParse(invitationId);
+    if (!parsedId.success) {
+      throw new BadRequestException({
+        code: 'INVALID_REQUEST',
+        message: 'Invitation id is invalid',
+      });
+    }
+    if (
+      body !== undefined &&
+      !emptyCancelInvitationBodySchema.safeParse(body).success
+    ) {
+      throw new BadRequestException({
+        code: 'INVALID_REQUEST',
+        message: 'Request body is invalid',
+      });
+    }
+    try {
+      return await this.cancelInvitation.execute(parsedId.data, accountId);
+    } catch (error: unknown) {
+      if (error instanceof CancelInvitationNotFoundError) {
+        throw new NotFoundException({
+          code: 'INVITATION_NOT_FOUND',
+          message: error.message,
+        });
+      }
+      if (error instanceof PetNotFoundError) {
+        throw new NotFoundException({
+          code: 'PET_NOT_FOUND',
+          message: error.message,
+        });
+      }
+      if (error instanceof CancelInvitationExpiredError) {
+        throw new GoneException({
+          code: 'INVITATION_EXPIRED',
+          message: error.message,
+        });
+      }
+      if (error instanceof CancelInvitationNotPendingError) {
         throw new ConflictException({
           code: 'INVITATION_NOT_PENDING',
           message: error.message,

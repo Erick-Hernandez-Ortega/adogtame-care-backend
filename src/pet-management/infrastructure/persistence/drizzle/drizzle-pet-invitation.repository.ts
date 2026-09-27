@@ -5,6 +5,7 @@ import { DatabaseService } from '../../../../infrastructure/database/database.se
 import {
   CreatePendingInvitationOutcome,
   type AcceptInvitationPersistenceResult,
+  type CancelInvitationPersistenceResult,
   type PetInvitationRepository,
   type RejectInvitationPersistenceResult,
 } from '../../../application/persistence/pet-invitation.repository';
@@ -12,6 +13,10 @@ import {
   decideRejection,
   type RejectionDecision,
 } from '../../../application/reject-invitation/reject-invitation';
+import {
+  decideCancellation,
+  type CancellationDecision,
+} from '../../../application/cancel-invitation/cancel-invitation';
 import {
   decideAcceptance,
   type AcceptanceDecision,
@@ -21,6 +26,7 @@ import {
   AccountId,
   MembershipId,
   PetMembership,
+  PetMembershipRole,
   PetMembershipStatus,
 } from '../../../domain/pet-membership/pet-membership';
 import {
@@ -30,10 +36,10 @@ import {
   PetInvitationStatus,
 } from '../../../domain/pet-invitation/pet-invitation';
 import type { PetInvitationStatus as PetInvitationStatusType } from '../../../domain/pet-invitation/pet-invitation.types';
-import { PetId } from '../../../domain/pet/pet';
+import { PetId, PetStatus } from '../../../domain/pet/pet';
 import type { PetStatus as PetStatusType } from '../../../domain/pet/pet.types';
 import type {
-  PetMembershipRole,
+  PetMembershipRole as PetMembershipRoleType,
   PetMembershipStatus as PetMembershipStatusType,
 } from '../../../domain/pet-membership/pet-membership.types';
 import { petInvitations, petMemberships, pets } from './pet-management.schema';
@@ -44,6 +50,86 @@ export class DrizzlePetInvitationRepository implements PetInvitationRepository {
     private readonly databaseService: DatabaseService,
     @Inject(CLOCK) private readonly clock: Clock,
   ) {}
+
+  async cancel(
+    invitationId: string,
+    authenticatedAccountId: string,
+  ): Promise<CancelInvitationPersistenceResult> {
+    return this.databaseService.connection.transaction(
+      async (transaction) => {
+        const invitationRows = await transaction
+          .select()
+          .from(petInvitations)
+          .where(eq(petInvitations.id, invitationId))
+          .for('update');
+        const row = invitationRows[0];
+        if (row === undefined) {
+          return { outcome: 'NOT_FOUND' };
+        }
+
+        const petRows = await transaction
+          .select({ status: pets.status })
+          .from(pets)
+          .where(eq(pets.id, row.petId))
+          .for('update');
+        if (petRows[0]?.status !== PetStatus.ACTIVE) {
+          return { outcome: 'PET_NOT_FOUND' };
+        }
+
+        const membershipRows = await transaction
+          .select({ role: petMemberships.role, status: petMemberships.status })
+          .from(petMemberships)
+          .where(
+            and(
+              eq(petMemberships.petId, row.petId),
+              eq(petMemberships.accountId, authenticatedAccountId),
+            ),
+          )
+          .for('update');
+        if (
+          membershipRows[0]?.status !== PetMembershipStatus.ACTIVE ||
+          membershipRows[0]?.role !== PetMembershipRole.OWNER
+        ) {
+          return { outcome: 'PET_NOT_FOUND' };
+        }
+
+        const invitation: PetInvitation = PetInvitation.reconstitute({
+          id: InvitationId.from(row.id),
+          petId: PetId.from(row.petId),
+          invitedEmail: InvitedEmail.from(row.invitedEmail),
+          invitedByAccountId: AccountId.from(row.invitedByAccountId),
+          status: row.status as PetInvitationStatusType,
+          createdAt: row.createdAt.toISOString(),
+          expiresAt: row.expiresAt.toISOString(),
+        });
+        const decision: CancellationDecision = decideCancellation(
+          invitation,
+          this.clock.now(),
+        );
+
+        if (decision.invitationToSave !== null) {
+          const changedRows = await transaction
+            .update(petInvitations)
+            .set({ status: decision.invitationToSave.status })
+            .where(
+              and(
+                eq(petInvitations.id, invitationId),
+                eq(petInvitations.status, PetInvitationStatus.PENDING),
+              ),
+            )
+            .returning({ id: petInvitations.id });
+          if (changedRows.length !== 1) {
+            throw new Error('Invitation transition did not update one row');
+          }
+        }
+
+        return decision.outcome === 'CANCELLED'
+          ? { outcome: 'CANCELLED', id: row.id, petId: row.petId }
+          : { outcome: decision.outcome };
+      },
+      { isolationLevel: 'read committed' },
+    );
+  }
 
   async reject(
     invitationId: string,
@@ -165,7 +251,7 @@ export class DrizzlePetInvitationRepository implements PetInvitationRepository {
             : PetMembership.reconstitute({
                 id: MembershipId.from(membershipRow.id),
                 accountId: AccountId.from(membershipRow.accountId),
-                role: membershipRow.role as PetMembershipRole,
+                role: membershipRow.role as PetMembershipRoleType,
                 status: membershipRow.status as PetMembershipStatusType,
               });
         const now: Date = this.clock.now();

@@ -20,6 +20,10 @@ export type RejectInvitationPersistenceResult =
   | { outcome: 'NOT_FOUND' | 'EXPIRED' | 'NOT_PENDING' }
   | { outcome: 'REJECTED'; id: string; petId: string };
 
+export type CancelInvitationPersistenceResult =
+  | { outcome: 'NOT_FOUND' | 'PET_NOT_FOUND' | 'EXPIRED' | 'NOT_PENDING' }
+  | { outcome: 'CANCELLED'; id: string; petId: string };
+
 export interface PetInvitationRepository {
   findPending(petId: string, email: string): Promise<PetInvitation | null>;
   createPending(
@@ -35,4 +39,8 @@ export interface PetInvitationRepository {
     invitationId: string,
     invitedEmail: string,
   ): Promise<RejectInvitationPersistenceResult>;
+  cancel(
+    invitationId: string,
+    authenticatedAccountId: string,
+  ): Promise<CancelInvitationPersistenceResult>;
 }

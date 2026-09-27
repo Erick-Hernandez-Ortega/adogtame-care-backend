@@ -183,3 +183,18 @@ export const rejectedInvitationResponseSchema: SchemaObject = {
     status: 'REJECTED',
   },
 };
+
+export const cancelledInvitationResponseSchema: SchemaObject = {
+  type: 'object',
+  required: ['id', 'petId', 'status'],
+  properties: {
+    id: { type: 'string', format: 'uuid' },
+    petId: { type: 'string', format: 'uuid' },
+    status: { type: 'string', enum: ['CANCELLED'] },
+  },
+  example: {
+    id: '6fe44a29-206e-4875-9f3e-72026868135e',
+    petId: '42b30488-fd7c-4c5d-b9cc-8c7aa5d171dd',
+    status: 'CANCELLED',
+  },
+};

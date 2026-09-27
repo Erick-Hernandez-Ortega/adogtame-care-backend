@@ -169,6 +169,18 @@ export class PetInvitation {
     this.statusValue = PetInvitationStatus.REJECTED;
   }
 
+  cancel(now: Date): void {
+    if (this.statusValue !== PetInvitationStatus.PENDING) {
+      throw new TypeError('Only a pending invitation can be cancelled');
+    }
+
+    if (this.expireIfDue(now)) {
+      throw new TypeError('An expired invitation cannot be cancelled');
+    }
+
+    this.statusValue = PetInvitationStatus.CANCELLED;
+  }
+
   private static assertIdentities(input: {
     petId: PetId;
     invitedEmail: InvitedEmail;

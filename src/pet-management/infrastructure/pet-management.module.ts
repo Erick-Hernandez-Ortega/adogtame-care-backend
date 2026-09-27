@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { AcceptInvitation } from '../application/accept-invitation/accept-invitation';
 import { RejectInvitation } from '../application/reject-invitation/reject-invitation';
+import { CancelInvitation } from '../application/cancel-invitation/cancel-invitation';
 import { DatabaseModule } from '../../infrastructure/database/database.module';
 import { IdentityModule } from '../../identity/infrastructure/identity.module';
 import {
@@ -98,6 +99,13 @@ import { DrizzlePetRepository } from './persistence/drizzle/drizzle-pet.reposito
         invitationRepository: PetInvitationRepository,
       ): RejectInvitation =>
         new RejectInvitation(accountLookup, invitationRepository),
+    },
+    {
+      provide: CancelInvitation,
+      inject: [PET_INVITATION_REPOSITORY],
+      useFactory: (
+        invitationRepository: PetInvitationRepository,
+      ): CancelInvitation => new CancelInvitation(invitationRepository),
     },
     DrizzlePetRepository,
     {

@@ -117,6 +117,9 @@ describe('RejectInvitation', () => {
         outcome: 'NOT_FOUND',
       }) as PetInvitationRepository['accept'],
       reject,
+      cancel: jest.fn().mockResolvedValue({
+        outcome: 'NOT_FOUND',
+      }) as PetInvitationRepository['cancel'],
     };
     return { useCase: new RejectInvitation(accountLookup, repository), reject };
   }
