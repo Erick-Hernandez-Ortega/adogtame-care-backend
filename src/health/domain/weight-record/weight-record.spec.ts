@@ -1,6 +1,11 @@
 import { MeasuredDate } from '../measured-date/measured-date';
 import { Weight } from '../weight/weight';
-import { PetId, RecordedByAccountId, WeightRecord } from './weight-record';
+import {
+  PetId,
+  RecordedByAccountId,
+  WeightRecord,
+  WeightRecordId,
+} from './weight-record';
 
 const PET_ID = 'b30a4c42-84e5-4765-99d4-1efb17f09c12';
 const ACCOUNT_ID = '550e8400-e29b-41d4-a716-446655440000';
@@ -36,6 +41,38 @@ describe('WeightRecord', () => {
     (id) => {
       expect(() => PetId.from(id)).toThrow(TypeError);
       expect(() => RecordedByAccountId.from(id)).toThrow(TypeError);
+      expect(() => WeightRecordId.from(id)).toThrow(TypeError);
     },
   );
+
+  it('reconstitutes and corrects values while retaining identity and authorship', () => {
+    const record = WeightRecord.reconstitute({
+      id: WeightRecordId.from('68f9d91f-cbcd-4da7-b1b8-1ee61a0bb321'),
+      petId: PetId.from(PET_ID),
+      weight: Weight.fromKilograms('12.34'),
+      measuredDate: MeasuredDate.from('2026-09-25', '2026-09-26'),
+      recordedByAccountId: RecordedByAccountId.from(ACCOUNT_ID),
+    });
+    const corrected = record.correct({
+      weight: Weight.fromKilograms('0013.5000'),
+      measuredDate: MeasuredDate.from('2026-09-26', '2026-09-26'),
+    });
+    expect(corrected).not.toBe(record);
+    expect(corrected).toMatchObject({
+      id: record.id,
+      petId: record.petId,
+      recordedByAccountId: record.recordedByAccountId,
+    });
+    expect(corrected.weight.kilograms).toBe('13.5');
+    expect(corrected.measuredDate.value).toBe('2026-09-26');
+    expect(record.weight.kilograms).toBe('12.34');
+    expect(record.correct({ weight: Weight.fromKilograms('012.3400') })).toBe(
+      record,
+    );
+    expect(
+      record.correct({
+        measuredDate: MeasuredDate.from('2026-09-25', '2026-09-26'),
+      }),
+    ).toBe(record);
+  });
 });

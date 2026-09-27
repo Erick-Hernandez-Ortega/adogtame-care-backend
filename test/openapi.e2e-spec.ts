@@ -38,7 +38,7 @@ describe('OpenAPI documentation (e2e)', () => {
     await application.close();
   });
 
-  it('serves Swagger UI and documents all thirteen routes and their contracts', async () => {
+  it('serves Swagger UI and documents all fifteen routes and their contracts', async () => {
     const htmlResponse = await request(application.getHttpServer())
       .get('/docs')
       .expect(200);
@@ -60,23 +60,29 @@ describe('OpenAPI documentation (e2e)', () => {
       ['/pets/{petId}/leave', 'post'],
       ['/pets/{petId}/health/weight-records', 'post'],
       ['/pets/{petId}/health/weight-records', 'get'],
+      ['/pets/{petId}/health/weight-records/{weightRecordId}', 'patch'],
+      ['/pets/{petId}/health/weight-records/{weightRecordId}', 'delete'],
       ['/pet-invitations/{invitationId}/accept', 'post'],
       ['/pet-invitations/{invitationId}/reject', 'post'],
       ['/pet-invitations/{invitationId}/cancel', 'post'],
     ];
     for (const [path, method] of routes) {
       const operation: OperationObject | undefined =
-        document.paths[path]?.[method as 'get' | 'post'];
+        document.paths[path]?.[method as 'get' | 'post' | 'patch' | 'delete'];
       expect(operation).toBeDefined();
       expect(operation?.summary).toBeTruthy();
     }
     expect(
       Object.values(document.paths).reduce(
         (count: number, path) =>
-          count + Number(Boolean(path?.get)) + Number(Boolean(path?.post)),
+          count +
+          Number(Boolean(path?.get)) +
+          Number(Boolean(path?.post)) +
+          Number(Boolean(path?.patch)) +
+          Number(Boolean(path?.delete)),
         0,
       ),
-    ).toBe(13);
+    ).toBe(15);
 
     expect(document.components?.securitySchemes?.bearer).toMatchObject({
       type: 'http',
@@ -85,7 +91,7 @@ describe('OpenAPI documentation (e2e)', () => {
 
     for (const [path, method] of routes) {
       const operation: OperationObject | undefined =
-        document.paths[path]?.[method as 'get' | 'post'];
+        document.paths[path]?.[method as 'get' | 'post' | 'patch' | 'delete'];
       expect(operation?.security ?? []).toEqual(
         path.startsWith('/pets') || path.startsWith('/pet-invitations')
           ? [{ bearer: [] }]
@@ -103,6 +109,18 @@ describe('OpenAPI documentation (e2e)', () => {
     const weight = document.paths['/pets/{petId}/health/weight-records']?.post;
     const weightHistory =
       document.paths['/pets/{petId}/health/weight-records']?.get;
+    const weightUpdate =
+      document.paths['/pets/{petId}/health/weight-records/{weightRecordId}']
+        ?.patch;
+    const weightDelete =
+      document.paths['/pets/{petId}/health/weight-records/{weightRecordId}']
+        ?.delete;
+    expect(weightUpdate?.responses['200']).toBeDefined();
+    expect(weightUpdate?.responses['400']).toBeDefined();
+    expect(weightUpdate?.responses['404']).toBeDefined();
+    expect(weightDelete?.responses['204']).toBeDefined();
+    expect(weightDelete?.responses['400']).toBeDefined();
+    expect(weightDelete?.responses['404']).toBeDefined();
     const accept =
       document.paths['/pet-invitations/{invitationId}/accept']?.post;
     const reject =
@@ -144,6 +162,8 @@ describe('OpenAPI documentation (e2e)', () => {
       leave,
       weight,
       weightHistory,
+      weightUpdate,
+      weightDelete,
     ]) {
       expect(operation?.responses['401']).toBeDefined();
     }

@@ -3,6 +3,11 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { and, eq, sql } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
 import { AppModule } from '../../src/app.module';
+import { DeletePetWeightRecord } from '../../src/health/application/delete-pet-weight-record/delete-pet-weight-record';
+import {
+  UpdatePetWeightRecord,
+  WeightRecordNotFoundError,
+} from '../../src/health/application/update-pet-weight-record/update-pet-weight-record';
 import {
   PetNotFoundError,
   RecordPetWeight,
@@ -28,6 +33,8 @@ describe('RecordPetWeight with PostgreSQL (integration)', () => {
   let application: INestApplicationContext;
   let database: DatabaseService;
   let recordPetWeight: RecordPetWeight;
+  let updatePetWeightRecord: UpdatePetWeightRecord;
+  let deletePetWeightRecord: DeletePetWeightRecord;
   let repository: DrizzleWeightRecordRepository;
   let petId: string;
   let ownerId: string;
@@ -44,6 +51,8 @@ describe('RecordPetWeight with PostgreSQL (integration)', () => {
     application = moduleFixture;
     database = application.get(DatabaseService);
     recordPetWeight = application.get(RecordPetWeight);
+    updatePetWeightRecord = application.get(UpdatePetWeightRecord);
+    deletePetWeightRecord = application.get(DeletePetWeightRecord);
     repository = application.get(DrizzleWeightRecordRepository);
   });
 
@@ -117,6 +126,27 @@ describe('RecordPetWeight with PostgreSQL (integration)', () => {
       authenticatedAccountId: accountId,
       weightKg,
       measuredDate: '2024-02-29',
+    });
+  }
+
+  function correct(
+    weightRecordId: string,
+    accountId: string = collaboratorId,
+    weightKg = '13',
+  ) {
+    return updatePetWeightRecord.execute({
+      petId,
+      weightRecordId,
+      authenticatedAccountId: accountId,
+      weightKg,
+    });
+  }
+
+  function remove(weightRecordId: string, accountId: string = collaboratorId) {
+    return deletePetWeightRecord.execute({
+      petId,
+      weightRecordId,
+      authenticatedAccountId: accountId,
     });
   }
 
@@ -299,5 +329,245 @@ describe('RecordPetWeight with PostgreSQL (integration)', () => {
     }
     await deactivate;
     await pending;
+  });
+
+  it('corrects without changing author or timestamps on a no-op, then physically deletes', async () => {
+    const created = await record();
+    const before = (
+      await database.connection
+        .select()
+        .from(healthWeightRecords)
+        .where(eq(healthWeightRecords.id, created.id))
+    )[0];
+    const unchanged = await correct(created.id, collaboratorId, '012.3456');
+    expect(unchanged).toMatchObject({
+      weightKg: '12.3456',
+      recordedByAccountId: ownerId,
+    });
+    const afterNoop = (
+      await database.connection
+        .select()
+        .from(healthWeightRecords)
+        .where(eq(healthWeightRecords.id, created.id))
+    )[0];
+    expect(afterNoop?.updatedAt).toEqual(before?.updatedAt);
+    await new Promise<void>((resolve) => setTimeout(resolve, 20));
+    const changed = await correct(created.id, collaboratorId, '13.5000');
+    expect(changed).toMatchObject({
+      weightKg: '13.5',
+      recordedByAccountId: ownerId,
+    });
+    const afterChange = (
+      await database.connection
+        .select()
+        .from(healthWeightRecords)
+        .where(eq(healthWeightRecords.id, created.id))
+    )[0];
+    expect(afterChange?.createdAt).toEqual(before?.createdAt);
+    expect(afterChange?.updatedAt.getTime()).toBeGreaterThan(
+      before?.updatedAt.getTime() ?? 0,
+    );
+    expect(afterChange?.recordedByAccountId).toBe(ownerId);
+    await remove(created.id);
+    expect(
+      await database.connection
+        .select()
+        .from(healthWeightRecords)
+        .where(eq(healthWeightRecords.id, created.id)),
+    ).toHaveLength(0);
+    await expect(remove(created.id)).rejects.toThrow(WeightRecordNotFoundError);
+  });
+
+  it('serializes competing corrections and deletion after a record lock', async () => {
+    const created = await record();
+    let release: (() => void) | undefined;
+    let signalLocked: (() => void) | undefined;
+    const locked = new Promise<void>((resolve) => {
+      signalLocked = resolve;
+    });
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const holder = database.connection.transaction(async (transaction) => {
+      await transaction
+        .select()
+        .from(healthWeightRecords)
+        .where(eq(healthWeightRecords.id, created.id))
+        .for('update');
+      signalLocked?.();
+      await gate;
+    });
+    await locked;
+    const pending = correct(created.id, ownerId, '14');
+    try {
+      await waitForLock('health_weight_records');
+    } finally {
+      release?.();
+    }
+    await holder;
+    expect((await pending).weightKg).toBe('14');
+    await Promise.all([
+      correct(created.id, ownerId, '15'),
+      correct(created.id, collaboratorId, '16'),
+    ]);
+    const rows = await database.connection
+      .select()
+      .from(healthWeightRecords)
+      .where(eq(healthWeightRecords.id, created.id));
+    expect(['15', '16']).toContain(rows[0]?.weightKg);
+    await Promise.allSettled([remove(created.id), remove(created.id)]).then(
+      (results) => {
+        expect(
+          results.filter((result) => result.status === 'fulfilled'),
+        ).toHaveLength(1);
+        expect(
+          results.filter((result) => result.status === 'rejected'),
+        ).toHaveLength(1);
+      },
+    );
+  });
+
+  it('makes a queued correction observe deletion and never restores the record', async () => {
+    const created = await record();
+    let release: (() => void) | undefined;
+    let signalLocked: (() => void) | undefined;
+    const locked = new Promise<void>((resolve) => {
+      signalLocked = resolve;
+    });
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const holder = database.connection.transaction(async (transaction) => {
+      await transaction
+        .select()
+        .from(healthWeightRecords)
+        .where(eq(healthWeightRecords.id, created.id))
+        .for('update');
+      signalLocked?.();
+      await gate;
+    });
+    await locked;
+    const deleting = remove(created.id);
+    await waitForLock('health_weight_records');
+    const pending = expect(correct(created.id)).rejects.toThrow(
+      WeightRecordNotFoundError,
+    );
+    try {
+      await waitForLock('pets');
+    } finally {
+      release?.();
+    }
+    await holder;
+    await deleting;
+    await pending;
+    expect(
+      await database.connection
+        .select()
+        .from(healthWeightRecords)
+        .where(eq(healthWeightRecords.id, created.id)),
+    ).toHaveLength(0);
+  });
+
+  it('hides a record when archive or leave wins its access lock', async () => {
+    const created = await record();
+    for (const action of ['archive', 'leave'] as const) {
+      let release: (() => void) | undefined;
+      let signalLocked: (() => void) | undefined;
+      const locked = new Promise<void>((resolve) => {
+        signalLocked = resolve;
+      });
+      const gate = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      const change = database.connection.transaction(async (transaction) => {
+        if (action === 'archive') {
+          await transaction
+            .update(pets)
+            .set({ status: 'ARCHIVED' })
+            .where(eq(pets.id, petId));
+        } else {
+          await transaction
+            .update(petMemberships)
+            .set({ status: 'INACTIVE' })
+            .where(eq(petMemberships.id, collaboratorMembershipId));
+        }
+        signalLocked?.();
+        await gate;
+      });
+      await locked;
+      const pending = expect(
+        action === 'archive' ? correct(created.id) : remove(created.id),
+      ).rejects.toThrow(PetNotFoundError);
+      try {
+        await waitForLock(action === 'archive' ? 'pets' : 'pet_memberships');
+      } finally {
+        release?.();
+      }
+      await change;
+      await pending;
+      if (action === 'archive') {
+        await database.connection
+          .update(pets)
+          .set({ status: 'ACTIVE' })
+          .where(eq(pets.id, petId));
+      }
+    }
+  });
+
+  it('lets a correction finish before later archive or leave changes access', async () => {
+    const created = await record();
+    for (const action of ['archive', 'leave'] as const) {
+      let release: (() => void) | undefined;
+      let signalLocked: (() => void) | undefined;
+      const locked = new Promise<void>((resolve) => {
+        signalLocked = resolve;
+      });
+      const gate = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      const holder = database.connection.transaction(async (transaction) => {
+        await transaction
+          .select()
+          .from(healthWeightRecords)
+          .where(eq(healthWeightRecords.id, created.id))
+          .for('update');
+        signalLocked?.();
+        await gate;
+      });
+      await locked;
+      const pending = correct(
+        created.id,
+        collaboratorId,
+        action === 'archive' ? '14' : '15',
+      );
+      await waitForLock('health_weight_records');
+      const change = database.connection.transaction(async (transaction) => {
+        if (action === 'archive') {
+          await transaction
+            .update(pets)
+            .set({ status: 'ARCHIVED' })
+            .where(eq(pets.id, petId));
+        } else {
+          await transaction
+            .update(petMemberships)
+            .set({ status: 'INACTIVE' })
+            .where(eq(petMemberships.id, collaboratorMembershipId));
+        }
+      });
+      try {
+        await waitForLock(action === 'archive' ? 'pets' : 'pet_memberships');
+      } finally {
+        release?.();
+      }
+      await holder;
+      expect((await pending).weightKg).toBe(action === 'archive' ? '14' : '15');
+      await change;
+      if (action === 'archive') {
+        await database.connection
+          .update(pets)
+          .set({ status: 'ACTIVE' })
+          .where(eq(pets.id, petId));
+      }
+    }
   });
 });

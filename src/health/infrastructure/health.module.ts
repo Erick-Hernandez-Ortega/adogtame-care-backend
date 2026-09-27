@@ -6,6 +6,8 @@ import {
   type WeightRecordRepository,
 } from '../application/persistence/weight-record.repository';
 import { RecordPetWeight } from '../application/record-pet-weight/record-pet-weight';
+import { UpdatePetWeightRecord } from '../application/update-pet-weight-record/update-pet-weight-record';
+import { DeletePetWeightRecord } from '../application/delete-pet-weight-record/delete-pet-weight-record';
 import { ListPetWeightHistory } from '../application/list-pet-weight-history/list-pet-weight-history';
 import {
   WEIGHT_HISTORY_READER,
@@ -47,6 +49,20 @@ import { DrizzleWeightHistoryReader } from './persistence/drizzle/drizzle-weight
         repository: WeightRecordRepository,
         clock: Clock,
       ): RecordPetWeight => new RecordPetWeight(repository, clock),
+    },
+    {
+      provide: UpdatePetWeightRecord,
+      inject: [WEIGHT_RECORD_REPOSITORY, HEALTH_CLOCK],
+      useFactory: (
+        repository: WeightRecordRepository,
+        clock: Clock,
+      ): UpdatePetWeightRecord => new UpdatePetWeightRecord(repository, clock),
+    },
+    {
+      provide: DeletePetWeightRecord,
+      inject: [WEIGHT_RECORD_REPOSITORY],
+      useFactory: (repository: WeightRecordRepository): DeletePetWeightRecord =>
+        new DeletePetWeightRecord(repository),
     },
   ],
 })

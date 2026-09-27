@@ -75,6 +75,8 @@ Bearer prefix to requests automatically.
 | `POST /pets/{petId}/leave`                    | Leave as collaborator   | Yes          |
 | `POST /pets/{petId}/health/weight-records`    | Record pet weight (kg)  | Yes          |
 | `GET /pets/{petId}/health/weight-records`     | List pet weight history | Yes          |
+| `PATCH /pets/{petId}/health/weight-records/{weightRecordId}` | Correct pet weight record | Yes |
+| `DELETE /pets/{petId}/health/weight-records/{weightRecordId}` | Delete pet weight record | Yes |
 | `POST /pet-invitations/{invitationId}/accept` | Accept invitation       | Yes          |
 | `POST /pet-invitations/{invitationId}/reject` | Reject invitation       | Yes          |
 | `POST /pet-invitations/{invitationId}/cancel` | Cancel invitation       | Yes          |
@@ -82,6 +84,8 @@ Bearer prefix to requests automatically.
 To record a weight, send `POST /pets/{petId}/health/weight-records` with a Bearer token and JSON such as `{"weightKg":"12.3456","measuredDate":"2026-09-26"}`. Weight is a positive decimal string in kilograms with at most four decimal places. The measured date is a valid calendar date no later than today in UTC. An active owner or collaborator of an active pet receives `201` with the record ID, pet ID, canonical `weightKg`, `measuredDate`, and `recordedByAccountId`. An inaccessible or archived pet returns `404 PET_NOT_FOUND`.
 
 To read weight history, send `GET /pets/{petId}/health/weight-records` with a Bearer token. Active owners and collaborators can read active or archived pets. Results are ordered by measured date, newest first. Optional `limit` defaults to 20 (maximum 100); pass the opaque `nextCursor` as `cursor` for the next page. The `200` response contains `items` and `nextCursor` (`null` on the last page). Each item contains `id`, decimal string `weightKg`, `measuredDate`, and `recordedByAccountId`. Missing or inaccessible pets return `404 PET_NOT_FOUND`.
+
+To correct a record, send `PATCH /pets/{petId}/health/weight-records/{weightRecordId}` with `weightKg`, `measuredDate`, or both. The response is `200` with the canonical values and original recorder. To permanently delete it, send `DELETE` to the same path without a body or with `{}`; the response is `204`. Both actions require an active owner or collaborator of an active pet, regardless of who recorded the weight. Missing or inaccessible pets return `404 PET_NOT_FOUND`; a missing record or one belonging to another pet returns `404 WEIGHT_RECORD_NOT_FOUND` once pet access is confirmed.
 
 ## Migrations
 

@@ -33,7 +33,11 @@ function setup(outcome: CreateWeightRecordOutcome = 'CREATED') {
       [Parameters<WeightRecordRepository['createIfPetWritable']>[0]]
     >()
     .mockResolvedValue(outcome);
-  const repository: WeightRecordRepository = { createIfPetWritable };
+  const repository: WeightRecordRepository = {
+    createIfPetWritable,
+    correctIfPetWritable: jest.fn(),
+    deleteIfPetWritable: jest.fn(),
+  };
   const clock: Clock = {
     now: (): Date => new Date('2026-09-26T23:59:59.000Z'),
   };
@@ -96,6 +100,8 @@ describe('RecordPetWeight', () => {
         .mockResolvedValue(
           'CREATED',
         ) as WeightRecordRepository['createIfPetWritable'],
+      correctIfPetWritable: jest.fn(),
+      deleteIfPetWritable: jest.fn(),
     };
     const clock: Clock = {
       now: (): Date => new Date('2026-09-26T00:30:00.000Z'),

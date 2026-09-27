@@ -2,11 +2,13 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
   NotFoundException,
   Param,
+  Patch,
   Post,
   Query,
   UseGuards,
@@ -21,6 +23,11 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { AuthenticationGuard } from '../../../../identity/infrastructure/http/authentication/authentication.guard';
+import { DeletePetWeightRecord } from '../../../application/delete-pet-weight-record/delete-pet-weight-record';
+import {
+  UpdatePetWeightRecord,
+  WeightRecordNotFoundError,
+} from '../../../application/update-pet-weight-record/update-pet-weight-record';
 import { CurrentAccountId } from '../../../../identity/infrastructure/http/decorators/current-account-id.decorator';
 import { errorSchema } from '../../../../infrastructure/http/openapi-error.schema';
 import {
@@ -38,8 +45,12 @@ import {
 } from '../../../application/record-pet-weight/record-pet-weight';
 import {
   recordPetWeightSchema,
+  updatePetWeightRecordSchema,
+  deletePetWeightRecordSchema,
+  weightRecordIdSchema,
   weightRecordPetIdSchema,
   type RecordPetWeightRequest,
+  type UpdatePetWeightRecordRequest,
 } from '../schemas/record-pet-weight.schema';
 import {
   listPetWeightHistorySchema,
@@ -49,6 +60,7 @@ import {
   petWeightHistoryResponseSchema,
   recordedPetWeightResponseSchema,
   recordPetWeightRequestSchema,
+  updatePetWeightRecordRequestSchema,
 } from '../schemas/openapi.schemas';
 
 @Controller('pets/:petId/health/weight-records')
@@ -58,6 +70,8 @@ export class WeightRecordsController {
   constructor(
     private readonly recordPetWeight: RecordPetWeight,
     private readonly listPetWeightHistory: ListPetWeightHistory,
+    private readonly updatePetWeightRecord: UpdatePetWeightRecord,
+    private readonly deletePetWeightRecord: DeletePetWeightRecord,
   ) {}
 
   @Get()
@@ -256,5 +270,183 @@ export class WeightRecordsController {
       }
       throw error;
     }
+  }
+
+  @Patch(':weightRecordId')
+  @UseGuards(AuthenticationGuard)
+  @ApiOperation({
+    summary: 'Correct a pet weight record',
+    description:
+      'An active owner or collaborator may correct a record for an active pet.',
+  })
+  @ApiParam({ name: 'petId', schema: { type: 'string', format: 'uuid' } })
+  @ApiParam({
+    name: 'weightRecordId',
+    schema: { type: 'string', format: 'uuid' },
+  })
+  @ApiBody({ schema: updatePetWeightRecordRequestSchema })
+  @ApiResponse({
+    status: 200,
+    description: 'Corrected weight record',
+    schema: recordedPetWeightResponseSchema,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid request, weight, or measured date',
+    schema: {
+      oneOf: [
+        errorSchema(['INVALID_REQUEST'], 'Request body is invalid'),
+        errorSchema(['INVALID_WEIGHT'], 'Weight must be greater than zero'),
+        errorSchema(
+          ['INVALID_MEASURED_DATE'],
+          'Measured date cannot be in the future',
+        ),
+      ],
+    },
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Missing or invalid Bearer token',
+    schema: errorSchema(['UNAUTHENTICATED'], 'Authentication is required'),
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Pet or weight record missing or inaccessible',
+    schema: {
+      oneOf: [
+        errorSchema(['PET_NOT_FOUND'], 'Pet was not found'),
+        errorSchema(['WEIGHT_RECORD_NOT_FOUND'], 'Weight record was not found'),
+      ],
+    },
+  })
+  async update(
+    @CurrentAccountId() authenticatedAccountId: string,
+    @Param('petId') petId: string,
+    @Param('weightRecordId') weightRecordId: string,
+    @Body() body: unknown,
+  ): Promise<RecordedPetWeight> {
+    const parsedPetId = weightRecordPetIdSchema.safeParse(petId);
+    const parsedRecordId = weightRecordIdSchema.safeParse(weightRecordId);
+    if (!parsedPetId.success || !parsedRecordId.success) {
+      throw new BadRequestException({
+        code: 'INVALID_REQUEST',
+        message: 'Request path is invalid',
+      });
+    }
+    const parsedBody = updatePetWeightRecordSchema.safeParse(body);
+    if (!parsedBody.success) {
+      throw new BadRequestException({
+        code: 'INVALID_REQUEST',
+        message: 'Request body is invalid',
+      });
+    }
+    const request: UpdatePetWeightRecordRequest = parsedBody.data;
+    try {
+      return await this.updatePetWeightRecord.execute({
+        petId: parsedPetId.data,
+        weightRecordId: parsedRecordId.data,
+        authenticatedAccountId,
+        weightKg: request.weightKg,
+        measuredDate: request.measuredDate,
+      });
+    } catch (error: unknown) {
+      this.rethrowMutationError(error);
+    }
+  }
+
+  @Delete(':weightRecordId')
+  @UseGuards(AuthenticationGuard)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary: 'Delete a pet weight record',
+    description:
+      'An active owner or collaborator may delete a record for an active pet.',
+  })
+  @ApiParam({ name: 'petId', schema: { type: 'string', format: 'uuid' } })
+  @ApiParam({
+    name: 'weightRecordId',
+    schema: { type: 'string', format: 'uuid' },
+  })
+  @ApiResponse({ status: 204, description: 'Weight record deleted' })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid path or body',
+    schema: errorSchema(['INVALID_REQUEST'], 'Request body is invalid'),
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Missing or invalid Bearer token',
+    schema: errorSchema(['UNAUTHENTICATED'], 'Authentication is required'),
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Pet or weight record missing or inaccessible',
+    schema: {
+      oneOf: [
+        errorSchema(['PET_NOT_FOUND'], 'Pet was not found'),
+        errorSchema(['WEIGHT_RECORD_NOT_FOUND'], 'Weight record was not found'),
+      ],
+    },
+  })
+  async delete(
+    @CurrentAccountId() authenticatedAccountId: string,
+    @Param('petId') petId: string,
+    @Param('weightRecordId') weightRecordId: string,
+    @Body() body: unknown,
+  ): Promise<void> {
+    const parsedPetId = weightRecordPetIdSchema.safeParse(petId);
+    const parsedRecordId = weightRecordIdSchema.safeParse(weightRecordId);
+    if (!parsedPetId.success || !parsedRecordId.success) {
+      throw new BadRequestException({
+        code: 'INVALID_REQUEST',
+        message: 'Request path is invalid',
+      });
+    }
+    if (
+      body !== undefined &&
+      !deletePetWeightRecordSchema.safeParse(body).success
+    ) {
+      throw new BadRequestException({
+        code: 'INVALID_REQUEST',
+        message: 'Request body is invalid',
+      });
+    }
+    try {
+      await this.deletePetWeightRecord.execute({
+        petId: parsedPetId.data,
+        weightRecordId: parsedRecordId.data,
+        authenticatedAccountId,
+      });
+    } catch (error: unknown) {
+      this.rethrowMutationError(error);
+    }
+  }
+
+  private rethrowMutationError(error: unknown): never {
+    if (error instanceof InvalidWeightError) {
+      throw new BadRequestException({
+        code: 'INVALID_WEIGHT',
+        message: error.message,
+      });
+    }
+    if (error instanceof InvalidMeasuredDateError) {
+      throw new BadRequestException({
+        code: 'INVALID_MEASURED_DATE',
+        message: error.message,
+      });
+    }
+    if (error instanceof PetNotFoundError) {
+      throw new NotFoundException({
+        code: 'PET_NOT_FOUND',
+        message: error.message,
+      });
+    }
+    if (error instanceof WeightRecordNotFoundError) {
+      throw new NotFoundException({
+        code: 'WEIGHT_RECORD_NOT_FOUND',
+        message: error.message,
+      });
+    }
+    throw error;
   }
 }

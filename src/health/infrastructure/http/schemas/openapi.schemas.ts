@@ -1,9 +1,17 @@
 import type { SchemaObject } from '@nestjs/swagger';
 import { z } from 'zod';
-import { recordPetWeightSchema } from './record-pet-weight.schema';
+import {
+  recordPetWeightSchema,
+  updatePetWeightRecordSchema,
+} from './record-pet-weight.schema';
 
 export const recordPetWeightRequestSchema = z.toJSONSchema(
   recordPetWeightSchema,
+  { target: 'openapi-3.0' },
+) as SchemaObject;
+
+export const updatePetWeightRecordRequestSchema = z.toJSONSchema(
+  updatePetWeightRecordSchema,
   { target: 'openapi-3.0' },
 ) as SchemaObject;
 
