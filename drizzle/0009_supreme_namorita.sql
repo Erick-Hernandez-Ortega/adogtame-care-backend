@@ -1,0 +1,1 @@
+CREATE INDEX "health_vaccination_records_pet_history_idx" ON "health_vaccination_records" USING btree ("pet_id","applied_date" DESC NULLS LAST,"created_at" DESC NULLS LAST,"id" DESC NULLS LAST);

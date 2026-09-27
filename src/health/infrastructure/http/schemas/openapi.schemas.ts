@@ -50,6 +50,34 @@ export const recordedVaccinationResponseSchema: SchemaObject = {
   },
 };
 
+export const petVaccinationHistoryResponseSchema: SchemaObject = {
+  type: 'object',
+  required: ['items', 'nextCursor'],
+  properties: {
+    items: {
+      type: 'array',
+      items: {
+        type: 'object',
+        required: [
+          'id',
+          'vaccineName',
+          'appliedDate',
+          'nextDueDate',
+          'recordedByAccountId',
+        ],
+        properties: {
+          id: { type: 'string', format: 'uuid' },
+          vaccineName: { type: 'string', example: 'Rabies' },
+          appliedDate: { type: 'string', format: 'date' },
+          nextDueDate: { type: 'string', format: 'date', nullable: true },
+          recordedByAccountId: { type: 'string', format: 'uuid' },
+        },
+      },
+    },
+    nextCursor: { type: 'string', nullable: true },
+  },
+};
+
 export const recordPetWeightRequestSchema = z.toJSONSchema(
   recordPetWeightSchema,
   { target: 'openapi-3.0' },

@@ -24,6 +24,12 @@ import {
   type VaccinationRecordRepository,
 } from '../application/persistence/vaccination-record.repository';
 import { RecordVaccination } from '../application/record-vaccination/record-vaccination';
+import {
+  VACCINATION_HISTORY_READER,
+  type VaccinationHistoryReader,
+} from '../application/persistence/vaccination-history.reader';
+import { ListPetVaccinationHistory } from '../application/list-pet-vaccination-history/list-pet-vaccination-history';
+import { DrizzleVaccinationHistoryReader } from './persistence/drizzle/drizzle-vaccination-history.reader';
 
 @Module({
   imports: [DatabaseModule, IdentityModule],
@@ -32,6 +38,18 @@ import { RecordVaccination } from '../application/record-vaccination/record-vacc
     DrizzleWeightRecordRepository,
     DrizzleWeightHistoryReader,
     DrizzleVaccinationRecordRepository,
+    DrizzleVaccinationHistoryReader,
+    {
+      provide: VACCINATION_HISTORY_READER,
+      useExisting: DrizzleVaccinationHistoryReader,
+    },
+    {
+      provide: ListPetVaccinationHistory,
+      inject: [VACCINATION_HISTORY_READER],
+      useFactory: (
+        reader: VaccinationHistoryReader,
+      ): ListPetVaccinationHistory => new ListPetVaccinationHistory(reader),
+    },
     {
       provide: VACCINATION_RECORD_REPOSITORY,
       useExisting: DrizzleVaccinationRecordRepository,

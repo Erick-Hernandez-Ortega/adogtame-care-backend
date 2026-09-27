@@ -38,7 +38,7 @@ describe('OpenAPI documentation (e2e)', () => {
     await application.close();
   });
 
-  it('serves Swagger UI and documents all sixteen routes and their contracts', async () => {
+  it('serves Swagger UI and documents all seventeen routes and their contracts', async () => {
     const htmlResponse = await request(application.getHttpServer())
       .get('/docs')
       .expect(200);
@@ -63,6 +63,7 @@ describe('OpenAPI documentation (e2e)', () => {
       ['/pets/{petId}/health/weight-records/{weightRecordId}', 'patch'],
       ['/pets/{petId}/health/weight-records/{weightRecordId}', 'delete'],
       ['/pets/{petId}/health/vaccination-records', 'post'],
+      ['/pets/{petId}/health/vaccination-records', 'get'],
       ['/pet-invitations/{invitationId}/accept', 'post'],
       ['/pet-invitations/{invitationId}/reject', 'post'],
       ['/pet-invitations/{invitationId}/cancel', 'post'],
@@ -83,7 +84,7 @@ describe('OpenAPI documentation (e2e)', () => {
           Number(Boolean(path?.delete)),
         0,
       ),
-    ).toBe(16);
+    ).toBe(17);
 
     expect(document.components?.securitySchemes?.bearer).toMatchObject({
       type: 'http',
@@ -118,6 +119,21 @@ describe('OpenAPI documentation (e2e)', () => {
         ?.delete;
     const vaccination =
       document.paths['/pets/{petId}/health/vaccination-records']?.post;
+    const vaccinationHistory =
+      document.paths['/pets/{petId}/health/vaccination-records']?.get;
+    expect(vaccinationHistory?.responses['200']).toBeDefined();
+    expect(vaccinationHistory?.responses['400']).toBeDefined();
+    expect(vaccinationHistory?.responses['401']).toBeDefined();
+    expect(vaccinationHistory?.responses['404']).toBeDefined();
+    const historySchema = responseSchema(vaccinationHistory, '200');
+    expect(historySchema?.required).toEqual(['items', 'nextCursor']);
+    const historyItems = historySchema?.properties?.items as
+      SchemaObject | undefined;
+    const historyItem = historyItems?.items as SchemaObject | undefined;
+    expect(historyItem?.properties?.nextDueDate).toMatchObject({
+      nullable: true,
+    });
+    expect(historyItem?.properties?.createdAt).toBeUndefined();
     expect(vaccination?.responses['201']).toBeDefined();
     expect(vaccination?.responses['400']).toBeDefined();
     expect(vaccination?.responses['401']).toBeDefined();
@@ -194,6 +210,7 @@ describe('OpenAPI documentation (e2e)', () => {
       weightUpdate,
       weightDelete,
       vaccination,
+      vaccinationHistory,
     ]) {
       expect(operation?.responses['401']).toBeDefined();
     }
@@ -205,6 +222,7 @@ describe('OpenAPI documentation (e2e)', () => {
       weight,
       weightHistory,
       vaccination,
+      vaccinationHistory,
     ]) {
       expect(operation?.parameters).toEqual(
         expect.arrayContaining([

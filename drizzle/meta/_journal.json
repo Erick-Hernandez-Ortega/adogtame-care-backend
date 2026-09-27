@@ -64,6 +64,13 @@
       "when": 1790540776970,
       "tag": "0008_loose_lester",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1790541886080,
+      "tag": "0009_supreme_namorita",
+      "breakpoints": true
     }
   ]
 }

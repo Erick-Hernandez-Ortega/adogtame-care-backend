@@ -2,11 +2,13 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Get,
   HttpCode,
   HttpStatus,
   NotFoundException,
   Param,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import {
@@ -14,12 +16,19 @@ import {
   ApiBody,
   ApiOperation,
   ApiParam,
+  ApiQuery,
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
 import { AuthenticationGuard } from '../../../../identity/infrastructure/http/authentication/authentication.guard';
 import { CurrentAccountId } from '../../../../identity/infrastructure/http/decorators/current-account-id.decorator';
 import { errorSchema } from '../../../../infrastructure/http/openapi-error.schema';
+import {
+  ListPetVaccinationHistory,
+  PetNotFoundError as VaccinationHistoryPetNotFoundError,
+  type PetVaccinationHistory,
+} from '../../../application/list-pet-vaccination-history/list-pet-vaccination-history';
+import { InvalidVaccinationHistoryCursorError } from '../../../application/list-pet-vaccination-history/vaccination-history-cursor';
 import {
   InvalidAppliedDateError,
   InvalidNextDueDateError,
@@ -34,15 +43,120 @@ import {
   type RecordVaccinationRequest,
 } from '../schemas/record-vaccination.schema';
 import {
+  petVaccinationHistoryResponseSchema,
   recordVaccinationRequestSchema,
   recordedVaccinationResponseSchema,
 } from '../schemas/openapi.schemas';
+import {
+  listPetVaccinationHistorySchema,
+  type ListPetVaccinationHistoryRequest,
+} from '../schemas/list-pet-vaccination-history.schema';
 
 @Controller('pets/:petId/health/vaccination-records')
 @ApiTags('Health')
 @ApiBearerAuth()
 export class VaccinationRecordsController {
-  constructor(private readonly recordVaccination: RecordVaccination) {}
+  constructor(
+    private readonly recordVaccination: RecordVaccination,
+    private readonly listPetVaccinationHistory: ListPetVaccinationHistory,
+  ) {}
+
+  @Get()
+  @UseGuards(AuthenticationGuard)
+  @ApiOperation({
+    summary: 'List a pet vaccination history',
+    description:
+      'An active owner or collaborator may read vaccination history for an active or archived pet. Results are ordered by applied date, newest first.',
+  })
+  @ApiParam({
+    name: 'petId',
+    description: 'Pet UUID',
+    schema: { type: 'string', format: 'uuid' },
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    description: 'Page size (default 20, maximum 100)',
+    schema: { type: 'integer', minimum: 1, maximum: 100, default: 20 },
+  })
+  @ApiQuery({
+    name: 'cursor',
+    required: false,
+    description: 'Opaque cursor returned by the preceding page',
+    schema: { type: 'string' },
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Vaccination history page',
+    schema: petVaccinationHistoryResponseSchema,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid pet UUID, query parameter, or cursor',
+    schema: errorSchema(['INVALID_REQUEST'], 'Request query is invalid'),
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Missing or invalid Bearer token',
+    schema: errorSchema(['UNAUTHENTICATED'], 'Authentication is required'),
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Pet is missing or inaccessible',
+    schema: errorSchema(['PET_NOT_FOUND'], 'Pet was not found'),
+  })
+  async list(
+    @CurrentAccountId() authenticatedAccountId: string,
+    @Param('petId') petId: string,
+    @Query() query: unknown,
+  ): Promise<PetVaccinationHistory> {
+    const parsedPetId = vaccinationPetIdSchema.safeParse(petId);
+    if (!parsedPetId.success) {
+      throw new BadRequestException({
+        code: 'INVALID_REQUEST',
+        message: 'Pet id is invalid',
+      });
+    }
+    const parsedQuery = listPetVaccinationHistorySchema.safeParse(query);
+    if (!parsedQuery.success) {
+      throw new BadRequestException({
+        code: 'INVALID_REQUEST',
+        message: 'Request query is invalid',
+      });
+    }
+    const request: ListPetVaccinationHistoryRequest = parsedQuery.data;
+    const limit: number =
+      request.limit === undefined ? 20 : Number(request.limit);
+    if (limit > 100) {
+      throw new BadRequestException({
+        code: 'INVALID_REQUEST',
+        message: 'Request query is invalid',
+      });
+    }
+
+    try {
+      return await this.listPetVaccinationHistory.execute({
+        petId: parsedPetId.data,
+        authenticatedAccountId,
+        limit,
+        cursor: request.cursor ?? null,
+      });
+    } catch (error: unknown) {
+      if (error instanceof InvalidVaccinationHistoryCursorError) {
+        throw new BadRequestException({
+          code: 'INVALID_REQUEST',
+          message: 'Cursor is invalid',
+        });
+      }
+      if (error instanceof VaccinationHistoryPetNotFoundError) {
+        throw new NotFoundException({
+          code: 'PET_NOT_FOUND',
+          message: error.message,
+        });
+      }
+      throw error;
+    }
+  }
 
   @Post()
   @UseGuards(AuthenticationGuard)

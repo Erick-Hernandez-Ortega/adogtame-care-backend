@@ -66,6 +66,12 @@ export const healthVaccinationRecords = pgTable(
       .defaultNow(),
   },
   (table) => [
+    index('health_vaccination_records_pet_history_idx').on(
+      table.petId,
+      table.appliedDate.desc(),
+      table.createdAt.desc(),
+      table.id.desc(),
+    ),
     check(
       'health_vaccination_records_vaccine_name_not_empty',
       sql`btrim(${table.vaccineName}) <> ''`,
