@@ -32,7 +32,11 @@ function setup(outcome: 'CREATED' | 'PET_NOT_FOUND' = 'CREATED') {
       Parameters<VaccinationRecordRepository['createIfPetWritable']>
     >()
     .mockResolvedValue(outcome);
-  const repository: VaccinationRecordRepository = { createIfPetWritable };
+  const repository: VaccinationRecordRepository = {
+    createIfPetWritable,
+    correctIfPetWritable: jest.fn(),
+    deleteIfPetWritable: jest.fn(),
+  };
   const now = jest.fn((): Date => new Date('2026-09-26T00:30:00.000Z'));
   const clock: Clock = { now };
   return {

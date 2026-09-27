@@ -79,6 +79,8 @@ Bearer prefix to requests automatically.
 | `DELETE /pets/{petId}/health/weight-records/{weightRecordId}` | Delete pet weight record | Yes |
 | `POST /pets/{petId}/health/vaccination-records` | Record pet vaccination | Yes |
 | `GET /pets/{petId}/health/vaccination-records` | List pet vaccination history | Yes |
+| `PATCH /pets/{petId}/health/vaccination-records/{vaccinationRecordId}` | Correct vaccination record | Yes |
+| `DELETE /pets/{petId}/health/vaccination-records/{vaccinationRecordId}` | Delete vaccination record | Yes |
 | `POST /pet-invitations/{invitationId}/accept` | Accept invitation       | Yes          |
 | `POST /pet-invitations/{invitationId}/reject` | Reject invitation       | Yes          |
 | `POST /pet-invitations/{invitationId}/cancel` | Cancel invitation       | Yes          |
@@ -92,6 +94,8 @@ To correct a record, send `PATCH /pets/{petId}/health/weight-records/{weightReco
 To record a vaccination, send `POST /pets/{petId}/health/vaccination-records` with a Bearer token and JSON such as `{"vaccineName":"Rabies","appliedDate":"2026-09-20","nextDueDate":"2027-09-20"}`. `nextDueDate` may be omitted or `null`; the `201` response always includes it, using `null` when unknown. The vaccine name is trimmed, preserves casing, and allows up to 255 characters. Applied date must be a valid date no later than today UTC; a known next due date must be after it, even if already overdue. Active owners and collaborators of an active pet may create multiple identical records. Missing, archived, or inaccessible pets return `404 PET_NOT_FOUND`.
 
 To read vaccination history, send `GET /pets/{petId}/health/vaccination-records` with a Bearer token. Active owners and collaborators can read active or archived pets. Records are ordered by application date, newest first, with stable ordering for ties. Optional `limit` defaults to 20 (maximum 100); pass the opaque `nextCursor` as `cursor` for the next page. The `200` response contains `items` and `nextCursor` (`null` on the last page). Each item contains `id`, `vaccineName`, `appliedDate`, nullable `nextDueDate`, and `recordedByAccountId`. Missing or inaccessible pets return `404 PET_NOT_FOUND`.
+
+To correct a vaccination record, send `PATCH /pets/{petId}/health/vaccination-records/{vaccinationRecordId}` with at least one of `vaccineName`, `appliedDate`, or `nextDueDate`. Omit `nextDueDate` to preserve it; send `null` to clear it. The final applied and due dates must remain valid. A normalized no-op returns `200` without changing `updated_at`. The response includes the original `recordedByAccountId`. To permanently remove a record, send `DELETE` to the same route without a body or with `{}`; success is `204` without a body, and a repeated DELETE returns `404 VACCINATION_RECORD_NOT_FOUND`. Both actions require an active owner or collaborator of an active pet, regardless of who recorded the vaccination. An archived or inaccessible pet returns `404 PET_NOT_FOUND`; a missing record or one belonging to another pet returns `404 VACCINATION_RECORD_NOT_FOUND` after pet access is confirmed.
 
 ## Migrations
 

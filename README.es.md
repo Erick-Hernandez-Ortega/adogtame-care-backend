@@ -79,6 +79,8 @@ token. Swagger añade automáticamente el prefijo Bearer a las peticiones.
 | `DELETE /pets/{petId}/health/weight-records/{weightRecordId}` | Eliminar registro de peso | Sí |
 | `POST /pets/{petId}/health/vaccination-records` | Registrar aplicación de vacuna | Sí |
 | `GET /pets/{petId}/health/vaccination-records` | Consultar historial de vacunación | Sí |
+| `PATCH /pets/{petId}/health/vaccination-records/{vaccinationRecordId}` | Corregir registro de vacunación | Sí |
+| `DELETE /pets/{petId}/health/vaccination-records/{vaccinationRecordId}` | Eliminar registro de vacunación | Sí |
 | `POST /pet-invitations/{invitationId}/accept` | Aceptar invitación          | Sí           |
 | `POST /pet-invitations/{invitationId}/reject` | Rechazar invitación         | Sí           |
 | `POST /pet-invitations/{invitationId}/cancel` | Cancelar invitación         | Sí           |
@@ -92,6 +94,8 @@ Para corregir un registro, envía `PATCH /pets/{petId}/health/weight-records/{we
 Para registrar una vacuna, envía `POST /pets/{petId}/health/vaccination-records` con un token Bearer y JSON como `{"vaccineName":"Rabies","appliedDate":"2026-09-20","nextDueDate":"2027-09-20"}`. `nextDueDate` puede omitirse o ser `null`; la respuesta `201` siempre lo incluye y usa `null` cuando se desconoce. El nombre se recorta, conserva las mayúsculas y admite hasta 255 caracteres. La fecha de aplicación debe ser válida y no posterior a hoy UTC; la próxima fecha, si existe, debe ser posterior a la aplicación aunque ya haya vencido. Owners y collaborators activos de una mascota activa pueden crear registros idénticos. Una mascota inexistente, archivada o inaccesible devuelve `404 PET_NOT_FOUND`.
 
 Para consultar el historial de vacunación, envía `GET /pets/{petId}/health/vaccination-records` con un token Bearer. Owners y collaborators activos pueden leer mascotas activas o archivadas. Los registros se ordenan por fecha de aplicación, de más reciente a más antigua, con orden estable en empates. `limit` es opcional, tiene valor predeterminado 20 y máximo 100; envía el `nextCursor` opaco como `cursor` para la siguiente página. La respuesta `200` contiene `items` y `nextCursor` (`null` en la última página). Cada elemento contiene `id`, `vaccineName`, `appliedDate`, `nextDueDate` nullable y `recordedByAccountId`. Una mascota inexistente o inaccesible devuelve `404 PET_NOT_FOUND`.
+
+Para corregir un registro de vacunación, envía `PATCH /pets/{petId}/health/vaccination-records/{vaccinationRecordId}` con al menos uno de `vaccineName`, `appliedDate` o `nextDueDate`. Omite `nextDueDate` para conservarla; envía `null` para limpiarla. La combinación final de fechas debe ser válida. Un no-op después de normalizar devuelve `200` sin cambiar `updated_at`. La respuesta conserva el `recordedByAccountId` original. Para eliminarlo físicamente, envía `DELETE` a la misma ruta sin body o con `{}`; devuelve `204` sin body, y un segundo DELETE devuelve `404 VACCINATION_RECORD_NOT_FOUND`. Ambas acciones requieren ser owner o collaborator activo de una mascota activa, sin importar quién registró la vacuna. Una mascota archivada o inaccesible devuelve `404 PET_NOT_FOUND`; un registro ausente o de otra mascota devuelve `404 VACCINATION_RECORD_NOT_FOUND` después de confirmar el acceso.
 
 ## Migraciones
 

@@ -38,7 +38,7 @@ describe('OpenAPI documentation (e2e)', () => {
     await application.close();
   });
 
-  it('serves Swagger UI and documents all seventeen routes and their contracts', async () => {
+  it('serves Swagger UI and documents all nineteen routes and their contracts', async () => {
     const htmlResponse = await request(application.getHttpServer())
       .get('/docs')
       .expect(200);
@@ -64,6 +64,14 @@ describe('OpenAPI documentation (e2e)', () => {
       ['/pets/{petId}/health/weight-records/{weightRecordId}', 'delete'],
       ['/pets/{petId}/health/vaccination-records', 'post'],
       ['/pets/{petId}/health/vaccination-records', 'get'],
+      [
+        '/pets/{petId}/health/vaccination-records/{vaccinationRecordId}',
+        'patch',
+      ],
+      [
+        '/pets/{petId}/health/vaccination-records/{vaccinationRecordId}',
+        'delete',
+      ],
       ['/pet-invitations/{invitationId}/accept', 'post'],
       ['/pet-invitations/{invitationId}/reject', 'post'],
       ['/pet-invitations/{invitationId}/cancel', 'post'],
@@ -84,7 +92,7 @@ describe('OpenAPI documentation (e2e)', () => {
           Number(Boolean(path?.delete)),
         0,
       ),
-    ).toBe(17);
+    ).toBe(19);
 
     expect(document.components?.securitySchemes?.bearer).toMatchObject({
       type: 'http',
@@ -121,6 +129,75 @@ describe('OpenAPI documentation (e2e)', () => {
       document.paths['/pets/{petId}/health/vaccination-records']?.post;
     const vaccinationHistory =
       document.paths['/pets/{petId}/health/vaccination-records']?.get;
+    const vaccinationUpdate =
+      document.paths[
+        '/pets/{petId}/health/vaccination-records/{vaccinationRecordId}'
+      ]?.patch;
+    const vaccinationDelete =
+      document.paths[
+        '/pets/{petId}/health/vaccination-records/{vaccinationRecordId}'
+      ]?.delete;
+    expect(vaccinationUpdate?.responses['200']).toBeDefined();
+    expect(vaccinationUpdate?.responses['400']).toBeDefined();
+    expect(vaccinationUpdate?.responses['401']).toBeDefined();
+    expect(vaccinationUpdate?.responses['404']).toBeDefined();
+    expect(vaccinationDelete?.responses['204']).toBeDefined();
+    expect(vaccinationDelete?.responses['400']).toBeDefined();
+    expect(vaccinationDelete?.responses['401']).toBeDefined();
+    expect(vaccinationDelete?.responses['404']).toBeDefined();
+    expect(vaccinationDelete?.requestBody).toBeUndefined();
+    const vaccinationUpdateRequest =
+      vaccinationUpdate?.requestBody &&
+      'content' in vaccinationUpdate.requestBody
+        ? (vaccinationUpdate.requestBody.content['application/json']
+            ?.schema as SchemaObject)
+        : undefined;
+    expect(vaccinationUpdateRequest).toMatchObject({
+      type: 'object',
+      minProperties: 1,
+      additionalProperties: false,
+    });
+    expect(vaccinationUpdateRequest?.properties?.nextDueDate).toMatchObject({
+      nullable: true,
+    });
+    expect(responseSchema(vaccinationUpdate, '200')?.required).toEqual([
+      'id',
+      'petId',
+      'vaccineName',
+      'appliedDate',
+      'nextDueDate',
+      'recordedByAccountId',
+    ]);
+    const vaccinationUpdateBadRequest = responseSchema(
+      vaccinationUpdate,
+      '400',
+    );
+    expect(vaccinationUpdateBadRequest?.oneOf).toMatchObject([
+      { properties: { code: { enum: ['INVALID_REQUEST'] } } },
+      { properties: { code: { enum: ['INVALID_VACCINE_NAME'] } } },
+      { properties: { code: { enum: ['INVALID_APPLIED_DATE'] } } },
+      { properties: { code: { enum: ['INVALID_NEXT_DUE_DATE'] } } },
+    ]);
+    for (const operation of [vaccinationUpdate, vaccinationDelete]) {
+      expect(responseSchema(operation, '404')?.oneOf).toMatchObject([
+        { properties: { code: { enum: ['PET_NOT_FOUND'] } } },
+        { properties: { code: { enum: ['VACCINATION_RECORD_NOT_FOUND'] } } },
+      ]);
+      expect(operation?.parameters).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            name: 'petId',
+            in: 'path',
+            required: true,
+          }),
+          expect.objectContaining({
+            name: 'vaccinationRecordId',
+            in: 'path',
+            required: true,
+          }),
+        ]),
+      );
+    }
     expect(vaccinationHistory?.responses['200']).toBeDefined();
     expect(vaccinationHistory?.responses['400']).toBeDefined();
     expect(vaccinationHistory?.responses['401']).toBeDefined();
@@ -211,6 +288,8 @@ describe('OpenAPI documentation (e2e)', () => {
       weightDelete,
       vaccination,
       vaccinationHistory,
+      vaccinationUpdate,
+      vaccinationDelete,
     ]) {
       expect(operation?.responses['401']).toBeDefined();
     }

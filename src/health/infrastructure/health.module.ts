@@ -24,6 +24,8 @@ import {
   type VaccinationRecordRepository,
 } from '../application/persistence/vaccination-record.repository';
 import { RecordVaccination } from '../application/record-vaccination/record-vaccination';
+import { UpdateVaccinationRecord } from '../application/update-vaccination-record/update-vaccination-record';
+import { DeleteVaccinationRecord } from '../application/delete-vaccination-record/delete-vaccination-record';
 import {
   VACCINATION_HISTORY_READER,
   type VaccinationHistoryReader,
@@ -101,6 +103,22 @@ import { DrizzleVaccinationHistoryReader } from './persistence/drizzle/drizzle-v
         repository: VaccinationRecordRepository,
         clock: Clock,
       ): RecordVaccination => new RecordVaccination(repository, clock),
+    },
+    {
+      provide: UpdateVaccinationRecord,
+      inject: [VACCINATION_RECORD_REPOSITORY, HEALTH_CLOCK],
+      useFactory: (
+        repository: VaccinationRecordRepository,
+        clock: Clock,
+      ): UpdateVaccinationRecord =>
+        new UpdateVaccinationRecord(repository, clock),
+    },
+    {
+      provide: DeleteVaccinationRecord,
+      inject: [VACCINATION_RECORD_REPOSITORY],
+      useFactory: (
+        repository: VaccinationRecordRepository,
+      ): DeleteVaccinationRecord => new DeleteVaccinationRecord(repository),
     },
   ],
 })

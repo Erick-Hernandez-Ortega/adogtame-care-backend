@@ -4,12 +4,27 @@ import {
   recordPetWeightSchema,
   updatePetWeightRecordSchema,
 } from './record-pet-weight.schema';
-import { recordVaccinationSchema } from './record-vaccination.schema';
+import {
+  recordVaccinationSchema,
+  updateVaccinationRecordSchema,
+} from './record-vaccination.schema';
 
 export const recordVaccinationRequestSchema: SchemaObject = {
   ...(z.toJSONSchema(recordVaccinationSchema, {
     target: 'openapi-3.0',
   }) as SchemaObject),
+  properties: {
+    vaccineName: { type: 'string', maxLength: 255 },
+    appliedDate: { type: 'string', format: 'date' },
+    nextDueDate: { type: 'string', format: 'date', nullable: true },
+  },
+};
+
+export const updateVaccinationRecordRequestSchema: SchemaObject = {
+  ...(z.toJSONSchema(updateVaccinationRecordSchema, {
+    target: 'openapi-3.0',
+  }) as SchemaObject),
+  minProperties: 1,
   properties: {
     vaccineName: { type: 'string', maxLength: 255 },
     appliedDate: { type: 'string', format: 'date' },
