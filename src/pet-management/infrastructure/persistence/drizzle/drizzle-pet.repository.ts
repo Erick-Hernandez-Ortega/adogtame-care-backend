@@ -13,11 +13,14 @@ import type {
   LeavePetPersistenceResult,
   RemoveCollaboratorPersistenceResult,
   PetRepository,
+  PromoteCollaboratorCommand,
+  PromoteCollaboratorPersistenceResult,
 } from '../../../application/persistence/pet.repository';
 import { BirthInformation } from '../../../domain/birth-information/birth-information';
 import { Breed } from '../../../domain/breed/breed';
 import {
   AccountId,
+  InactivePetMembershipError,
   MembershipId,
   PetMembership,
   PetMembershipRole,
@@ -35,6 +38,93 @@ import { petMemberships, pets } from './pet-management.schema';
 @Injectable()
 export class DrizzlePetRepository implements PetRepository {
   constructor(private readonly databaseService: DatabaseService) {}
+
+  async promoteCollaboratorIfOwned(
+    command: PromoteCollaboratorCommand,
+  ): Promise<PromoteCollaboratorPersistenceResult> {
+    return this.databaseService.connection.transaction(
+      async (transaction): Promise<PromoteCollaboratorPersistenceResult> => {
+        const petRows = await transaction
+          .select({ status: pets.status })
+          .from(pets)
+          .where(eq(pets.id, command.petId))
+          .for('update');
+        if (petRows[0]?.status !== PetStatus.ACTIVE)
+          return { outcome: 'PET_NOT_FOUND' };
+
+        const requesterRows = await transaction
+          .select()
+          .from(petMemberships)
+          .where(
+            and(
+              eq(petMemberships.petId, command.petId),
+              eq(petMemberships.accountId, command.requesterAccountId),
+            ),
+          )
+          .for('update');
+        const requester = requesterRows[0];
+        if (
+          requester?.status !== PetMembershipStatus.ACTIVE ||
+          requester.role !== PetMembershipRole.OWNER
+        ) {
+          return { outcome: 'PET_NOT_FOUND' };
+        }
+
+        if (requester.id === command.targetMembershipId.toLowerCase()) {
+          return { outcome: 'ALREADY_OWNER' };
+        }
+
+        const targetRows = await transaction
+          .select()
+          .from(petMemberships)
+          .where(
+            and(
+              eq(petMemberships.petId, command.petId),
+              eq(petMemberships.id, command.targetMembershipId),
+            ),
+          )
+          .for('update');
+        const target = targetRows[0];
+        if (target === undefined) return { outcome: 'PET_MEMBER_NOT_FOUND' };
+
+        const membership: PetMembership = PetMembership.reconstitute({
+          id: MembershipId.from(target.id),
+          accountId: AccountId.from(target.accountId),
+          role: target.role as PetMembershipRoleType,
+          status: target.status as PetMembershipStatusType,
+        });
+        let promoted: PetMembership;
+        try {
+          promoted = membership.promoteToOwner();
+        } catch (error: unknown) {
+          if (error instanceof InactivePetMembershipError) {
+            return { outcome: 'PET_MEMBER_INACTIVE' };
+          }
+          throw error;
+        }
+        if (promoted === membership) return { outcome: 'ALREADY_OWNER' };
+
+        const changedRows = await transaction
+          .update(petMemberships)
+          .set({ role: promoted.role })
+          .where(
+            and(
+              eq(petMemberships.id, target.id),
+              eq(petMemberships.petId, command.petId),
+              eq(petMemberships.accountId, target.accountId),
+              eq(petMemberships.role, PetMembershipRole.COLLABORATOR),
+              eq(petMemberships.status, PetMembershipStatus.ACTIVE),
+            ),
+          )
+          .returning({ id: petMemberships.id });
+        if (changedRows.length !== 1) {
+          throw new Error('Membership transition did not update one row');
+        }
+        return { outcome: 'PROMOTED' };
+      },
+      { isolationLevel: 'read committed' },
+    );
+  }
 
   async correctProfileIfOwned(
     petId: string,

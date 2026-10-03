@@ -16,6 +16,10 @@ class InMemoryPetRepository implements PetRepository {
     return Promise.resolve({ outcome: 'PET_NOT_FOUND' });
   }
 
+  promoteCollaboratorIfOwned(): Promise<{ outcome: 'PET_NOT_FOUND' }> {
+    return Promise.resolve({ outcome: 'PET_NOT_FOUND' });
+  }
+
   removeCollaboratorIfOwned(): Promise<{ outcome: 'PET_NOT_FOUND' }> {
     return Promise.resolve({ outcome: 'PET_NOT_FOUND' });
   }
@@ -124,6 +128,8 @@ describe('RegisterPet', () => {
   it('propagates repository errors unchanged', async () => {
     const persistenceError = new Error('Database unavailable');
     const repository: PetRepository = {
+      promoteCollaboratorIfOwned:
+        jest.fn() as PetRepository['promoteCollaboratorIfOwned'],
       removeCollaboratorIfOwned:
         jest.fn() as PetRepository['removeCollaboratorIfOwned'],
       save: jest.fn<Promise<void>, [Pet]>().mockRejectedValue(persistenceError),

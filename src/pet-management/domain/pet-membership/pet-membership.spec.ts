@@ -1,5 +1,6 @@
 import {
   AccountId,
+  InactivePetMembershipError,
   MembershipId,
   PetMembership,
   PetMembershipRole,
@@ -12,6 +13,42 @@ const ACCOUNT_ID_V1: string = '550e8400-e29b-11d4-a716-446655440000';
 const ACCOUNT_ID_V7: string = '01890f47-6c2e-7c42-98c4-dc0c0c07398f';
 
 describe('PetMembership', () => {
+  it('promotes an active collaborator without changing membership identity or status', () => {
+    const membership: PetMembership = PetMembership.createCollaborator(
+      AccountId.from(ACCOUNT_ID_V1),
+    );
+    const promoted: PetMembership = membership.promoteToOwner();
+    expect(promoted).not.toBe(membership);
+    expect(promoted.id).toBe(membership.id);
+    expect(promoted.accountId).toBe(membership.accountId);
+    expect(promoted.role).toBe(PetMembershipRole.OWNER);
+    expect(promoted.status).toBe(PetMembershipStatus.ACTIVE);
+    expect(membership.role).toBe(PetMembershipRole.COLLABORATOR);
+  });
+
+  it('returns an active owner unchanged', () => {
+    const membership: PetMembership = PetMembership.createInitialOwner(
+      AccountId.from(ACCOUNT_ID_V1),
+    );
+    expect(membership.promoteToOwner()).toBe(membership);
+  });
+
+  it.each([PetMembershipRole.OWNER, PetMembershipRole.COLLABORATOR])(
+    'does not promote or reactivate an inactive %s',
+    (role) => {
+      const membership: PetMembership = PetMembership.reconstitute({
+        id: MembershipId.from(ACCOUNT_ID_V7),
+        accountId: AccountId.from(ACCOUNT_ID_V1),
+        role,
+        status: PetMembershipStatus.INACTIVE,
+      });
+      expect(() => membership.promoteToOwner()).toThrow(
+        InactivePetMembershipError,
+      );
+      expect(membership.role).toBe(role);
+      expect(membership.status).toBe(PetMembershipStatus.INACTIVE);
+    },
+  );
   it('creates the initial owner membership with its own identity', () => {
     const accountId: AccountId = AccountId.from(ACCOUNT_ID_V1);
 

@@ -4,6 +4,16 @@ import {
   OwnerRemovalNotSupportedError,
 } from '../../../application/remove-collaborator/remove-collaborator';
 import {
+  PetMemberInactiveError,
+  PromoteCollaboratorToOwner,
+} from '../../../application/promote-collaborator-to-owner/promote-collaborator-to-owner';
+import {
+  promoteCollaboratorBodySchema,
+  promoteCollaboratorMembershipIdSchema,
+  promoteCollaboratorPetIdSchema,
+  promoteCollaboratorQuerySchema,
+} from '../schemas/promote-collaborator.schema';
+import {
   removeCollaboratorPetIdSchema,
   removeCollaboratorMembershipIdSchema,
   removeCollaboratorQuerySchema,
@@ -114,6 +124,7 @@ import {
 export class PetsController {
   constructor(
     private readonly removeCollaborator: RemoveCollaborator,
+    private readonly promoteCollaboratorToOwner: PromoteCollaboratorToOwner,
     private readonly registerPet: RegisterPet,
     private readonly listMyPets: ListMyPets,
     private readonly getPetDetail: GetPetDetail,
@@ -122,6 +133,108 @@ export class PetsController {
     private readonly inviteCollaborator: InviteCollaborator,
     private readonly leavePetAsCollaborator: LeavePetAsCollaborator,
   ) {}
+
+  @Post(':petId/members/:membershipId/promote')
+  @UseGuards(AuthenticationGuard)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary: 'Promote a pet collaborator to owner',
+    description:
+      'An active owner of an active pet may promote an active collaborator. The existing membership retains its identity and account. Repeating the request for an active owner, including self-target, succeeds without an update. Inactive memberships cannot be promoted or reactivated. No query parameters are accepted; the body must be absent or empty.',
+  })
+  @ApiParam({
+    name: 'petId',
+    description: 'Non-nil pet UUID',
+    schema: { type: 'string', format: 'uuid' },
+  })
+  @ApiParam({
+    name: 'membershipId',
+    description: 'Non-nil membership UUID',
+    schema: { type: 'string', format: 'uuid' },
+  })
+  @ApiResponse({ status: 204, description: 'Member is an active owner' })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid path, unexpected query parameters, or nonempty body',
+    schema: errorSchema(['INVALID_REQUEST'], 'Request path is invalid'),
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Missing or invalid Bearer token',
+    schema: errorSchema(['UNAUTHENTICATED'], 'Authentication is required'),
+  })
+  @ApiResponse({
+    status: 404,
+    description:
+      'Pet is missing, archived, or inaccessible to an active owner; or target member is missing from the accessible pet',
+    schema: {
+      oneOf: [
+        errorSchema(['PET_NOT_FOUND'], 'Pet was not found'),
+        errorSchema(['PET_MEMBER_NOT_FOUND'], 'Pet member was not found'),
+      ],
+    },
+  })
+  @ApiResponse({
+    status: 409,
+    description: 'Pet member is inactive',
+    schema: errorSchema(['PET_MEMBER_INACTIVE'], 'Pet member is inactive'),
+  })
+  async promoteMember(
+    @CurrentAccountId() requesterAccountId: string,
+    @Param('petId') petId: string,
+    @Param('membershipId') membershipId: string,
+    @Query() query: unknown,
+    @Body() body: unknown,
+  ): Promise<void> {
+    const parsedPetId = promoteCollaboratorPetIdSchema.safeParse(petId);
+    const parsedMembershipId =
+      promoteCollaboratorMembershipIdSchema.safeParse(membershipId);
+    if (!parsedPetId.success || !parsedMembershipId.success) {
+      throw new BadRequestException({
+        code: 'INVALID_REQUEST',
+        message: 'Request path is invalid',
+      });
+    }
+    if (!promoteCollaboratorQuerySchema.safeParse(query).success) {
+      throw new BadRequestException({
+        code: 'INVALID_REQUEST',
+        message: 'Request query is invalid',
+      });
+    }
+    if (
+      body !== undefined &&
+      !promoteCollaboratorBodySchema.safeParse(body).success
+    ) {
+      throw new BadRequestException({
+        code: 'INVALID_REQUEST',
+        message: 'Request body is invalid',
+      });
+    }
+    try {
+      await this.promoteCollaboratorToOwner.execute({
+        requesterAccountId,
+        petId: parsedPetId.data,
+        targetMembershipId: parsedMembershipId.data,
+      });
+    } catch (error: unknown) {
+      if (error instanceof PetNotFoundError)
+        throw new NotFoundException({
+          code: 'PET_NOT_FOUND',
+          message: error.message,
+        });
+      if (error instanceof PetMemberNotFoundError)
+        throw new NotFoundException({
+          code: 'PET_MEMBER_NOT_FOUND',
+          message: error.message,
+        });
+      if (error instanceof PetMemberInactiveError)
+        throw new ConflictException({
+          code: 'PET_MEMBER_INACTIVE',
+          message: error.message,
+        });
+      throw error;
+    }
+  }
 
   @Get()
   @UseGuards(AuthenticationGuard)

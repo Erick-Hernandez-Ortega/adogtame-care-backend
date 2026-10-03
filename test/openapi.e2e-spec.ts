@@ -38,7 +38,7 @@ describe('OpenAPI documentation (e2e)', () => {
     await application.close();
   });
 
-  it('serves Swagger UI and documents all twenty-two operations and their contracts', async () => {
+  it('serves Swagger UI and documents all twenty-three operations and their contracts', async () => {
     const htmlResponse = await request(application.getHttpServer())
       .get('/docs')
       .expect(200);
@@ -57,6 +57,7 @@ describe('OpenAPI documentation (e2e)', () => {
       ['/pets/{petId}', 'get'],
       ['/pets/{petId}/members', 'get'],
       ['/pets/{petId}/members/{membershipId}', 'delete'],
+      ['/pets/{petId}/members/{membershipId}/promote', 'post'],
       ['/pets/{petId}', 'patch'],
       ['/pets', 'post'],
       ['/pets/{petId}/invitations', 'post'],
@@ -95,7 +96,34 @@ describe('OpenAPI documentation (e2e)', () => {
           Number(Boolean(path?.delete)),
         0,
       ),
-    ).toBe(22);
+    ).toBe(23);
+
+    const promotion: OperationObject | undefined =
+      document.paths['/pets/{petId}/members/{membershipId}/promote']?.post;
+    expect(Object.keys(promotion?.responses ?? {}).sort()).toEqual([
+      '204',
+      '400',
+      '401',
+      '404',
+      '409',
+    ]);
+    expect(
+      (promotion?.responses['204'] as ResponseObject).content,
+    ).toBeUndefined();
+    expect(promotion?.security).toEqual([{ bearer: [] }]);
+    expect(promotion?.parameters).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: 'petId', in: 'path', required: true }),
+        expect.objectContaining({
+          name: 'membershipId',
+          in: 'path',
+          required: true,
+        }),
+      ]),
+    );
+    expect(responseSchema(promotion, '409')?.properties?.code).toMatchObject({
+      enum: ['PET_MEMBER_INACTIVE'],
+    });
 
     const removal: OperationObject | undefined =
       document.paths['/pets/{petId}/members/{membershipId}']?.delete;

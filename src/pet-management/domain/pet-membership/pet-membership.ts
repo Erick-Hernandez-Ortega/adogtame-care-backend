@@ -44,6 +44,12 @@ export class AccountId {
   }
 }
 
+export class InactivePetMembershipError extends Error {
+  constructor() {
+    super('Pet member is inactive');
+  }
+}
+
 export class PetMembership {
   private constructor(
     readonly id: MembershipId,
@@ -102,6 +108,21 @@ export class PetMembership {
       this.id,
       this.accountId,
       PetMembershipRole.COLLABORATOR,
+      PetMembershipStatus.ACTIVE,
+    );
+  }
+
+  promoteToOwner(): PetMembership {
+    if (this.status !== PetMembershipStatus.ACTIVE) {
+      throw new InactivePetMembershipError();
+    }
+    if (this.role === PetMembershipRole.OWNER) {
+      return this;
+    }
+    return new PetMembership(
+      this.id,
+      this.accountId,
+      PetMembershipRole.OWNER,
       PetMembershipStatus.ACTIVE,
     );
   }

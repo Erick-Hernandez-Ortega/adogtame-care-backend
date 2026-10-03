@@ -63,7 +63,7 @@ To try protected routes, register with `POST /accounts` if needed, then call
 response, click **Authorize** in Swagger, and enter the token. Swagger adds the
 Bearer prefix to requests automatically.
 
-The API exposes 22 operations.
+The API exposes 23 operations.
 
 | Route                                         | Description             | Bearer token |
 | --------------------------------------------- | ----------------------- | ------------ |
@@ -74,6 +74,7 @@ The API exposes 22 operations.
 | `GET /pets/{petId}`                           | Get pet profile         | Yes          |
 | `GET /pets/{petId}/members`                   | List current pet members | Yes         |
 | `DELETE /pets/{petId}/members/{membershipId}` | Remove collaborator access | Yes |
+| `POST /pets/{petId}/members/{membershipId}/promote` | Promote collaborator to owner | Yes |
 | `PATCH /pets/{petId}`                         | Correct pet profile     | Yes          |
 | `POST /pets`                                  | Register pet            | Yes          |
 | `POST /pets/{petId}/invitations`              | Invite collaborator     | Yes          |
@@ -93,6 +94,8 @@ The API exposes 22 operations.
 To list current members, send `GET /pets/{petId}/members` with a Bearer token and no body or query parameters. Active owners and collaborators can read active or archived pets. The complete `200` response is `{"members":[{"membershipId":"...","accountId":"...","email":"owner@example.com","role":"OWNER"}]}`. Only active memberships are included, including the requester and all owners; pending invitations are excluded. Owners appear first, followed by collaborators, with each role ordered by membership creation time and then membership ID ascending. An invalid or nil UUID or unexpected query parameter returns `400 INVALID_REQUEST`; a missing or invalid token returns `401 UNAUTHENTICATED`. Missing pets, absent memberships, and inactive requester memberships return `404 PET_NOT_FOUND`.
 
 To remove collaborator access, send `DELETE /pets/{petId}/members/{membershipId}` as an active owner of an active pet. Identify the target by the persistent `membershipId` returned by List Pet Members. Success is `204` without a response body, including retries for an inactive collaborator. The membership is preserved internally as `INACTIVE COLLABORATOR`, retaining its identity and account; a later accepted invitation may reactivate the same membership. A retry performs no UPDATE and preserves `updated_at`. Owners cannot be removed, including self-removal (`409 OWNER_REMOVAL_NOT_SUPPORTED`). Missing, archived, or inaccessible pets return `404 PET_NOT_FOUND` before target resolution; only after owner authorization does a missing target or one from another pet return `404 PET_MEMBER_NOT_FOUND`. Both path IDs must be valid non-nil UUIDs. Send no query parameters and no body or `{}`; invalid structure returns `400 INVALID_REQUEST`. A missing or invalid Bearer token returns `401 UNAUTHENTICATED`.
+
+To promote a collaborator, send `POST /pets/{petId}/members/{membershipId}/promote` as an active owner of an active pet. An active collaborator becomes an active owner in the same membership, retaining its membership ID, account ID, and creation time. An active owner, including the requester, returns `204` without an UPDATE or `updated_at` change. An inactive member returns `409 PET_MEMBER_INACTIVE` and is not reactivated. A missing, archived, or inaccessible pet returns `404 PET_NOT_FOUND` before target resolution; a missing member or one from another pet then returns `404 PET_MEMBER_NOT_FOUND`. Both path IDs must be non-nil UUIDs. Send no query parameters and no body or `{}`; invalid structure returns `400 INVALID_REQUEST`. A missing or invalid Bearer token returns `401 UNAUTHENTICATED`.
 
 To correct a pet profile, send `PATCH /pets/{petId}` as an active owner of an active pet. Include at least one of `name`, `species`, `breed`, `sex`, `birthInformation`, `color`, `distinctiveMarks`, or `microchip`. The nested `breed` and `birthInformation` objects use the same complete shapes as registration. Omitted fields are preserved; send `null` to clear `color`, `distinctiveMarks`, or `microchip`. The `200` response has the same shape as `GET /pets/{petId}`, with `role: "OWNER"`. A normalized no-op does not change `updated_at`. Invalid request structure returns `400 INVALID_REQUEST`; domain-invalid values return `422 INVALID_PET`. Missing, archived, or inaccessible pets return `404 PET_NOT_FOUND`.
 

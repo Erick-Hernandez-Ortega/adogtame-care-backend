@@ -75,6 +75,8 @@ describe('RemoveCollaborator', () => {
       correctProfileIfOwned:
         jest.fn() as PetRepository['correctProfileIfOwned'],
       leaveAsCollaborator: jest.fn() as PetRepository['leaveAsCollaborator'],
+      promoteCollaboratorIfOwned:
+        jest.fn() as PetRepository['promoteCollaboratorIfOwned'],
       removeCollaboratorIfOwned,
     };
     return {

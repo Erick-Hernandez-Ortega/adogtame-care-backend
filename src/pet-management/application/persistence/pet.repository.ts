@@ -26,7 +26,25 @@ export interface RemoveCollaboratorPersistenceResult {
     | 'REMOVED';
 }
 
+export interface PromoteCollaboratorCommand {
+  requesterAccountId: string;
+  petId: string;
+  targetMembershipId: string;
+}
+
+export interface PromoteCollaboratorPersistenceResult {
+  outcome:
+    | 'PROMOTED'
+    | 'ALREADY_OWNER'
+    | 'PET_NOT_FOUND'
+    | 'PET_MEMBER_NOT_FOUND'
+    | 'PET_MEMBER_INACTIVE';
+}
+
 export interface PetRepository {
+  promoteCollaboratorIfOwned(
+    command: PromoteCollaboratorCommand,
+  ): Promise<PromoteCollaboratorPersistenceResult>;
   removeCollaboratorIfOwned(
     command: RemoveCollaboratorCommand,
   ): Promise<RemoveCollaboratorPersistenceResult>;

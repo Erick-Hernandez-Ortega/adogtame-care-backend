@@ -49,6 +49,8 @@ function setup(currentPet: Pet | null = pet()) {
     return Promise.resolve(storedPet);
   };
   const repository: PetRepository = {
+    promoteCollaboratorIfOwned:
+      jest.fn() as PetRepository['promoteCollaboratorIfOwned'],
     removeCollaboratorIfOwned:
       jest.fn() as PetRepository['removeCollaboratorIfOwned'],
     save: jest.fn() as PetRepository['save'],
@@ -183,6 +185,8 @@ describe('UpdatePetProfile', () => {
   it('propagates unexpected repository failures', async () => {
     const failure = new Error('Database unavailable');
     const repository: PetRepository = {
+      promoteCollaboratorIfOwned:
+        jest.fn() as PetRepository['promoteCollaboratorIfOwned'],
       removeCollaboratorIfOwned:
         jest.fn() as PetRepository['removeCollaboratorIfOwned'],
       save: jest.fn() as PetRepository['save'],
