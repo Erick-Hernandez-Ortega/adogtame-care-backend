@@ -7,10 +7,7 @@ import { accounts } from '../../src/identity/infrastructure/persistence/drizzle/
 import { DatabaseService } from '../../src/infrastructure/database/database.service';
 import { AcceptInvitation } from '../../src/pet-management/application/accept-invitation/accept-invitation';
 import { PetNotFoundError } from '../../src/pet-management/application/errors/pet-not-found.error';
-import {
-  LeavePetAsCollaborator,
-  OwnerLeaveNotSupportedError,
-} from '../../src/pet-management/application/leave-pet-as-collaborator/leave-pet-as-collaborator';
+import { LeavePet } from '../../src/pet-management/application/leave-pet/leave-pet';
 import { ListPetMembers } from '../../src/pet-management/application/list-pet-members/list-pet-members';
 import {
   PetMemberInactiveError,
@@ -45,7 +42,7 @@ describe('PromoteCollaboratorToOwner with PostgreSQL (integration)', () => {
   let database: DatabaseService;
   let promote: PromoteCollaboratorToOwner;
   let remove: RemoveCollaborator;
-  let leave: LeavePetAsCollaborator;
+  let leave: LeavePet;
   let accept: AcceptInvitation;
   let listMembers: ListPetMembers;
   let invitationRepository: DrizzlePetInvitationRepository;
@@ -68,7 +65,7 @@ describe('PromoteCollaboratorToOwner with PostgreSQL (integration)', () => {
     database = application.get(DatabaseService);
     promote = application.get(PromoteCollaboratorToOwner);
     remove = application.get(RemoveCollaborator);
-    leave = application.get(LeavePetAsCollaborator);
+    leave = application.get(LeavePet);
     accept = application.get(AcceptInvitation);
     listMembers = application.get(ListPetMembers);
     invitationRepository = application.get(DrizzlePetInvitationRepository);
@@ -406,7 +403,7 @@ describe('PromoteCollaboratorToOwner with PostgreSQL (integration)', () => {
     'serializes %s first against Collaborator Leave',
     async (firstAction) => {
       await addMembership();
-      const releaseAndWait = await blockRow('pet_memberships', membershipId);
+      const releaseAndWait = await blockRow('pets', pet.id.value);
       const act = (action: 'promote' | 'leave'): Promise<unknown> =>
         action === 'promote'
           ? promoteTarget()
@@ -414,25 +411,25 @@ describe('PromoteCollaboratorToOwner with PostgreSQL (integration)', () => {
       const first = act(firstAction).catch((error: unknown): unknown => error);
       let second: Promise<unknown> | undefined;
       try {
-        await waitForLock('pet_memberships');
+        await waitForLock('pets');
         second = act(firstAction === 'promote' ? 'leave' : 'promote').catch(
           (error: unknown): unknown => error,
         );
-        await waitForLock('pet_memberships', 2);
+        await waitForLock('pets', 2);
       } finally {
         await releaseAndWait();
       }
       const results: unknown[] = await Promise.all([first, second]);
       if (firstAction === 'promote') {
         expect(results[0]).toBeUndefined();
-        expect(results[1]).toBeInstanceOf(OwnerLeaveNotSupportedError);
+        expect(results[1]).toBeUndefined();
       } else {
-        expect(results[0]).toMatchObject({ status: 'INACTIVE' });
+        expect(results[0]).toBeUndefined();
         expect(results[1]).toBeInstanceOf(PetMemberInactiveError);
       }
       expect((await targetRows())[0]).toMatchObject({
         role: firstAction === 'promote' ? 'OWNER' : 'COLLABORATOR',
-        status: firstAction === 'promote' ? 'ACTIVE' : 'INACTIVE',
+        status: 'INACTIVE',
       });
     },
   );

@@ -116,19 +116,14 @@ describe('POST /pets/:petId/leave (e2e)', () => {
     const first = await request(application.getHttpServer())
       .post(path)
       .set('Authorization', `Bearer ${collaborator.token}`)
-      .expect(200);
-    expect(first.body).toEqual({
-      petId,
-      membershipId,
-      role: 'COLLABORATOR',
-      status: 'INACTIVE',
-    });
+      .expect(204);
+    expect(first.text).toBe('');
     const retry = await request(application.getHttpServer())
       .post(path)
       .set('Authorization', `Bearer ${collaborator.token}`)
       .send({})
-      .expect(200);
-    expect(retry.body).toEqual(first.body);
+      .expect(204);
+    expect(retry.text).toBe('');
     const membershipRows = await database.connection
       .select()
       .from(petMemberships)
@@ -169,11 +164,11 @@ describe('POST /pets/:petId/leave (e2e)', () => {
     await request(application.getHttpServer())
       .post(path)
       .set('Authorization', `Bearer ${collaborator.token}`)
-      .expect(200);
+      .expect(204);
     await request(application.getHttpServer())
       .post(path)
       .set('Authorization', `Bearer ${collaborator.token}`)
-      .expect(200);
+      .expect(204);
   });
 
   it('returns the same 404 for a missing pet and a missing membership', async () => {
@@ -189,45 +184,87 @@ describe('POST /pets/:petId/leave (e2e)', () => {
     }
   });
 
-  it.each(['ACTIVE', 'INACTIVE'] as const)(
-    'returns 409 for an %s owner without changing membership',
+  it.each(['ACTIVE', 'ARCHIVED'] as const)(
+    'rejects the last owner of an %s pet without an UPDATE',
     async (status) => {
-      await database.connection
-        .update(petMemberships)
-        .set({ status })
-        .where(
-          and(
-            eq(petMemberships.petId, petId),
-            eq(petMemberships.accountId, owner.id),
-          ),
-        );
+      if (status === 'ARCHIVED')
+        await database.connection
+          .update(pets)
+          .set({ status })
+          .where(eq(pets.id, petId));
       const before = await database.connection
         .select()
         .from(petMemberships)
-        .where(
-          and(
-            eq(petMemberships.petId, petId),
-            eq(petMemberships.accountId, owner.id),
-          ),
-        );
+        .where(eq(petMemberships.petId, petId));
       const response = await request(application.getHttpServer())
         .post(`/pets/${petId}/leave`)
         .set('Authorization', `Bearer ${owner.token}`)
         .expect(409);
       expect(response.body).toMatchObject({
-        code: 'OWNER_LEAVE_NOT_SUPPORTED',
-        message: 'Owner leave is not supported',
+        code: 'LAST_OWNER_CANNOT_LEAVE',
+        message: 'Last owner cannot leave a pet',
       });
-      const after = await database.connection
+      expect(
+        await database.connection
+          .select()
+          .from(petMemberships)
+          .where(eq(petMemberships.petId, petId)),
+      ).toEqual(before);
+    },
+  );
+
+  it.each(['ACTIVE', 'ARCHIVED'] as const)(
+    'allows owner leave and retry on an %s pet and removes access',
+    async (status) => {
+      await addCollaborator();
+      await request(application.getHttpServer())
+        .post(`/pets/${petId}/members/${membershipId}/promote`)
+        .set('Authorization', `Bearer ${owner.token}`)
+        .expect(204);
+      if (status === 'ARCHIVED')
+        await database.connection
+          .update(pets)
+          .set({ status })
+          .where(eq(pets.id, petId));
+      const path: string = `/pets/${petId}/leave`;
+      const response = await request(application.getHttpServer())
+        .post(path)
+        .set('Authorization', `Bearer ${collaborator.token}`)
+        .expect(204);
+      expect(response.text).toBe('');
+      const beforeRetry = await database.connection
         .select()
         .from(petMemberships)
-        .where(
-          and(
-            eq(petMemberships.petId, petId),
-            eq(petMemberships.accountId, owner.id),
-          ),
-        );
-      expect(after).toEqual(before);
+        .where(eq(petMemberships.id, membershipId));
+      await request(application.getHttpServer())
+        .post(path)
+        .set('Authorization', `Bearer ${collaborator.token}`)
+        .send({})
+        .expect(204);
+      expect(
+        await database.connection
+          .select()
+          .from(petMemberships)
+          .where(eq(petMemberships.id, membershipId)),
+      ).toEqual(beforeRetry);
+      const members = await request(application.getHttpServer())
+        .get(`/pets/${petId}/members`)
+        .set('Authorization', `Bearer ${owner.token}`)
+        .expect(200);
+      expect(
+        (members.body as { members: { membershipId: string }[] }).members.map(
+          (member) => member.membershipId,
+        ),
+      ).not.toContain(membershipId);
+      const inaccessible = await request(application.getHttpServer())
+        .get(`/pets/${petId}/members`)
+        .set('Authorization', `Bearer ${collaborator.token}`)
+        .expect(404);
+      expect(inaccessible.body).toMatchObject({ code: 'PET_NOT_FOUND' });
+      expect(beforeRetry[0]).toMatchObject({
+        role: 'OWNER',
+        status: 'INACTIVE',
+      });
     },
   );
 
@@ -255,6 +292,18 @@ describe('POST /pets/:petId/leave (e2e)', () => {
         .send(body)
         .expect(400);
       expect(invalidBody.body).toMatchObject({ code: 'INVALID_REQUEST' });
+    }
+  });
+  it('rejects nil UUIDs and unexpected query parameters', async () => {
+    for (const path of [
+      '/pets/00000000-0000-0000-0000-000000000000/leave',
+      `/pets/${petId}/leave?unexpected=true`,
+    ]) {
+      const response = await request(application.getHttpServer())
+        .post(path)
+        .set('Authorization', `Bearer ${owner.token}`)
+        .expect(400);
+      expect(response.body).toMatchObject({ code: 'INVALID_REQUEST' });
     }
   });
 });

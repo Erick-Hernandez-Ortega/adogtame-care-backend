@@ -68,10 +68,9 @@ import {
 } from '../schemas/list-pet-members.schema';
 import { ListMyPets } from '../../../application/list-my-pets/list-my-pets';
 import {
-  LeavePetAsCollaborator,
-  type LeftPetAsCollaborator,
-  OwnerLeaveNotSupportedError,
-} from '../../../application/leave-pet-as-collaborator/leave-pet-as-collaborator';
+  LeavePet,
+  LastOwnerCannotLeaveError,
+} from '../../../application/leave-pet/leave-pet';
 import type {
   AccessiblePetSummary,
   PetDetail,
@@ -96,6 +95,7 @@ import { petIdSchema } from '../schemas/get-pet-detail.schema';
 import {
   emptyLeavePetBodySchema,
   leavePetIdSchema,
+  leavePetQuerySchema,
 } from '../schemas/leave-pet.schema';
 import {
   inviteCollaboratorSchema,
@@ -104,7 +104,6 @@ import {
 import {
   createdInvitationResponseSchema,
   inviteCollaboratorRequestSchema,
-  leftPetAsCollaboratorResponseSchema,
   petDetailResponseSchema,
   petMembersResponseSchema,
   petSummaryResponseSchema,
@@ -131,7 +130,7 @@ export class PetsController {
     private readonly listPetMembers: ListPetMembers,
     private readonly updatePetProfile: UpdatePetProfile,
     private readonly inviteCollaborator: InviteCollaborator,
-    private readonly leavePetAsCollaborator: LeavePetAsCollaborator,
+    private readonly leavePet: LeavePet,
   ) {}
 
   @Post(':petId/members/:membershipId/promote')
@@ -562,11 +561,11 @@ export class PetsController {
 
   @Post(':petId/leave')
   @UseGuards(AuthenticationGuard)
-  @HttpCode(HttpStatus.OK)
+  @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
-    summary: 'Leave a pet as a collaborator',
+    summary: 'Leave a pet',
     description:
-      'An active or inactive collaborator may leave an active or archived pet. Owner leave is not supported.',
+      'Members may leave active or archived pets. An active owner may leave only if another active owner remains. Inactive memberships succeed without an update. No query parameters are accepted; the body must be absent or empty.',
   })
   @ApiParam({
     name: 'petId',
@@ -574,13 +573,13 @@ export class PetsController {
     schema: { type: 'string', format: 'uuid' },
   })
   @ApiResponse({
-    status: 200,
-    description: 'Collaborator membership is inactive',
-    schema: leftPetAsCollaboratorResponseSchema,
+    status: 204,
+    description: 'Membership is inactive; no response body',
   })
   @ApiResponse({
     status: 400,
-    description: 'Invalid pet UUID or nonempty request body',
+    description:
+      'Invalid or nil pet UUID, unexpected query parameters, or nonempty request body',
     schema: errorSchema(['INVALID_REQUEST'], 'Pet id is invalid'),
   })
   @ApiResponse({
@@ -595,23 +594,29 @@ export class PetsController {
   })
   @ApiResponse({
     status: 409,
-    description: 'Owner leave is not supported',
+    description: 'Last owner cannot leave a pet',
     schema: errorSchema(
-      ['OWNER_LEAVE_NOT_SUPPORTED'],
-      'Owner leave is not supported',
+      ['LAST_OWNER_CANNOT_LEAVE'],
+      'Last owner cannot leave a pet',
     ),
   })
   async leave(
     @CurrentAccountId() accountId: string,
     @Param('petId') petId: string,
     @Req() request: Request,
-  ): Promise<LeftPetAsCollaborator> {
+  ): Promise<void> {
     const body: unknown = request.body as unknown;
     const parsedId = leavePetIdSchema.safeParse(petId);
     if (!parsedId.success) {
       throw new BadRequestException({
         code: 'INVALID_REQUEST',
         message: 'Pet id is invalid',
+      });
+    }
+    if (!leavePetQuerySchema.safeParse(request.query).success) {
+      throw new BadRequestException({
+        code: 'INVALID_REQUEST',
+        message: 'Request query is invalid',
       });
     }
     if (
@@ -624,10 +629,7 @@ export class PetsController {
       });
     }
     try {
-      return await this.leavePetAsCollaborator.execute(
-        parsedId.data,
-        accountId,
-      );
+      return await this.leavePet.execute(parsedId.data, accountId);
     } catch (error: unknown) {
       if (error instanceof PetNotFoundError) {
         throw new NotFoundException({
@@ -635,9 +637,9 @@ export class PetsController {
           message: error.message,
         });
       }
-      if (error instanceof OwnerLeaveNotSupportedError) {
+      if (error instanceof LastOwnerCannotLeaveError) {
         throw new ConflictException({
-          code: 'OWNER_LEAVE_NOT_SUPPORTED',
+          code: 'LAST_OWNER_CANNOT_LEAVE',
           message: error.message,
         });
       }

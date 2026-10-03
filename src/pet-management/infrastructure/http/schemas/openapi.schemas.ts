@@ -192,23 +192,6 @@ export const rejectedInvitationResponseSchema: SchemaObject = {
   },
 };
 
-export const leftPetAsCollaboratorResponseSchema: SchemaObject = {
-  type: 'object',
-  required: ['petId', 'membershipId', 'role', 'status'],
-  properties: {
-    petId: { type: 'string', format: 'uuid' },
-    membershipId: { type: 'string', format: 'uuid' },
-    role: { type: 'string', enum: ['COLLABORATOR'] },
-    status: { type: 'string', enum: ['INACTIVE'] },
-  },
-  example: {
-    petId: '42b30488-fd7c-4c5d-b9cc-8c7aa5d171dd',
-    membershipId: '6fe44a29-206e-4875-9f3e-72026868135e',
-    role: 'COLLABORATOR',
-    status: 'INACTIVE',
-  },
-};
-
 export const cancelledInvitationResponseSchema: SchemaObject = {
   type: 'object',
   required: ['id', 'petId', 'status'],

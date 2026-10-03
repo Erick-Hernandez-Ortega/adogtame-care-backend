@@ -12,7 +12,7 @@ class InMemoryPetRepository implements PetRepository {
     return Promise.resolve(null);
   }
 
-  leaveAsCollaborator(): Promise<{ outcome: 'PET_NOT_FOUND' }> {
+  leave(): Promise<{ outcome: 'PET_NOT_FOUND' }> {
     return Promise.resolve({ outcome: 'PET_NOT_FOUND' });
   }
 
@@ -135,7 +135,7 @@ describe('RegisterPet', () => {
       save: jest.fn<Promise<void>, [Pet]>().mockRejectedValue(persistenceError),
       correctProfileIfOwned:
         jest.fn() as PetRepository['correctProfileIfOwned'],
-      leaveAsCollaborator: jest.fn() as PetRepository['leaveAsCollaborator'],
+      leave: jest.fn() as PetRepository['leave'],
     };
     const registerPet = new RegisterPet(repository);
 

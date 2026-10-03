@@ -78,7 +78,7 @@ La API expone 23 operaciones.
 | `PATCH /pets/{petId}`                         | Corregir perfil de mascota | Sí           |
 | `POST /pets`                                  | Registrar mascota           | Sí           |
 | `POST /pets/{petId}/invitations`              | Invitar colaborador         | Sí           |
-| `POST /pets/{petId}/leave`                    | Abandonar como colaborador  | Sí           |
+| `POST /pets/{petId}/leave`                    | Abandonar una mascota  | Sí           |
 | `POST /pets/{petId}/health/weight-records`    | Registrar peso (kg)         | Sí           |
 | `GET /pets/{petId}/health/weight-records`     | Consultar historial de peso | Sí           |
 | `PATCH /pets/{petId}/health/weight-records/{weightRecordId}` | Corregir registro de peso | Sí |
@@ -110,6 +110,10 @@ Para registrar una vacuna, envía `POST /pets/{petId}/health/vaccination-records
 Para consultar el historial de vacunación, envía `GET /pets/{petId}/health/vaccination-records` con un token Bearer. Owners y collaborators activos pueden leer mascotas activas o archivadas. Los registros se ordenan por fecha de aplicación, de más reciente a más antigua, con orden estable en empates. `limit` es opcional, tiene valor predeterminado 20 y máximo 100; envía el `nextCursor` opaco como `cursor` para la siguiente página. La respuesta `200` contiene `items` y `nextCursor` (`null` en la última página). Cada elemento contiene `id`, `vaccineName`, `appliedDate`, `nextDueDate` nullable y `recordedByAccountId`. Una mascota inexistente o inaccesible devuelve `404 PET_NOT_FOUND`.
 
 Para corregir un registro de vacunación, envía `PATCH /pets/{petId}/health/vaccination-records/{vaccinationRecordId}` con al menos uno de `vaccineName`, `appliedDate` o `nextDueDate`. Omite `nextDueDate` para conservarla; envía `null` para limpiarla. La combinación final de fechas debe ser válida. Un no-op después de normalizar devuelve `200` sin cambiar `updated_at`. La respuesta conserva el `recordedByAccountId` original. Para eliminarlo físicamente, envía `DELETE` a la misma ruta sin body o con `{}`; devuelve `204` sin body, y un segundo DELETE devuelve `404 VACCINATION_RECORD_NOT_FOUND`. Ambas acciones requieren ser owner o collaborator activo de una mascota activa, sin importar quién registró la vacuna. Una mascota archivada o inaccesible devuelve `404 PET_NOT_FOUND`; un registro ausente o de otra mascota devuelve `404 VACCINATION_RECORD_NOT_FOUND` después de confirmar el acceso.
+
+Para abandonar una mascota, envía `POST /pets/{petId}/leave` con Bearer token, sin query params y sin body o con `{}`. Owners y colaboradores pueden abandonar mascotas activas o archivadas. Un owner activo puede salir solo si permanece otro owner activo; el último recibe `409 LAST_OWNER_CANNOT_LEAVE` sin cambios. El éxito devuelve `204 No Content`, incluidos los reintentos de una membership inactiva. Leave cambia únicamente el estado de la membership a `INACTIVE`, conservando su ID, account ID, rol y fecha de creación. La transición real actualiza `updated_at`; los reintentos no ejecutan UPDATE. Quien abandona pierde acceso y deja de aparecer en List Pet Members. Una nueva invitación aceptada puede reactivar la misma membership histórica como colaborador, incluso si antes era owner. Una mascota inexistente o sin membership propia devuelve `404 PET_NOT_FOUND`. UUID inválido o nil, query params inesperados o body no vacío devuelven `400 INVALID_REQUEST`; un token ausente o inválido devuelve `401 UNAUTHENTICATED`.
+
+Leave ahora devuelve `204` sin representación, reemplazando la respuesta JSON `200` anterior. Los clientes ya no deben esperar datos de membership en la respuesta. Consulta [Pet leave](docs/pet-leave.md) para la decisión de dominio y el protocolo de locks transaccionales.
 
 ## Migraciones
 

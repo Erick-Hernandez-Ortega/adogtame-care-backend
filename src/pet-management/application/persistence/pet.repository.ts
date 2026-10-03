@@ -2,15 +2,10 @@ import type { Pet } from '../../domain/pet/pet';
 
 export const PET_REPOSITORY: unique symbol = Symbol('PET_REPOSITORY');
 
-export type LeavePetPersistenceResult =
-  | { outcome: 'PET_NOT_FOUND' | 'OWNER_LEAVE_NOT_SUPPORTED' }
-  | {
-      outcome: 'LEFT';
-      petId: string;
-      membershipId: string;
-      role: 'COLLABORATOR';
-      status: 'INACTIVE';
-    };
+export interface LeavePetPersistenceResult {
+  outcome:
+    'PET_NOT_FOUND' | 'LAST_OWNER_CANNOT_LEAVE' | 'LEFT' | 'ALREADY_LEFT';
+}
 
 export interface RemoveCollaboratorCommand {
   requesterAccountId: string;
@@ -54,7 +49,7 @@ export interface PetRepository {
     authenticatedAccountId: string,
     correct: (pet: Pet) => Pet,
   ): Promise<Pet | null>;
-  leaveAsCollaborator(
+  leave(
     petId: string,
     authenticatedAccountId: string,
   ): Promise<LeavePetPersistenceResult>;

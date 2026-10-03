@@ -13,7 +13,7 @@ import { accounts } from '../../src/identity/infrastructure/persistence/drizzle/
 import { DatabaseService } from '../../src/infrastructure/database/database.service';
 import { AcceptInvitation } from '../../src/pet-management/application/accept-invitation/accept-invitation';
 import { PetNotFoundError } from '../../src/pet-management/application/errors/pet-not-found.error';
-import { LeavePetAsCollaborator } from '../../src/pet-management/application/leave-pet-as-collaborator/leave-pet-as-collaborator';
+import { LeavePet } from '../../src/pet-management/application/leave-pet/leave-pet';
 import { CLOCK } from '../../src/pet-management/application/time/clock';
 import { BirthInformation } from '../../src/pet-management/domain/birth-information/birth-information';
 import { Breed } from '../../src/pet-management/domain/breed/breed';
@@ -39,7 +39,7 @@ describe('RemoveCollaborator with PostgreSQL (integration)', () => {
   let petIds: string[];
   let application: INestApplicationContext;
   let database: DatabaseService;
-  let leave: LeavePetAsCollaborator;
+  let leave: LeavePet;
   let accept: AcceptInvitation;
   let invitationRepository: DrizzlePetInvitationRepository;
   let pet: Pet;
@@ -59,7 +59,7 @@ describe('RemoveCollaborator with PostgreSQL (integration)', () => {
     database = application.get(DatabaseService);
     remove = application.get(RemoveCollaborator);
     listMembers = application.get(ListPetMembers);
-    leave = application.get(LeavePetAsCollaborator);
+    leave = application.get(LeavePet);
     accept = application.get(AcceptInvitation);
     invitationRepository = application.get(DrizzlePetInvitationRepository);
   });
@@ -505,12 +505,7 @@ describe('RemoveCollaborator with PostgreSQL (integration)', () => {
       try {
         await waitForLock('pet_memberships');
         second = act(secondAction);
-        await waitForLock(
-          secondAction === 'leave' || firstAction === 'leave'
-            ? 'pet_memberships'
-            : 'pets',
-          secondAction === 'leave' || firstAction === 'leave' ? 2 : 1,
-        );
+        await waitForLock('pets');
       } finally {
         release?.();
         await blocker;

@@ -78,7 +78,7 @@ The API exposes 23 operations.
 | `PATCH /pets/{petId}`                         | Correct pet profile     | Yes          |
 | `POST /pets`                                  | Register pet            | Yes          |
 | `POST /pets/{petId}/invitations`              | Invite collaborator     | Yes          |
-| `POST /pets/{petId}/leave`                    | Leave as collaborator   | Yes          |
+| `POST /pets/{petId}/leave`                    | Leave a pet   | Yes          |
 | `POST /pets/{petId}/health/weight-records`    | Record pet weight (kg)  | Yes          |
 | `GET /pets/{petId}/health/weight-records`     | List pet weight history | Yes          |
 | `PATCH /pets/{petId}/health/weight-records/{weightRecordId}` | Correct pet weight record | Yes |
@@ -110,6 +110,10 @@ To record a vaccination, send `POST /pets/{petId}/health/vaccination-records` wi
 To read vaccination history, send `GET /pets/{petId}/health/vaccination-records` with a Bearer token. Active owners and collaborators can read active or archived pets. Records are ordered by application date, newest first, with stable ordering for ties. Optional `limit` defaults to 20 (maximum 100); pass the opaque `nextCursor` as `cursor` for the next page. The `200` response contains `items` and `nextCursor` (`null` on the last page). Each item contains `id`, `vaccineName`, `appliedDate`, nullable `nextDueDate`, and `recordedByAccountId`. Missing or inaccessible pets return `404 PET_NOT_FOUND`.
 
 To correct a vaccination record, send `PATCH /pets/{petId}/health/vaccination-records/{vaccinationRecordId}` with at least one of `vaccineName`, `appliedDate`, or `nextDueDate`. Omit `nextDueDate` to preserve it; send `null` to clear it. The final applied and due dates must remain valid. A normalized no-op returns `200` without changing `updated_at`. The response includes the original `recordedByAccountId`. To permanently remove a record, send `DELETE` to the same route without a body or with `{}`; success is `204` without a body, and a repeated DELETE returns `404 VACCINATION_RECORD_NOT_FOUND`. Both actions require an active owner or collaborator of an active pet, regardless of who recorded the vaccination. An archived or inaccessible pet returns `404 PET_NOT_FOUND`; a missing record or one belonging to another pet returns `404 VACCINATION_RECORD_NOT_FOUND` after pet access is confirmed.
+
+To leave a pet, send `POST /pets/{petId}/leave` with a Bearer token, no query parameters, and no body or `{}`. Owners and collaborators may leave active or archived pets. An active owner may leave only if another active owner remains; the last active owner receives `409 LAST_OWNER_CANNOT_LEAVE` without a change. Success is `204 No Content`, including retries on an inactive membership. Leave changes only membership status to `INACTIVE`, preserving the membership ID, account ID, role, and creation time. A real transition updates `updated_at`; retries perform no UPDATE. A departed member loses access and is excluded from List Pet Members. A new accepted invitation can reactivate the same historical membership as a collaborator, including a departed owner. Missing pets or absent own memberships return `404 PET_NOT_FOUND`. An invalid or nil pet UUID, unexpected query parameters, or a nonempty body returns `400 INVALID_REQUEST`; a missing or invalid token returns `401 UNAUTHENTICATED`.
+
+Leave now returns `204` without a representation, replacing its previous `200` JSON response. Clients must no longer expect membership data in the response. See [Pet leave](docs/pet-leave.md) for the domain decision and transaction locking protocol.
 
 ## Migrations
 

@@ -127,6 +127,19 @@ export class PetMembership {
     );
   }
 
+  leaveAsOwner(): PetMembership {
+    if (this.role !== PetMembershipRole.OWNER) {
+      throw new TypeError('Only an owner can leave as an owner');
+    }
+    if (this.status === PetMembershipStatus.INACTIVE) return this;
+    return new PetMembership(
+      this.id,
+      this.accountId,
+      this.role,
+      PetMembershipStatus.INACTIVE,
+    );
+  }
+
   leaveAsCollaborator(): PetMembership {
     if (
       this.role !== PetMembershipRole.COLLABORATOR ||

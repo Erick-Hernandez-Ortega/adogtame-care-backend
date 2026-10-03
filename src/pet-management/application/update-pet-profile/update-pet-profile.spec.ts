@@ -55,7 +55,7 @@ function setup(currentPet: Pet | null = pet()) {
       jest.fn() as PetRepository['removeCollaboratorIfOwned'],
     save: jest.fn() as PetRepository['save'],
     correctProfileIfOwned,
-    leaveAsCollaborator: jest.fn() as PetRepository['leaveAsCollaborator'],
+    leave: jest.fn() as PetRepository['leave'],
   };
   return {
     useCase: new UpdatePetProfile(repository),
@@ -193,7 +193,7 @@ describe('UpdatePetProfile', () => {
       correctProfileIfOwned: jest
         .fn()
         .mockRejectedValue(failure) as PetRepository['correctProfileIfOwned'],
-      leaveAsCollaborator: jest.fn() as PetRepository['leaveAsCollaborator'],
+      leave: jest.fn() as PetRepository['leave'],
     };
     await expect(
       new UpdatePetProfile(repository).execute(command(pet())),

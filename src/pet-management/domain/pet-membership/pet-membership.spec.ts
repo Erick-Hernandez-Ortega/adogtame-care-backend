@@ -189,3 +189,29 @@ describe('AccountId', () => {
     );
   });
 });
+
+describe('owner leave transition', () => {
+  it('preserves the owner identity and role and is idempotent once inactive', () => {
+    const membership: PetMembership = PetMembership.createInitialOwner(
+      AccountId.from('550e8400-e29b-41d4-a716-446655440000'),
+    );
+    const left: PetMembership = membership.leaveAsOwner();
+    expect(left).toMatchObject({
+      id: membership.id,
+      accountId: membership.accountId,
+      role: 'OWNER',
+      status: 'INACTIVE',
+    });
+    expect(left.leaveAsOwner()).toBe(left);
+    expect(membership.status).toBe('ACTIVE');
+  });
+
+  it('does not let a collaborator use the owner transition', () => {
+    const membership: PetMembership = PetMembership.createCollaborator(
+      AccountId.from('550e8400-e29b-41d4-a716-446655440000'),
+    );
+    expect(() => membership.leaveAsOwner()).toThrow(
+      'Only an owner can leave as an owner',
+    );
+  });
+});

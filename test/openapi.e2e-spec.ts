@@ -514,13 +514,9 @@ describe('OpenAPI documentation (e2e)', () => {
     expect(accept?.responses['200']).toBeDefined();
     expect(reject?.responses['200']).toBeDefined();
     expect(cancel?.responses['200']).toBeDefined();
-    expect(responseSchema(leave, '200')).toMatchObject({
-      required: ['petId', 'membershipId', 'role', 'status'],
-      properties: {
-        role: { enum: ['COLLABORATOR'] },
-        status: { enum: ['INACTIVE'] },
-      },
-    });
+    expect(leave?.responses['204']).toBeDefined();
+    expect((leave?.responses['204'] as ResponseObject).content).toBeUndefined();
+    expect(leave?.responses['200']).toBeUndefined();
     for (const status of ['400', '401', '404', '409']) {
       expect(leave?.responses[status]).toBeDefined();
     }
@@ -632,7 +628,7 @@ describe('OpenAPI documentation (e2e)', () => {
       [leave, '400', ['INVALID_REQUEST']],
       [leave, '401', ['UNAUTHENTICATED']],
       [leave, '404', ['PET_NOT_FOUND']],
-      [leave, '409', ['OWNER_LEAVE_NOT_SUPPORTED']],
+      [leave, '409', ['LAST_OWNER_CANNOT_LEAVE']],
       [weightHistory, '400', ['INVALID_REQUEST']],
       [weightHistory, '404', ['PET_NOT_FOUND']],
     ];
