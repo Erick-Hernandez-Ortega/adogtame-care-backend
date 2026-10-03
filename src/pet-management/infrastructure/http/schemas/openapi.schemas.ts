@@ -48,9 +48,10 @@ const petSummaryProperties: NonNullable<SchemaObject['properties']> = {
 
 export const petSummaryResponseSchema: SchemaObject = {
   type: 'object',
-  required: ['id', 'name', 'species', 'breed', 'sex', 'role'],
+  required: ['id', 'name', 'species', 'breed', 'sex', 'role', 'status'],
   properties: {
     ...petSummaryProperties,
+    status: { type: 'string', enum: ['ACTIVE', 'ARCHIVED'] },
     role: { type: 'string', enum: ['OWNER', 'COLLABORATOR'] },
   },
   example: {
@@ -60,6 +61,7 @@ export const petSummaryResponseSchema: SchemaObject = {
     breed: { name: 'Mixed breed', kind: 'CUSTOM' },
     sex: 'FEMALE',
     role: 'OWNER',
+    status: 'ACTIVE',
   },
 };
 

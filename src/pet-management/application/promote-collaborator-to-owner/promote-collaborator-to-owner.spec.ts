@@ -27,6 +27,7 @@ describe('PromoteCollaboratorToOwner', () => {
       >()
       .mockResolvedValue({ outcome });
     const repository: PetRepository = {
+      archiveIfOwned: jest.fn() as PetRepository['archiveIfOwned'],
       promoteCollaboratorIfOwned,
       removeMemberIfOwned: jest.fn() as PetRepository['removeMemberIfOwned'],
       leave: jest.fn() as PetRepository['leave'],

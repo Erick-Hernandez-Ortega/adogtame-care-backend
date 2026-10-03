@@ -9,6 +9,8 @@ import {
   type PetLeaveDecision,
 } from '../../../domain/pet/pet-leave.policy';
 import type {
+  ArchivePetCommand,
+  ArchivePetPersistenceResult,
   LeavePetPersistenceResult,
   RemovePetMemberPersistenceResult,
   RemovePetMemberCommand,
@@ -31,13 +33,97 @@ import type {
   PetMembershipStatus as PetMembershipStatusType,
 } from '../../../domain/pet-membership/pet-membership.types';
 import { Pet, PetId, PetStatus } from '../../../domain/pet/pet';
-import type { PetSex, PetSpecies } from '../../../domain/pet/pet.types';
+import type {
+  PetSex,
+  PetSpecies,
+  PetStatus as PetStatusType,
+} from '../../../domain/pet/pet.types';
 import { DatabaseService } from '../../../../infrastructure/database/database.service';
 import { petMemberships, pets } from './pet-management.schema';
 
 @Injectable()
 export class DrizzlePetRepository implements PetRepository {
   constructor(private readonly databaseService: DatabaseService) {}
+
+  async archiveIfOwned(
+    command: ArchivePetCommand,
+  ): Promise<ArchivePetPersistenceResult> {
+    return this.databaseService.connection.transaction(
+      async (transaction): Promise<ArchivePetPersistenceResult> => {
+        const petRows = await transaction
+          .select()
+          .from(pets)
+          .where(eq(pets.id, command.petId))
+          .for('update');
+        const petRow = petRows[0];
+        if (petRow === undefined) return { outcome: 'PET_NOT_FOUND' };
+        const requesterRows = await transaction
+          .select()
+          .from(petMemberships)
+          .where(
+            and(
+              eq(petMemberships.petId, command.petId),
+              eq(petMemberships.accountId, command.requesterAccountId),
+            ),
+          )
+          .for('update');
+        const requester = requesterRows[0];
+        if (
+          requester?.status !== PetMembershipStatus.ACTIVE ||
+          requester.role !== PetMembershipRole.OWNER
+        )
+          return { outcome: 'PET_NOT_FOUND' };
+        if (petRow.status === PetStatus.ARCHIVED)
+          return { outcome: 'ALREADY_ARCHIVED' };
+        const membershipRows = await transaction
+          .select()
+          .from(petMemberships)
+          .where(eq(petMemberships.petId, command.petId));
+        const memberships: PetMembership[] = membershipRows.map((row) =>
+          PetMembership.reconstitute({
+            id: MembershipId.from(row.id),
+            accountId: AccountId.from(row.accountId),
+            role: row.role as PetMembershipRoleType,
+            status: row.status as PetMembershipStatusType,
+          }),
+        );
+        const breed: Breed =
+          petRow.breedKind === 'KNOWN'
+            ? Breed.known(petRow.breedName)
+            : Breed.custom(petRow.breedName);
+        const birthInformation: BirthInformation =
+          petRow.birthDateAccuracy === 'EXACT'
+            ? BirthInformation.exact(petRow.birthDate)
+            : BirthInformation.approximate(petRow.birthDate);
+        const pet: Pet = Pet.reconstitute({
+          id: PetId.from(petRow.id),
+          name: petRow.name,
+          species: petRow.species as PetSpecies,
+          breed,
+          sex: petRow.sex as PetSex,
+          birthInformation,
+          color: petRow.color ?? undefined,
+          distinctiveMarks: petRow.distinctiveMarks ?? undefined,
+          microchip: petRow.microchip ?? undefined,
+          status: petRow.status as PetStatusType,
+          memberships,
+        });
+
+        const archived: Pet = pet.archive();
+        const changedRows = await transaction
+          .update(pets)
+          .set({ status: archived.status })
+          .where(
+            and(eq(pets.id, command.petId), eq(pets.status, PetStatus.ACTIVE)),
+          )
+          .returning({ id: pets.id });
+        if (changedRows.length !== 1)
+          throw new Error('Pet archive did not update one row');
+        return { outcome: 'ARCHIVED' };
+      },
+      { isolationLevel: 'read committed' },
+    );
+  }
 
   async promoteCollaboratorIfOwned(
     command: PromoteCollaboratorCommand,

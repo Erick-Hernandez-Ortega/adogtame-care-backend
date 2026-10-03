@@ -6,6 +6,9 @@ import type { RegisteredPet, RegisterPetCommand } from './register-pet.types';
 const OWNER_ACCOUNT_ID: string = '550e8400-e29b-41d4-a716-446655440000';
 
 class InMemoryPetRepository implements PetRepository {
+  archiveIfOwned: PetRepository['archiveIfOwned'] = (): Promise<{
+    outcome: 'PET_NOT_FOUND';
+  }> => Promise.resolve({ outcome: 'PET_NOT_FOUND' });
   readonly savedPets: Pet[] = [];
 
   correctProfileIfOwned(): Promise<null> {
@@ -128,6 +131,7 @@ describe('RegisterPet', () => {
   it('propagates repository errors unchanged', async () => {
     const persistenceError = new Error('Database unavailable');
     const repository: PetRepository = {
+      archiveIfOwned: jest.fn() as PetRepository['archiveIfOwned'],
       promoteCollaboratorIfOwned:
         jest.fn() as PetRepository['promoteCollaboratorIfOwned'],
       removeMemberIfOwned: jest.fn() as PetRepository['removeMemberIfOwned'],

@@ -6,6 +6,7 @@ export const PET_INVITATION_REPOSITORY: unique symbol = Symbol(
 
 export const CreatePendingInvitationOutcome = {
   CREATED: 'CREATED',
+  PET_NOT_FOUND: 'PET_NOT_FOUND',
   ALREADY_PENDING: 'ALREADY_PENDING',
 } as const;
 

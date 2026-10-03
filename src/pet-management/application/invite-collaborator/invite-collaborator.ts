@@ -110,6 +110,9 @@ export class InviteCollaborator {
         pendingInvitation,
       );
 
+    if (outcome === CreatePendingInvitationOutcome.PET_NOT_FOUND)
+      throw new PetNotFoundError();
+
     if (outcome === CreatePendingInvitationOutcome.ALREADY_PENDING) {
       throw new InvitationAlreadyPendingError();
     }

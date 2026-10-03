@@ -1,3 +1,9 @@
+import { ArchivePet } from '../../../application/archive-pet/archive-pet';
+import {
+  archivePetIdSchema,
+  archivePetQuerySchema,
+  archivePetBodySchema,
+} from '../schemas/archive-pet.schema';
 import {
   RemovePetMember,
   PetMemberNotFoundError,
@@ -123,6 +129,7 @@ import {
 @ApiBearerAuth()
 export class PetsController {
   constructor(
+    private readonly archivePet: ArchivePet,
     private readonly removePetMember: RemovePetMember,
     private readonly promoteCollaboratorToOwner: PromoteCollaboratorToOwner,
     private readonly registerPet: RegisterPet,
@@ -133,6 +140,72 @@ export class PetsController {
     private readonly inviteCollaborator: InviteCollaborator,
     private readonly leavePet: LeavePet,
   ) {}
+
+  @Post(':petId/archive')
+  @UseGuards(AuthenticationGuard)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary: 'Archive a pet',
+    description:
+      'An active owner may archive a pet. An authorized retry on an archived pet succeeds without an UPDATE. Memberships, invitations, and health history are preserved. No query parameters are accepted; the body must be absent or empty.',
+  })
+  @ApiParam({
+    name: 'petId',
+    description: 'Non-nil pet UUID',
+    schema: { type: 'string', format: 'uuid' },
+  })
+  @ApiResponse({ status: 204, description: 'Pet is archived' })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid path, unexpected query parameters, or nonempty body',
+    schema: errorSchema(['INVALID_REQUEST'], 'Request path is invalid'),
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Missing or invalid Bearer token',
+    schema: errorSchema(['UNAUTHENTICATED'], 'Authentication is required'),
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Pet is missing or requester is not an active owner',
+    schema: errorSchema(['PET_NOT_FOUND'], 'Pet was not found'),
+  })
+  async archive(
+    @CurrentAccountId() requesterAccountId: string,
+    @Param('petId') petId: string,
+    @Query() query: unknown,
+    @Body() body: unknown,
+  ): Promise<void> {
+    const parsedPetId = archivePetIdSchema.safeParse(petId);
+    if (!parsedPetId.success)
+      throw new BadRequestException({
+        code: 'INVALID_REQUEST',
+        message: 'Request path is invalid',
+      });
+    if (!archivePetQuerySchema.safeParse(query).success)
+      throw new BadRequestException({
+        code: 'INVALID_REQUEST',
+        message: 'Request query is invalid',
+      });
+    if (body !== undefined && !archivePetBodySchema.safeParse(body).success)
+      throw new BadRequestException({
+        code: 'INVALID_REQUEST',
+        message: 'Request body is invalid',
+      });
+    try {
+      await this.archivePet.execute({
+        requesterAccountId,
+        petId: parsedPetId.data,
+      });
+    } catch (error: unknown) {
+      if (error instanceof PetNotFoundError)
+        throw new NotFoundException({
+          code: 'PET_NOT_FOUND',
+          message: error.message,
+        });
+      throw error;
+    }
+  }
 
   @Post(':petId/members/:membershipId/promote')
   @UseGuards(AuthenticationGuard)
@@ -238,7 +311,11 @@ export class PetsController {
 
   @Get()
   @UseGuards(AuthenticationGuard)
-  @ApiOperation({ summary: 'List pets accessible to the current account' })
+  @ApiOperation({
+    summary: 'List pets accessible to the current account',
+    description:
+      'Includes active and archived pets with an active requester membership. Each summary exposes its lifecycle status.',
+  })
   @ApiResponse({
     status: 200,
     description: 'Accessible pets',
@@ -255,7 +332,11 @@ export class PetsController {
 
   @Get(':petId')
   @UseGuards(AuthenticationGuard)
-  @ApiOperation({ summary: 'Get an accessible pet profile' })
+  @ApiOperation({
+    summary: 'Get an accessible pet profile',
+    description:
+      'Active owners and collaborators may read active or archived pets.',
+  })
   @ApiParam({
     name: 'petId',
     description: 'Pet UUID',

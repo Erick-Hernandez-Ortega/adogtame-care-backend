@@ -92,6 +92,7 @@ export class DrizzlePetQueryRepository implements PetQueryRepository {
         breedName: pets.breedName,
         breedKind: pets.breedKind,
         sex: pets.sex,
+        status: pets.status,
         role: petMemberships.role,
       })
       .from(petMemberships)
@@ -100,7 +101,7 @@ export class DrizzlePetQueryRepository implements PetQueryRepository {
         and(
           eq(petMemberships.accountId, accountId),
           eq(petMemberships.status, PetMembershipStatus.ACTIVE),
-          eq(pets.status, PetStatus.ACTIVE),
+          inArray(pets.status, [PetStatus.ACTIVE, PetStatus.ARCHIVED]),
         ),
       )
       .orderBy(asc(pets.name), asc(pets.id));
@@ -114,6 +115,7 @@ export class DrizzlePetQueryRepository implements PetQueryRepository {
         kind: row.breedKind as BreedKind,
       },
       sex: row.sex as PetSex,
+      status: row.status as PetStatusType,
       role: row.role as PetMembershipRole,
     }));
   }
@@ -145,7 +147,7 @@ export class DrizzlePetQueryRepository implements PetQueryRepository {
           eq(pets.id, petId),
           eq(petMemberships.accountId, accountId),
           eq(petMemberships.status, PetMembershipStatus.ACTIVE),
-          eq(pets.status, PetStatus.ACTIVE),
+          inArray(pets.status, [PetStatus.ACTIVE, PetStatus.ARCHIVED]),
         ),
       )
       .limit(1);

@@ -1,3 +1,4 @@
+import { ArchivePet } from '../application/archive-pet/archive-pet';
 import { RemovePetMember } from '../application/remove-pet-member/remove-pet-member';
 import { PromoteCollaboratorToOwner } from '../application/promote-collaborator-to-owner/promote-collaborator-to-owner';
 import { Module } from '@nestjs/common';
@@ -40,6 +41,12 @@ import { DrizzlePetRepository } from './persistence/drizzle/drizzle-pet.reposito
   imports: [DatabaseModule, IdentityModule],
   controllers: [PetsController, PetInvitationsController],
   providers: [
+    {
+      provide: ArchivePet,
+      inject: [PET_REPOSITORY],
+      useFactory: (petRepository: PetRepository): ArchivePet =>
+        new ArchivePet(petRepository),
+    },
     {
       provide: PromoteCollaboratorToOwner,
       inject: [PET_REPOSITORY],

@@ -53,6 +53,7 @@ describe('ListMyPets', () => {
         breed: { name: 'Labrador Retriever', kind: 'KNOWN' },
         sex: 'FEMALE',
         role: 'OWNER',
+        status: 'ACTIVE',
       },
       {
         id: 'fd997d55-31ac-45f2-b7fa-17113f6ef5e5',
@@ -61,6 +62,7 @@ describe('ListMyPets', () => {
         breed: { name: 'Mixed', kind: 'CUSTOM' },
         sex: 'MALE',
         role: 'COLLABORATOR',
+        status: 'ARCHIVED',
       },
     ];
     const repository = new InMemoryPetQueryRepository(summaries);

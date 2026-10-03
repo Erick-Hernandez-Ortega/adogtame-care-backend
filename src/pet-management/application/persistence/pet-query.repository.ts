@@ -8,6 +8,7 @@ export const PET_QUERY_REPOSITORY: unique symbol = Symbol(
 );
 
 export interface AccessiblePetSummary {
+  readonly status: PetStatus;
   readonly id: string;
   readonly name: string;
   readonly species: PetSpecies;

@@ -37,7 +37,19 @@ export interface PromoteCollaboratorPersistenceResult {
     | 'PET_MEMBER_INACTIVE';
 }
 
+export interface ArchivePetCommand {
+  requesterAccountId: string;
+  petId: string;
+}
+
+export interface ArchivePetPersistenceResult {
+  outcome: 'ARCHIVED' | 'ALREADY_ARCHIVED' | 'PET_NOT_FOUND';
+}
+
 export interface PetRepository {
+  archiveIfOwned(
+    command: ArchivePetCommand,
+  ): Promise<ArchivePetPersistenceResult>;
   promoteCollaboratorIfOwned(
     command: PromoteCollaboratorCommand,
   ): Promise<PromoteCollaboratorPersistenceResult>;

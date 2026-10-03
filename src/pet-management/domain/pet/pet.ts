@@ -90,6 +90,11 @@ export class Pet {
     });
   }
 
+  archive(): Pet {
+    if (this.status === PetStatus.ARCHIVED) return this;
+    return new Pet({ ...this.properties, status: PetStatus.ARCHIVED });
+  }
+
   correctProfile(input: CorrectPetProfileInput): Pet {
     const profile = Pet.validateProfile({
       name: input.name ?? this.name,

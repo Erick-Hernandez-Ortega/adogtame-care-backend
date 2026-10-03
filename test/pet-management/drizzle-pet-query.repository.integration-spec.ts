@@ -33,7 +33,7 @@ describe('DrizzlePetQueryRepository (integration)', () => {
     await application.close();
   });
 
-  it('projects active owned and collaborated pets for only the requested account', async () => {
+  it('projects active and archived pets for only active memberships of the requested account', async () => {
     const accountAId: string = randomUUID();
     const accountBId: string = randomUUID();
     const otherOwnerId: string = randomUUID();
@@ -155,12 +155,22 @@ describe('DrizzlePetQueryRepository (integration)', () => {
 
       expect(summaries).toEqual([
         {
+          id: pet4Id,
+          name: 'Archived',
+          species: 'DOG',
+          breed: { name: 'Mixed', kind: 'CUSTOM' },
+          sex: 'UNKNOWN',
+          role: 'OWNER',
+          status: 'ARCHIVED',
+        },
+        {
           id: pet1Id,
           name: 'Luna',
           species: 'DOG',
           breed: { name: 'Labrador Retriever', kind: 'KNOWN' },
           sex: 'FEMALE',
           role: 'OWNER',
+          status: 'ACTIVE',
         },
         {
           id: pet2Id,
@@ -169,6 +179,7 @@ describe('DrizzlePetQueryRepository (integration)', () => {
           breed: { name: 'Mixed', kind: 'CUSTOM' },
           sex: 'MALE',
           role: 'COLLABORATOR',
+          status: 'ACTIVE',
         },
       ]);
       await expect(
@@ -212,7 +223,11 @@ describe('DrizzlePetQueryRepository (integration)', () => {
       ).resolves.toBeNull();
       await expect(
         repository.findAccessibleDetailById(pet4Id, accountAId),
-      ).resolves.toBeNull();
+      ).resolves.toMatchObject({
+        id: pet4Id,
+        status: 'ARCHIVED',
+        role: 'OWNER',
+      });
       await expect(
         repository.findAccessibleDetailById(pet5Id, accountAId),
       ).resolves.toBeNull();

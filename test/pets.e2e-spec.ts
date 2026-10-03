@@ -460,7 +460,7 @@ describe('GET /pets (e2e)', () => {
     await application.close();
   });
 
-  it('lists only the authenticated account active pets in name order', async () => {
+  it('lists the authenticated account active and archived pets in name order', async () => {
     const accountA: AuthenticatedAccountFixture = await registerAndAuthenticate(
       application,
       'list-owner-a',
@@ -497,6 +497,7 @@ describe('GET /pets (e2e)', () => {
           breed: { name: 'Labrador Retriever', kind: 'KNOWN' },
           sex: 'FEMALE',
           role: 'OWNER',
+          status: 'ACTIVE',
         },
         {
           id: createdPetIds[0],
@@ -505,6 +506,7 @@ describe('GET /pets (e2e)', () => {
           breed: { name: 'Labrador Retriever', kind: 'KNOWN' },
           sex: 'FEMALE',
           role: 'OWNER',
+          status: 'ACTIVE',
         },
       ]);
 
@@ -532,7 +534,10 @@ describe('GET /pets (e2e)', () => {
         .get('/pets')
         .set('Authorization', `Bearer ${accountA.accessToken}`)
         .expect(200);
-      expect(activeResponse.body).toEqual([summaries[0]]);
+      expect(activeResponse.body).toEqual([
+        summaries[0],
+        { ...summaries[1], status: 'ARCHIVED' },
+      ]);
     } finally {
       for (const petId of createdPetIds) {
         await databaseService.connection
@@ -612,7 +617,7 @@ describe('GET /pets/:petId (e2e)', () => {
     await application.close();
   });
 
-  it('returns the owner detail while concealing other accounts and archived pets', async () => {
+  it('returns active and archived owner detail while concealing other accounts', async () => {
     const accountA: AuthenticatedAccountFixture = await registerAndAuthenticate(
       application,
       'detail-owner-a',
@@ -680,8 +685,12 @@ describe('GET /pets/:petId (e2e)', () => {
       const archivedResponse = await request(application.getHttpServer())
         .get(`/pets/${petId}`)
         .set('Authorization', `Bearer ${accountA.accessToken}`)
-        .expect(404);
-      expect(archivedResponse.body).toEqual(nonexistentResponse.body);
+        .expect(200);
+      expect(archivedResponse.body).toMatchObject({
+        id: petId,
+        status: 'ARCHIVED',
+        role: 'OWNER',
+      });
     } finally {
       if (petId !== undefined) {
         await databaseService.connection

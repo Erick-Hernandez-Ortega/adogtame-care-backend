@@ -363,38 +363,77 @@ export class DrizzlePetInvitationRepository implements PetInvitationRepository {
     }
 
     try {
-      await this.databaseService.connection.transaction(async (transaction) => {
-        if (expiredInvitation !== null) {
-          if (expiredInvitation.status !== PetInvitationStatus.EXPIRED) {
-            throw new TypeError('Previous invitation must be expired');
+      return await this.databaseService.connection.transaction(
+        async (transaction): Promise<CreatePendingInvitationOutcome> => {
+          // Existing invitation locks precede Pet, matching Accept/Cancel (docs/pet-archive.md).
+          if (expiredInvitation !== null) {
+            if (expiredInvitation.status !== PetInvitationStatus.EXPIRED)
+              throw new TypeError('Previous invitation must be expired');
+            await transaction
+              .select({ id: petInvitations.id })
+              .from(petInvitations)
+              .where(eq(petInvitations.id, expiredInvitation.id.value))
+              .for('update');
           }
-
-          await transaction
-            .update(petInvitations)
-            .set({ status: PetInvitationStatus.EXPIRED })
+          const petRows = await transaction
+            .select({ status: pets.status })
+            .from(pets)
+            .where(eq(pets.id, invitation.petId.value))
+            .for('update');
+          if (petRows[0]?.status !== PetStatus.ACTIVE)
+            return CreatePendingInvitationOutcome.PET_NOT_FOUND;
+          const requesterRows = await transaction
+            .select({
+              role: petMemberships.role,
+              status: petMemberships.status,
+            })
+            .from(petMemberships)
             .where(
               and(
-                eq(petInvitations.id, expiredInvitation.id.value),
-                eq(petInvitations.petId, invitation.petId.value),
-                eq(petInvitations.invitedEmail, invitation.invitedEmail.value),
-                eq(petInvitations.status, PetInvitationStatus.PENDING),
-                lte(petInvitations.expiresAt, new Date(invitation.createdAt)),
+                eq(petMemberships.petId, invitation.petId.value),
+                eq(
+                  petMemberships.accountId,
+                  invitation.invitedByAccountId.value,
+                ),
               ),
-            );
-        }
+            )
+            .for('update');
+          if (
+            requesterRows[0]?.status !== PetMembershipStatus.ACTIVE ||
+            requesterRows[0].role !== PetMembershipRole.OWNER
+          )
+            return CreatePendingInvitationOutcome.PET_NOT_FOUND;
+          if (expiredInvitation !== null) {
+            await transaction
+              .update(petInvitations)
+              .set({ status: PetInvitationStatus.EXPIRED })
+              .where(
+                and(
+                  eq(petInvitations.id, expiredInvitation.id.value),
+                  eq(petInvitations.petId, invitation.petId.value),
+                  eq(
+                    petInvitations.invitedEmail,
+                    invitation.invitedEmail.value,
+                  ),
+                  eq(petInvitations.status, PetInvitationStatus.PENDING),
+                  lte(petInvitations.expiresAt, new Date(invitation.createdAt)),
+                ),
+              );
+          }
 
-        await transaction.insert(petInvitations).values({
-          id: invitation.id.value,
-          petId: invitation.petId.value,
-          invitedEmail: invitation.invitedEmail.value,
-          invitedByAccountId: invitation.invitedByAccountId.value,
-          status: invitation.status,
-          createdAt: new Date(invitation.createdAt),
-          expiresAt: new Date(invitation.expiresAt),
-        });
-      });
-
-      return CreatePendingInvitationOutcome.CREATED;
+          await transaction.insert(petInvitations).values({
+            id: invitation.id.value,
+            petId: invitation.petId.value,
+            invitedEmail: invitation.invitedEmail.value,
+            invitedByAccountId: invitation.invitedByAccountId.value,
+            status: invitation.status,
+            createdAt: new Date(invitation.createdAt),
+            expiresAt: new Date(invitation.expiresAt),
+          });
+          return CreatePendingInvitationOutcome.CREATED;
+        },
+        { isolationLevel: 'read committed' },
+      );
     } catch (error: unknown) {
       const cause: unknown =
         error instanceof DrizzleQueryError ? error.cause : error;

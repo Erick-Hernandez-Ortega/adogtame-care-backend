@@ -63,7 +63,7 @@ después llama a `POST /auth/login` con tu correo y contraseña. Copia
 `accessToken` de la respuesta, pulsa **Authorize** en Swagger e introduce el
 token. Swagger añade automáticamente el prefijo Bearer a las peticiones.
 
-La API expone 23 operaciones.
+La API expone 24 operaciones.
 
 | Ruta                                          | Descripción                 | Token Bearer |
 | --------------------------------------------- | --------------------------- | ------------ |
@@ -78,6 +78,7 @@ La API expone 23 operaciones.
 | `PATCH /pets/{petId}`                         | Corregir perfil de mascota | Sí           |
 | `POST /pets`                                  | Registrar mascota           | Sí           |
 | `POST /pets/{petId}/invitations`              | Invitar colaborador         | Sí           |
+| `POST /pets/{petId}/archive` | Archivar una mascota | Sí |
 | `POST /pets/{petId}/leave`                    | Abandonar una mascota  | Sí           |
 | `POST /pets/{petId}/health/weight-records`    | Registrar peso (kg)         | Sí           |
 | `GET /pets/{petId}/health/weight-records`     | Consultar historial de peso | Sí           |
@@ -90,6 +91,10 @@ La API expone 23 operaciones.
 | `POST /pet-invitations/{invitationId}/accept` | Aceptar invitación          | Sí           |
 | `POST /pet-invitations/{invitationId}/reject` | Rechazar invitación         | Sí           |
 | `POST /pet-invitations/{invitationId}/cancel` | Cancelar invitación         | Sí           |
+
+Para archivar una mascota, envía `POST /pets/{petId}/archive` como owner activo. El éxito es `204 No Content`, también en retries sobre una mascota archivada después de volver a comprobar la autorización del owner. Un retry no ejecuta UPDATE y conserva `pets.updated_at`; una transición real lo cambia mediante el trigger existente. Archive conserva el perfil, memberships, invitaciones pendientes e historial Health. Collaborators, miembros inactivos, ausencia de membership y mascotas inexistentes reciben `404 PET_NOT_FOUND`. El ID debe ser un UUID non-nil. Envía sin query parameters y sin body o con `{}`; una estructura inválida devuelve `400 INVALID_REQUEST`. Un token Bearer ausente o inválido devuelve `401 UNAUTHENTICATED`.
+
+`GET /pets` incluye mascotas activas y archivadas con membership activa del requester y expone `status` en cada summary. `GET /pets/{petId}` también permite ambos estados para miembros activos. Las mascotas archivadas siguen siendo legibles mediante Members e historiales Health, y Leave sigue disponible. Los cambios de perfil, invitaciones, remoción/promoción de miembros y todas las escrituras Health requieren una mascota activa. Las invitaciones pendientes se conservan; aceptar una invitación pendiente vigente sobre una mascota archivada devuelve `409 INVITATION_NOT_ACCEPTABLE` sin conceder acceso. Cancel requiere una mascota activa; Reject sigue disponible según el lifecycle de la invitación. Consulta [pet archive](docs/pet-archive.md) para el orden de locks y concurrencia.
 
 Para listar los miembros actuales, envía `GET /pets/{petId}/members` con un token Bearer y sin body ni query parameters. Owners y collaborators activos pueden consultar mascotas activas o archivadas. La respuesta completa `200` es `{"members":[{"membershipId":"...","accountId":"...","email":"owner@example.com","role":"OWNER"}]}`. Incluye únicamente memberships activas, también la del requester y todos los owners; excluye invitaciones pendientes. Primero aparecen los owners y después los collaborators; dentro de cada rol se ordena por fecha de creación de la membership y luego por ID de membership, ambos ascendentes. Un UUID inválido o nil o un query parameter inesperado devuelve `400 INVALID_REQUEST`; un token ausente o inválido devuelve `401 UNAUTHENTICATED`. Una mascota inexistente, una membership ausente o una membership inactiva del requester devuelve `404 PET_NOT_FOUND`.
 

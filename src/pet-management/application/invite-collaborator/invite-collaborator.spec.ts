@@ -311,6 +311,14 @@ describe('InviteCollaborator', () => {
     );
   });
 
+  it('maps revoked authorization at persistence to pet not found', async () => {
+    const context: TestContext = createContext();
+    context.invitations.outcome = CreatePendingInvitationOutcome.PET_NOT_FOUND;
+    await expect(context.useCase.execute(command())).rejects.toThrow(
+      PetNotFoundError,
+    );
+  });
+
   it('propagates unexpected persistence errors', async () => {
     const context: TestContext = createContext();
     const persistenceError = new Error('Database unavailable');

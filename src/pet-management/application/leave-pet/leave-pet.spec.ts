@@ -18,6 +18,7 @@ describe('LeavePet', () => {
       .fn<Promise<LeavePetPersistenceResult>, [string, string]>()
       .mockResolvedValue(result);
     const repository: PetRepository = {
+      archiveIfOwned: jest.fn() as PetRepository['archiveIfOwned'],
       promoteCollaboratorIfOwned:
         jest.fn() as PetRepository['promoteCollaboratorIfOwned'],
       removeMemberIfOwned: jest.fn() as PetRepository['removeMemberIfOwned'],

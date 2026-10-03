@@ -32,6 +32,57 @@ function validPetInput(
 }
 
 describe('Pet', () => {
+  it('archives without changing identity, profile, or historical memberships', () => {
+    const registered: Pet = Pet.register(
+      validPetInput({
+        color: 'Golden',
+        distinctiveMarks: 'White paw',
+        microchip: 'chip',
+      }),
+    );
+    const collaborator: PetMembership = PetMembership.createCollaborator(
+      AccountId.from('550e8400-e29b-41d4-a716-446655440001'),
+    );
+    const pet: Pet = Pet.reconstitute({
+      id: registered.id,
+      name: registered.name,
+      species: registered.species,
+      breed: registered.breed,
+      sex: registered.sex,
+      birthInformation: registered.birthInformation,
+      color: registered.color,
+      distinctiveMarks: registered.distinctiveMarks,
+      microchip: registered.microchip,
+      status: registered.status,
+      memberships: [
+        ...registered.memberships,
+        collaborator,
+        PetMembership.createCollaborator(
+          AccountId.from('550e8400-e29b-41d4-a716-446655440002'),
+        ).leaveAsCollaborator(),
+      ],
+    });
+    const archived: Pet = pet.archive();
+    expect(archived).not.toBe(pet);
+    expect(pet.status).toBe('ACTIVE');
+    expect(archived.status).toBe('ARCHIVED');
+    for (const key of [
+      'id',
+      'name',
+      'species',
+      'breed',
+      'sex',
+      'birthInformation',
+      'color',
+      'distinctiveMarks',
+      'microchip',
+      'memberships',
+    ] as const)
+      expect(archived[key]).toEqual(pet[key]);
+    expect(archived.id).toBe(pet.id);
+    expect(archived.archive()).toBe(archived);
+  });
+
   it('registers a pet with its profile and a persistent identity', () => {
     const pet: Pet = Pet.register(
       validPetInput({

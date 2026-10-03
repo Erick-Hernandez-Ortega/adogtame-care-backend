@@ -38,7 +38,7 @@ describe('OpenAPI documentation (e2e)', () => {
     await application.close();
   });
 
-  it('serves Swagger UI and documents all twenty-three operations and their contracts', async () => {
+  it('serves Swagger UI and documents all twenty-four operations and their contracts', async () => {
     const htmlResponse = await request(application.getHttpServer())
       .get('/docs')
       .expect(200);
@@ -66,6 +66,7 @@ describe('OpenAPI documentation (e2e)', () => {
       ['/pets', 'post'],
       ['/pets/{petId}/invitations', 'post'],
       ['/pets/{petId}/leave', 'post'],
+      ['/pets/{petId}/archive', 'post'],
       ['/pets/{petId}/health/weight-records', 'post'],
       ['/pets/{petId}/health/weight-records', 'get'],
       ['/pets/{petId}/health/weight-records/{weightRecordId}', 'patch'],
@@ -100,7 +101,43 @@ describe('OpenAPI documentation (e2e)', () => {
           Number(Boolean(path?.delete)),
         0,
       ),
-    ).toBe(23);
+    ).toBe(24);
+
+    const archive: OperationObject | undefined =
+      document.paths['/pets/{petId}/archive']?.post;
+    expect(Object.keys(archive?.responses ?? {}).sort()).toEqual([
+      '204',
+      '400',
+      '401',
+      '404',
+    ]);
+    expect(
+      (archive?.responses['204'] as ResponseObject).content,
+    ).toBeUndefined();
+    expect(archive?.requestBody).toBeUndefined();
+    expect(archive?.security).toEqual([{ bearer: [] }]);
+    expect(archive?.parameters).toEqual([
+      expect.objectContaining({
+        name: 'petId',
+        in: 'path',
+        required: true,
+        schema: { type: 'string', format: 'uuid' },
+      }),
+    ]);
+    for (const [status, code] of [
+      ['400', 'INVALID_REQUEST'],
+      ['401', 'UNAUTHENTICATED'],
+      ['404', 'PET_NOT_FOUND'],
+    ])
+      expect(responseSchema(archive, status)?.properties?.code).toMatchObject({
+        enum: [code],
+      });
+    const summary = responseSchema(document.paths['/pets']?.get, '200')
+      ?.items as SchemaObject;
+    expect(summary.required).toContain('status');
+    expect(summary.properties?.status).toMatchObject({
+      enum: ['ACTIVE', 'ARCHIVED'],
+    });
 
     const promotion: OperationObject | undefined =
       document.paths['/pets/{petId}/members/{membershipId}/promote']?.post;
