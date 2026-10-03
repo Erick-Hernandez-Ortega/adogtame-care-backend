@@ -25,6 +25,7 @@ describe('RemovePetMember', () => {
       .fn<Promise<RemovePetMemberPersistenceResult>, [RemovePetMemberCommand]>()
       .mockResolvedValue({ outcome });
     const repository: PetRepository = {
+      restoreIfOwned: jest.fn(),
       archiveIfOwned: jest.fn() as PetRepository['archiveIfOwned'],
       save: jest.fn() as PetRepository['save'],
       correctProfileIfOwned:

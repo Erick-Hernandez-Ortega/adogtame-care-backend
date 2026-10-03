@@ -38,7 +38,7 @@ describe('OpenAPI documentation (e2e)', () => {
     await application.close();
   });
 
-  it('serves Swagger UI and documents all twenty-four operations and their contracts', async () => {
+  it('serves Swagger UI and documents all twenty-five operations and their contracts', async () => {
     const htmlResponse = await request(application.getHttpServer())
       .get('/docs')
       .expect(200);
@@ -67,6 +67,7 @@ describe('OpenAPI documentation (e2e)', () => {
       ['/pets/{petId}/invitations', 'post'],
       ['/pets/{petId}/leave', 'post'],
       ['/pets/{petId}/archive', 'post'],
+      ['/pets/{petId}/restore', 'post'],
       ['/pets/{petId}/health/weight-records', 'post'],
       ['/pets/{petId}/health/weight-records', 'get'],
       ['/pets/{petId}/health/weight-records/{weightRecordId}', 'patch'],
@@ -101,7 +102,7 @@ describe('OpenAPI documentation (e2e)', () => {
           Number(Boolean(path?.delete)),
         0,
       ),
-    ).toBe(24);
+    ).toBe(25);
 
     const archive: OperationObject | undefined =
       document.paths['/pets/{petId}/archive']?.post;
@@ -130,6 +131,35 @@ describe('OpenAPI documentation (e2e)', () => {
       ['404', 'PET_NOT_FOUND'],
     ])
       expect(responseSchema(archive, status)?.properties?.code).toMatchObject({
+        enum: [code],
+      });
+    const restore: OperationObject | undefined =
+      document.paths['/pets/{petId}/restore']?.post;
+    expect(Object.keys(restore?.responses ?? {}).sort()).toEqual([
+      '204',
+      '400',
+      '401',
+      '404',
+    ]);
+    expect(
+      (restore?.responses['204'] as ResponseObject).content,
+    ).toBeUndefined();
+    expect(restore?.requestBody).toBeUndefined();
+    expect(restore?.security).toEqual([{ bearer: [] }]);
+    expect(restore?.parameters).toEqual([
+      expect.objectContaining({
+        name: 'petId',
+        in: 'path',
+        required: true,
+        schema: { type: 'string', format: 'uuid' },
+      }),
+    ]);
+    for (const [status, code] of [
+      ['400', 'INVALID_REQUEST'],
+      ['401', 'UNAUTHENTICATED'],
+      ['404', 'PET_NOT_FOUND'],
+    ])
+      expect(responseSchema(restore, status)?.properties?.code).toMatchObject({
         enum: [code],
       });
     const summary = responseSchema(document.paths['/pets']?.get, '200')

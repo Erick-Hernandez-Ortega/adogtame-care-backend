@@ -281,6 +281,54 @@ describe('Pet', () => {
   });
 });
 
+describe('Pet.restore', () => {
+  it('restores an immutable aggregate while preserving identity, profile and membership history', () => {
+    const original: Pet = Pet.register(
+      validPetInput({
+        color: 'Brown',
+        distinctiveMarks: 'White paw',
+        microchip: 'chip',
+      }),
+    );
+    const inactive: PetMembership = PetMembership.createCollaborator(
+      AccountId.from('a3ef9f14-9e82-45d6-a5ba-89d31c7aa2e1'),
+    ).leaveAsCollaborator();
+    const archived: Pet = Pet.reconstitute({
+      id: original.id,
+      name: original.name,
+      species: original.species,
+      breed: original.breed,
+      sex: original.sex,
+      birthInformation: original.birthInformation,
+      color: original.color,
+      distinctiveMarks: original.distinctiveMarks,
+      microchip: original.microchip,
+      status: PetStatus.ARCHIVED,
+      memberships: [...original.memberships, inactive],
+    });
+    const restored: Pet = archived.restore();
+    expect(restored).not.toBe(archived);
+    expect(archived.status).toBe(PetStatus.ARCHIVED);
+    expect(restored).toMatchObject({
+      id: archived.id,
+      name: archived.name,
+      species: archived.species,
+      breed: archived.breed,
+      sex: archived.sex,
+      birthInformation: archived.birthInformation,
+      color: archived.color,
+      distinctiveMarks: archived.distinctiveMarks,
+      microchip: archived.microchip,
+      memberships: archived.memberships,
+      status: PetStatus.ACTIVE,
+    });
+    expect(restored.memberships[1]).toBe(inactive);
+    expect(restored.restore()).toBe(restored);
+    expect(original.restore()).toBe(original);
+    expect(original.archive().restore()).toEqual(original);
+  });
+});
+
 describe('PetId', () => {
   it('reconstitutes a valid existing ID', () => {
     expect(PetId.from('B30A4C42-84E5-4765-99D4-1EFB17F09C12').value).toBe(

@@ -9,6 +9,8 @@ import {
   type PetLeaveDecision,
 } from '../../../domain/pet/pet-leave.policy';
 import type {
+  RestorePetCommand,
+  RestorePetPersistenceResult,
   ArchivePetCommand,
   ArchivePetPersistenceResult,
   LeavePetPersistenceResult,
@@ -44,6 +46,89 @@ import { petMemberships, pets } from './pet-management.schema';
 @Injectable()
 export class DrizzlePetRepository implements PetRepository {
   constructor(private readonly databaseService: DatabaseService) {}
+
+  async restoreIfOwned(
+    command: RestorePetCommand,
+  ): Promise<RestorePetPersistenceResult> {
+    return this.databaseService.connection.transaction(
+      async (transaction): Promise<RestorePetPersistenceResult> => {
+        const petRows = await transaction
+          .select()
+          .from(pets)
+          .where(eq(pets.id, command.petId))
+          .for('update');
+        const petRow = petRows[0];
+        if (petRow === undefined) return { outcome: 'PET_NOT_FOUND' };
+        const requesterRows = await transaction
+          .select()
+          .from(petMemberships)
+          .where(
+            and(
+              eq(petMemberships.petId, command.petId),
+              eq(petMemberships.accountId, command.requesterAccountId),
+            ),
+          )
+          .for('update');
+        const requester = requesterRows[0];
+        if (
+          requester?.status !== PetMembershipStatus.ACTIVE ||
+          requester.role !== PetMembershipRole.OWNER
+        )
+          return { outcome: 'PET_NOT_FOUND' };
+        if (petRow.status === PetStatus.ACTIVE)
+          return { outcome: 'ALREADY_ACTIVE' };
+        const membershipRows = await transaction
+          .select()
+          .from(petMemberships)
+          .where(eq(petMemberships.petId, command.petId));
+        const memberships: PetMembership[] = membershipRows.map((row) =>
+          PetMembership.reconstitute({
+            id: MembershipId.from(row.id),
+            accountId: AccountId.from(row.accountId),
+            role: row.role as PetMembershipRoleType,
+            status: row.status as PetMembershipStatusType,
+          }),
+        );
+        const breed: Breed =
+          petRow.breedKind === 'KNOWN'
+            ? Breed.known(petRow.breedName)
+            : Breed.custom(petRow.breedName);
+        const birthInformation: BirthInformation =
+          petRow.birthDateAccuracy === 'EXACT'
+            ? BirthInformation.exact(petRow.birthDate)
+            : BirthInformation.approximate(petRow.birthDate);
+        const pet: Pet = Pet.reconstitute({
+          id: PetId.from(petRow.id),
+          name: petRow.name,
+          species: petRow.species as PetSpecies,
+          breed,
+          sex: petRow.sex as PetSex,
+          birthInformation,
+          color: petRow.color ?? undefined,
+          distinctiveMarks: petRow.distinctiveMarks ?? undefined,
+          microchip: petRow.microchip ?? undefined,
+          status: petRow.status as PetStatusType,
+          memberships,
+        });
+
+        const restored: Pet = pet.restore();
+        const changedRows = await transaction
+          .update(pets)
+          .set({ status: restored.status })
+          .where(
+            and(
+              eq(pets.id, command.petId),
+              eq(pets.status, PetStatus.ARCHIVED),
+            ),
+          )
+          .returning({ id: pets.id });
+        if (changedRows.length !== 1)
+          throw new Error('Pet restore did not update one row');
+        return { outcome: 'RESTORED' };
+      },
+      { isolationLevel: 'read committed' },
+    );
+  }
 
   async archiveIfOwned(
     command: ArchivePetCommand,

@@ -46,7 +46,19 @@ export interface ArchivePetPersistenceResult {
   outcome: 'ARCHIVED' | 'ALREADY_ARCHIVED' | 'PET_NOT_FOUND';
 }
 
+export interface RestorePetCommand {
+  requesterAccountId: string;
+  petId: string;
+}
+
+export interface RestorePetPersistenceResult {
+  outcome: 'RESTORED' | 'ALREADY_ACTIVE' | 'PET_NOT_FOUND';
+}
+
 export interface PetRepository {
+  restoreIfOwned(
+    command: RestorePetCommand,
+  ): Promise<RestorePetPersistenceResult>;
   archiveIfOwned(
     command: ArchivePetCommand,
   ): Promise<ArchivePetPersistenceResult>;

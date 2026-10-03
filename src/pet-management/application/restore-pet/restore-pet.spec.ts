@@ -1,47 +1,47 @@
-import { ArchivePet } from './archive-pet';
+import { RestorePet } from './restore-pet';
 import { PetNotFoundError } from '../errors/pet-not-found.error';
 import type {
-  ArchivePetCommand,
-  ArchivePetPersistenceResult,
+  RestorePetCommand,
+  RestorePetPersistenceResult,
   PetRepository,
 } from '../persistence/pet.repository';
 
-const command: ArchivePetCommand = {
+const command: RestorePetCommand = {
   petId: '550e8400-e29b-41d4-a716-446655440000',
   requesterAccountId: '550e8400-e29b-41d4-a716-446655440001',
 };
 
 function createContext() {
-  const archiveIfOwned = jest.fn<
-    Promise<ArchivePetPersistenceResult>,
-    [ArchivePetCommand]
+  const restoreIfOwned = jest.fn<
+    Promise<RestorePetPersistenceResult>,
+    [RestorePetCommand]
   >();
   const persistence: PetRepository = {
-    restoreIfOwned: jest.fn(),
-    archiveIfOwned,
+    restoreIfOwned,
+    archiveIfOwned: jest.fn(),
     save: jest.fn(),
     correctProfileIfOwned: jest.fn(),
     leave: jest.fn(),
     removeMemberIfOwned: jest.fn(),
     promoteCollaboratorIfOwned: jest.fn(),
   };
-  return { archiveIfOwned, useCase: new ArchivePet(persistence) };
+  return { restoreIfOwned, useCase: new RestorePet(persistence) };
 }
 
-describe('ArchivePet', () => {
-  it.each(['ARCHIVED', 'ALREADY_ARCHIVED'] as const)(
+describe('RestorePet', () => {
+  it.each(['RESTORED', 'ALREADY_ACTIVE'] as const)(
     'succeeds for %s',
     async (outcome) => {
       const context = createContext();
-      context.archiveIfOwned.mockResolvedValue({ outcome });
+      context.restoreIfOwned.mockResolvedValue({ outcome });
       await expect(context.useCase.execute(command)).resolves.toBeUndefined();
-      expect(context.archiveIfOwned).toHaveBeenCalledWith(command);
-      expect(context.archiveIfOwned).toHaveBeenCalledTimes(1);
+      expect(context.restoreIfOwned).toHaveBeenCalledWith(command);
+      expect(context.restoreIfOwned).toHaveBeenCalledTimes(1);
     },
   );
   it('conceals missing or unauthorized pets', async () => {
     const context = createContext();
-    context.archiveIfOwned.mockResolvedValue({ outcome: 'PET_NOT_FOUND' });
+    context.restoreIfOwned.mockResolvedValue({ outcome: 'PET_NOT_FOUND' });
     await expect(context.useCase.execute(command)).rejects.toBeInstanceOf(
       PetNotFoundError,
     );
@@ -49,7 +49,7 @@ describe('ArchivePet', () => {
   it('propagates unexpected persistence failures', async () => {
     const context = createContext();
     const failure: Error = new Error('Database unavailable');
-    context.archiveIfOwned.mockRejectedValue(failure);
+    context.restoreIfOwned.mockRejectedValue(failure);
     await expect(context.useCase.execute(command)).rejects.toBe(failure);
   });
 });

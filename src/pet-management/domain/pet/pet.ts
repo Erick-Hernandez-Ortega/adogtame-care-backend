@@ -95,6 +95,11 @@ export class Pet {
     return new Pet({ ...this.properties, status: PetStatus.ARCHIVED });
   }
 
+  restore(): Pet {
+    if (this.status === PetStatus.ACTIVE) return this;
+    return new Pet({ ...this.properties, status: PetStatus.ACTIVE });
+  }
+
   correctProfile(input: CorrectPetProfileInput): Pet {
     const profile = Pet.validateProfile({
       name: input.name ?? this.name,

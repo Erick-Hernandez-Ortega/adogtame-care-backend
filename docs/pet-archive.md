@@ -9,7 +9,7 @@ before resolving lifecycle. Missing pets and every unauthorized requester receiv
 An active owner transitions `ACTIVE` to `ARCHIVED` and receives `204 No Content`.
 An authorized retry returns `204` without an UPDATE. Archive preserves identity,
 profile, memberships, invitations, and Health history. It adds no schema changes,
-notifications, deletion, or restoration operation.
+notifications or deletion.
 
 ## Domain and persistence
 
@@ -121,3 +121,48 @@ Vaccination repositories already implement the same Pet-first revalidation for
 all six writes. E2E tests additionally create both kinds of history, archive,
 verify historical reads and preserved rows, and reject all six subsequent writes.
 Swagger tests verify 24 operations and the Archive 204/400/401/404 contract.
+
+## Restore
+
+`POST /pets/{petId}/restore` uses the same authentication and HTTP validation
+contract as Archive. Only an ACTIVE OWNER can restore; missing pets, collaborators,
+inactive members and absent memberships return `404 PET_NOT_FOUND`.
+Authorization precedes idempotence even when the pet is already ACTIVE.
+
+`Pet.restore()` explicitly transitions ARCHIVED to ACTIVE in a new immutable
+aggregate, or returns the same instance for ACTIVE. `RestorePet` maps RESTORED
+and ALREADY_ACTIVE to success, and PET_NOT_FOUND to the application error.
+Unexpected failures propagate. Persistence uses READ COMMITTED and locks Pet
+then requester membership. It loads the complete aggregate's memberships only
+for a transition, matching Archive, without writing them or counting owners.
+Only status is updated, guarded by ARCHIVED; the existing trigger updates
+pets.updated_at. Retries execute no physical UPDATE.
+
+Restore preserves profile, identity, memberships including departed members,
+all invitation states and expiration dates, and Health records and timestamps.
+Pending unexpired invitations remain pending on an archived acceptance attempt
+and can be accepted after Restore. Pending expired invitations are expired by
+Accept before its Pet lifecycle check; Restore never revives them. Accepted,
+rejected, cancelled and expired invitations retain their lifecycle.
+
+Concurrent Restore calls serialize with one physical UPDATE. Restore and Archive
+serialize in lock order: Restore then Archive ends ARCHIVED; Archive's no-op on
+ARCHIVED then Restore ends ACTIVE. No operation has artificial priority.
+Leave before Restore invalidates the same requester; Restore before Leave permits
+a departure if another owner remains. A different remaining owner may restore.
+Remove, Promote, Profile, Invite and Health writes fail if they lock an ARCHIVED
+pet first and may proceed if Restore commits first. No failed operation is retried
+automatically. Invite retains its transactional authorization recheck and locks
+an existing expired invitation before Pet when replacing it. Accept/Cancel retain
+Invitation -> Pet -> Membership; Restore never locks invitations and adds no cycle.
+Reads continue to permit both statuses without new locks or filters.
+
+Restore tests cover domain state preservation, persistence outcomes, authorization
+on both statuses, rollback, physical no-op retries, invitation expiration, Health
+history, ordered PostgreSQL races and HTTP/OpenAPI contracts. The API now exposes
+25 operations. No schema migration, dependencies, audit log or deletion is added.
+
+Restore has a narrowly scoped exception filter for JSON parser failures, which
+occur before route guards. It authenticates these requests before returning
+INVALID_REQUEST for scalar or malformed JSON. Other routes retain Nest's normal
+error handling.

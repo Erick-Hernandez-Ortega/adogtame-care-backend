@@ -131,6 +131,7 @@ describe('RegisterPet', () => {
   it('propagates repository errors unchanged', async () => {
     const persistenceError = new Error('Database unavailable');
     const repository: PetRepository = {
+      restoreIfOwned: jest.fn(),
       archiveIfOwned: jest.fn() as PetRepository['archiveIfOwned'],
       promoteCollaboratorIfOwned:
         jest.fn() as PetRepository['promoteCollaboratorIfOwned'],

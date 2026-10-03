@@ -63,7 +63,7 @@ To try protected routes, register with `POST /accounts` if needed, then call
 response, click **Authorize** in Swagger, and enter the token. Swagger adds the
 Bearer prefix to requests automatically.
 
-The API exposes 24 operations.
+The API exposes 25 operations.
 
 | Route                                         | Description             | Bearer token |
 | --------------------------------------------- | ----------------------- | ------------ |
@@ -79,6 +79,7 @@ The API exposes 24 operations.
 | `POST /pets`                                  | Register pet            | Yes          |
 | `POST /pets/{petId}/invitations`              | Invite collaborator     | Yes          |
 | `POST /pets/{petId}/archive` | Archive a pet | Yes |
+| `POST /pets/{petId}/restore` | Restore a pet | Yes |
 | `POST /pets/{petId}/leave`                    | Leave a pet   | Yes          |
 | `POST /pets/{petId}/health/weight-records`    | Record pet weight (kg)  | Yes          |
 | `GET /pets/{petId}/health/weight-records`     | List pet weight history | Yes          |
@@ -93,6 +94,8 @@ The API exposes 24 operations.
 | `POST /pet-invitations/{invitationId}/cancel` | Cancel invitation       | Yes          |
 
 To archive a pet, send `POST /pets/{petId}/archive` as an active owner. Success is `204 No Content`, including retries on an archived pet after owner authorization is checked again. A retry performs no UPDATE and preserves `pets.updated_at`; a real transition changes it through the existing database trigger. Archive preserves the profile, memberships, pending invitations, and Health history. Collaborators, inactive members, absent memberships, and missing pets receive `404 PET_NOT_FOUND`. The pet ID must be a non-nil UUID. Send no query parameters and no body or `{}`; invalid structure returns `400 INVALID_REQUEST`. A missing or invalid Bearer token returns `401 UNAUTHENTICATED`.
+
+To restore an archived pet, send `POST /pets/{petId}/restore` as an active owner. Archive transitions `ACTIVE → ARCHIVED`; Restore transitions `ARCHIVED → ACTIVE`. Both return `204 No Content` and are idempotent after active owner authorization: an authorized retry performs no UPDATE or timestamp change. Restore preserves profile, memberships (including inactive members), all invitation states and expiration dates, and Health history. A pending, unexpired invitation can be accepted again under the existing acceptance rules; expired invitations are not revived. Restore uses the same Bearer, non-nil UUID, empty query and absent/empty body contract and `400 INVALID_REQUEST`, `401 UNAUTHENTICATED`, and `404 PET_NOT_FOUND` errors as Archive.
 
 `GET /pets` includes active and archived pets with an active requester membership and exposes `status` in each summary. `GET /pets/{petId}` also permits both states for active members. Archived pets remain readable through Members and Health history, and Leave remains available. Profile updates, invitations, member removal/promotion, and all Health writes require an active pet. Pending invitations are preserved; accepting a pending, unexpired invitation for an archived pet returns `409 INVITATION_NOT_ACCEPTABLE` without granting access. Cancellation requires an active pet; rejection remains available according to the invitation lifecycle. See [pet archive](docs/pet-archive.md) for lock ordering and concurrency.
 

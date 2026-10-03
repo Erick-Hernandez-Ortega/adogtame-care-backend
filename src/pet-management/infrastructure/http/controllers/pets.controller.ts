@@ -1,3 +1,9 @@
+import { RestorePet } from '../../../application/restore-pet/restore-pet';
+import {
+  restorePetIdSchema,
+  restorePetQuerySchema,
+  restorePetBodySchema,
+} from '../schemas/restore-pet.schema';
 import { ArchivePet } from '../../../application/archive-pet/archive-pet';
 import {
   archivePetIdSchema,
@@ -129,6 +135,7 @@ import {
 @ApiBearerAuth()
 export class PetsController {
   constructor(
+    private readonly restorePet: RestorePet,
     private readonly archivePet: ArchivePet,
     private readonly removePetMember: RemovePetMember,
     private readonly promoteCollaboratorToOwner: PromoteCollaboratorToOwner,
@@ -140,6 +147,72 @@ export class PetsController {
     private readonly inviteCollaborator: InviteCollaborator,
     private readonly leavePet: LeavePet,
   ) {}
+
+  @Post(':petId/restore')
+  @UseGuards(AuthenticationGuard)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary: 'Restore a pet',
+    description:
+      'An active owner may restore an archived pet. An authorized retry on an active pet succeeds without an UPDATE. Memberships, invitations, and health history are preserved. No query parameters are accepted; the body must be absent or empty.',
+  })
+  @ApiParam({
+    name: 'petId',
+    description: 'Non-nil pet UUID',
+    schema: { type: 'string', format: 'uuid' },
+  })
+  @ApiResponse({ status: 204, description: 'Pet is restored' })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid path, unexpected query parameters, or nonempty body',
+    schema: errorSchema(['INVALID_REQUEST'], 'Request path is invalid'),
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Missing or invalid Bearer token',
+    schema: errorSchema(['UNAUTHENTICATED'], 'Authentication is required'),
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Pet is missing or requester is not an active owner',
+    schema: errorSchema(['PET_NOT_FOUND'], 'Pet was not found'),
+  })
+  async restore(
+    @CurrentAccountId() requesterAccountId: string,
+    @Param('petId') petId: string,
+    @Query() query: unknown,
+    @Body() body: unknown,
+  ): Promise<void> {
+    const parsedPetId = restorePetIdSchema.safeParse(petId);
+    if (!parsedPetId.success)
+      throw new BadRequestException({
+        code: 'INVALID_REQUEST',
+        message: 'Request path is invalid',
+      });
+    if (!restorePetQuerySchema.safeParse(query).success)
+      throw new BadRequestException({
+        code: 'INVALID_REQUEST',
+        message: 'Request query is invalid',
+      });
+    if (body !== undefined && !restorePetBodySchema.safeParse(body).success)
+      throw new BadRequestException({
+        code: 'INVALID_REQUEST',
+        message: 'Request body is invalid',
+      });
+    try {
+      await this.restorePet.execute({
+        requesterAccountId,
+        petId: parsedPetId.data,
+      });
+    } catch (error: unknown) {
+      if (error instanceof PetNotFoundError)
+        throw new NotFoundException({
+          code: 'PET_NOT_FOUND',
+          message: error.message,
+        });
+      throw error;
+    }
+  }
 
   @Post(':petId/archive')
   @UseGuards(AuthenticationGuard)
