@@ -6,7 +6,9 @@ export interface AccountEmail {
 }
 
 export interface AccountLookup {
-  findEmailsByAccountIds(accountIds: readonly string[]): Promise<AccountEmail[]>;
+  findEmailsByAccountIds(
+    accountIds: readonly string[],
+  ): Promise<AccountEmail[]>;
   findAccountIdByEmail(email: string): Promise<string | null>;
   findEmailByAccountId(accountId: string): Promise<string | null>;
 }

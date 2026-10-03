@@ -1,7 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { eq, inArray } from 'drizzle-orm';
 import { DatabaseService } from '../../../../infrastructure/database/database.service';
-import type { AccountEmail, AccountLookup } from '../../../../pet-management/application/identity/account-lookup';
+import type {
+  AccountEmail,
+  AccountLookup,
+} from '../../../../pet-management/application/identity/account-lookup';
 import { accounts } from './identity.schema';
 import { Email } from '../../../domain/email/email';
 
@@ -15,10 +18,12 @@ export class DrizzleAccountLookup implements AccountLookup {
     if (accountIds.length === 0) {
       return [];
     }
+
     const rows = await this.databaseService.connection
       .select({ accountId: accounts.id, email: accounts.email })
       .from(accounts)
       .where(inArray(accounts.id, [...accountIds]));
+
     return rows.map((row): AccountEmail => ({
       accountId: row.accountId,
       email: Email.from(row.email).value,

@@ -39,25 +39,41 @@ export class DrizzlePetQueryRepository implements PetQueryRepository {
         role: petMemberships.role,
       })
       .from(pets)
-      .innerJoin(requesterMemberships, and(
-        eq(requesterMemberships.petId, pets.id),
-        eq(requesterMemberships.accountId, accountId),
-        eq(requesterMemberships.status, PetMembershipStatus.ACTIVE),
-        inArray(requesterMemberships.role, [PetMembershipRoleValue.OWNER, PetMembershipRoleValue.COLLABORATOR]),
-      ))
-      .innerJoin(petMemberships, and(
-        eq(petMemberships.petId, pets.id),
-        eq(petMemberships.status, PetMembershipStatus.ACTIVE),
-      ))
-      .where(and(eq(pets.id, petId), inArray(pets.status, [PetStatus.ACTIVE, PetStatus.ARCHIVED])))
+      .innerJoin(
+        requesterMemberships,
+        and(
+          eq(requesterMemberships.petId, pets.id),
+          eq(requesterMemberships.accountId, accountId),
+          eq(requesterMemberships.status, PetMembershipStatus.ACTIVE),
+          inArray(requesterMemberships.role, [
+            PetMembershipRoleValue.OWNER,
+            PetMembershipRoleValue.COLLABORATOR,
+          ]),
+        ),
+      )
+      .innerJoin(
+        petMemberships,
+        and(
+          eq(petMemberships.petId, pets.id),
+          eq(petMemberships.status, PetMembershipStatus.ACTIVE),
+        ),
+      )
+      .where(
+        and(
+          eq(pets.id, petId),
+          inArray(pets.status, [PetStatus.ACTIVE, PetStatus.ARCHIVED]),
+        ),
+      )
       .orderBy(
         asc(sql`case when ${petMemberships.role} = 'OWNER' then 0 else 1 end`),
         asc(petMemberships.createdAt),
         asc(petMemberships.id),
       );
+
     if (rows.length === 0) {
       return null;
     }
+
     return rows.map((row): PetMemberSummary => ({
       membershipId: row.membershipId,
       accountId: row.accountId,

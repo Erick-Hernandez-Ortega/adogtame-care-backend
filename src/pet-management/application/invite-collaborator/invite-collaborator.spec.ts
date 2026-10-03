@@ -32,7 +32,9 @@ const INVITED_ACCOUNT_ID: string = 'fd997d55-31ac-45f2-b7fa-17113f6ef5e5';
 const NOW: Date = new Date('2026-09-26T12:30:00.000Z');
 
 class FakePetQueryRepository implements PetQueryRepository {
-  findAccessibleMembers(): Promise<null> { return Promise.resolve(null); }
+  findAccessibleMembers(): Promise<null> {
+    return Promise.resolve(null);
+  }
   ownerAccess = true;
   targetMembership: {
     role: 'OWNER' | 'COLLABORATOR';
@@ -69,7 +71,9 @@ class FakePetQueryRepository implements PetQueryRepository {
 }
 
 class FakeAccountLookup implements AccountLookup {
-  findEmailsByAccountIds(): Promise<[]> { return Promise.resolve([]); }
+  findEmailsByAccountIds(): Promise<[]> {
+    return Promise.resolve([]);
+  }
   accountId: string | null = null;
   readonly emails: string[] = [];
 

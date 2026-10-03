@@ -61,7 +61,10 @@ import { DrizzlePetRepository } from './persistence/drizzle/drizzle-pet.reposito
     {
       provide: ListPetMembers,
       inject: [PET_QUERY_REPOSITORY, ACCOUNT_LOOKUP],
-      useFactory: (petQueryRepository: PetQueryRepository, accountLookup: AccountLookup): ListPetMembers =>
+      useFactory: (
+        petQueryRepository: PetQueryRepository,
+        accountLookup: AccountLookup,
+      ): ListPetMembers =>
         new ListPetMembers(petQueryRepository, accountLookup),
     },
     {

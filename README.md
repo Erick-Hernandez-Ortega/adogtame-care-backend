@@ -63,6 +63,8 @@ To try protected routes, register with `POST /accounts` if needed, then call
 response, click **Authorize** in Swagger, and enter the token. Swagger adds the
 Bearer prefix to requests automatically.
 
+The API exposes 21 operations.
+
 | Route                                         | Description             | Bearer token |
 | --------------------------------------------- | ----------------------- | ------------ |
 | `GET /`                                       | Welcome message         | No           |
@@ -70,6 +72,7 @@ Bearer prefix to requests automatically.
 | `POST /auth/login`                            | Get access token        | No           |
 | `GET /pets`                                   | List accessible pets    | Yes          |
 | `GET /pets/{petId}`                           | Get pet profile         | Yes          |
+| `GET /pets/{petId}/members`                   | List current pet members | Yes         |
 | `PATCH /pets/{petId}`                         | Correct pet profile     | Yes          |
 | `POST /pets`                                  | Register pet            | Yes          |
 | `POST /pets/{petId}/invitations`              | Invite collaborator     | Yes          |
@@ -85,6 +88,8 @@ Bearer prefix to requests automatically.
 | `POST /pet-invitations/{invitationId}/accept` | Accept invitation       | Yes          |
 | `POST /pet-invitations/{invitationId}/reject` | Reject invitation       | Yes          |
 | `POST /pet-invitations/{invitationId}/cancel` | Cancel invitation       | Yes          |
+
+To list current members, send `GET /pets/{petId}/members` with a Bearer token and no body or query parameters. Active owners and collaborators can read active or archived pets. The complete `200` response is `{"members":[{"membershipId":"...","accountId":"...","email":"owner@example.com","role":"OWNER"}]}`. Only active memberships are included, including the requester and all owners; pending invitations are excluded. Owners appear first, followed by collaborators, with each role ordered by membership creation time and then membership ID ascending. An invalid or nil UUID or unexpected query parameter returns `400 INVALID_REQUEST`; a missing or invalid token returns `401 UNAUTHENTICATED`. Missing pets, absent memberships, and inactive requester memberships return `404 PET_NOT_FOUND`.
 
 To correct a pet profile, send `PATCH /pets/{petId}` as an active owner of an active pet. Include at least one of `name`, `species`, `breed`, `sex`, `birthInformation`, `color`, `distinctiveMarks`, or `microchip`. The nested `breed` and `birthInformation` objects use the same complete shapes as registration. Omitted fields are preserved; send `null` to clear `color`, `distinctiveMarks`, or `microchip`. The `200` response has the same shape as `GET /pets/{petId}`, with `role: "OWNER"`. A normalized no-op does not change `updated_at`. Invalid request structure returns `400 INVALID_REQUEST`; domain-invalid values return `422 INVALID_PET`. Missing, archived, or inaccessible pets return `404 PET_NOT_FOUND`.
 
@@ -119,6 +124,10 @@ pnpm db:migrate
 
 Versioned SQL migrations will be stored in `drizzle/`. No empty migration is
 generated before a domain schema exists.
+
+See [Pet member reads](docs/pet-members-read.md) for the email lookup boundary,
+read consistency, and the separate technical debt concerning the missing
+membership-to-account foreign key.
 
 ## Verification
 

@@ -238,7 +238,11 @@ export const petMembersResponseSchema: SchemaObject = {
         properties: {
           membershipId: { type: 'string', format: 'uuid' },
           accountId: { type: 'string', format: 'uuid' },
-          email: { type: 'string', format: 'email', example: 'owner@example.com' },
+          email: {
+            type: 'string',
+            format: 'email',
+            example: 'owner@example.com',
+          },
           role: { type: 'string', enum: ['OWNER', 'COLLABORATOR'] },
         },
       },

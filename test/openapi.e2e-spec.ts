@@ -38,7 +38,7 @@ describe('OpenAPI documentation (e2e)', () => {
     await application.close();
   });
 
-  it('serves Swagger UI and documents all twenty routes and their contracts', async () => {
+  it('serves Swagger UI and documents all twenty-one operations and their contracts', async () => {
     const htmlResponse = await request(application.getHttpServer())
       .get('/docs')
       .expect(200);
@@ -55,6 +55,7 @@ describe('OpenAPI documentation (e2e)', () => {
       ['/auth/login', 'post'],
       ['/pets', 'get'],
       ['/pets/{petId}', 'get'],
+      ['/pets/{petId}/members', 'get'],
       ['/pets/{petId}', 'patch'],
       ['/pets', 'post'],
       ['/pets/{petId}/invitations', 'post'],
@@ -93,7 +94,7 @@ describe('OpenAPI documentation (e2e)', () => {
           Number(Boolean(path?.delete)),
         0,
       ),
-    ).toBe(20);
+    ).toBe(21);
 
     expect(document.components?.securitySchemes?.bearer).toMatchObject({
       type: 'http',
@@ -114,6 +115,47 @@ describe('OpenAPI documentation (e2e)', () => {
     const login = document.paths['/auth/login']?.post;
     const list = document.paths['/pets']?.get;
     const detail = document.paths['/pets/{petId}']?.get;
+    const members = document.paths['/pets/{petId}/members']?.get;
+    expect(Object.keys(members?.responses ?? {}).sort()).toEqual([
+      '200',
+      '400',
+      '401',
+      '404',
+    ]);
+    expect(members?.requestBody).toBeUndefined();
+    expect(members?.parameters).toEqual([
+      expect.objectContaining({
+        name: 'petId',
+        in: 'path',
+        required: true,
+        schema: { type: 'string', format: 'uuid' },
+      }),
+    ]);
+    expect(responseSchema(members, '200')).toEqual({
+      type: 'object',
+      additionalProperties: false,
+      required: ['members'],
+      properties: {
+        members: {
+          type: 'array',
+          items: {
+            type: 'object',
+            additionalProperties: false,
+            required: ['membershipId', 'accountId', 'email', 'role'],
+            properties: {
+              membershipId: { type: 'string', format: 'uuid' },
+              accountId: { type: 'string', format: 'uuid' },
+              email: {
+                type: 'string',
+                format: 'email',
+                example: 'owner@example.com',
+              },
+              role: { type: 'string', enum: ['OWNER', 'COLLABORATOR'] },
+            },
+          },
+        },
+      },
+    });
     const profileUpdate = document.paths['/pets/{petId}']?.patch;
     expect(profileUpdate?.responses['200']).toBeDefined();
     expect(profileUpdate?.responses['400']).toBeDefined();
@@ -511,6 +553,9 @@ describe('OpenAPI documentation (e2e)', () => {
       [account, '422', ['INVALID_EMAIL', 'INVALID_PASSWORD']],
       [login, '401', ['INVALID_CREDENTIALS']],
       [detail, '404', ['PET_NOT_FOUND']],
+      [members, '400', ['INVALID_REQUEST']],
+      [members, '401', ['UNAUTHENTICATED']],
+      [members, '404', ['PET_NOT_FOUND']],
       [create, '422', ['INVALID_PET']],
       [invite, '409', ['ALREADY_PET_MEMBER', 'INVITATION_ALREADY_PENDING']],
       [reject, '400', ['INVALID_REQUEST']],

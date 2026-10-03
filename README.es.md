@@ -63,6 +63,8 @@ después llama a `POST /auth/login` con tu correo y contraseña. Copia
 `accessToken` de la respuesta, pulsa **Authorize** en Swagger e introduce el
 token. Swagger añade automáticamente el prefijo Bearer a las peticiones.
 
+La API expone 21 operaciones.
+
 | Ruta                                          | Descripción                 | Token Bearer |
 | --------------------------------------------- | --------------------------- | ------------ |
 | `GET /`                                       | Mensaje de bienvenida       | No           |
@@ -70,6 +72,7 @@ token. Swagger añade automáticamente el prefijo Bearer a las peticiones.
 | `POST /auth/login`                            | Obtener token               | No           |
 | `GET /pets`                                   | Listar mascotas accesibles  | Sí           |
 | `GET /pets/{petId}`                           | Consultar perfil de mascota | Sí           |
+| `GET /pets/{petId}/members`                   | Listar miembros actuales | Sí           |
 | `PATCH /pets/{petId}`                         | Corregir perfil de mascota | Sí           |
 | `POST /pets`                                  | Registrar mascota           | Sí           |
 | `POST /pets/{petId}/invitations`              | Invitar colaborador         | Sí           |
@@ -85,6 +88,8 @@ token. Swagger añade automáticamente el prefijo Bearer a las peticiones.
 | `POST /pet-invitations/{invitationId}/accept` | Aceptar invitación          | Sí           |
 | `POST /pet-invitations/{invitationId}/reject` | Rechazar invitación         | Sí           |
 | `POST /pet-invitations/{invitationId}/cancel` | Cancelar invitación         | Sí           |
+
+Para listar los miembros actuales, envía `GET /pets/{petId}/members` con un token Bearer y sin body ni query parameters. Owners y collaborators activos pueden consultar mascotas activas o archivadas. La respuesta completa `200` es `{"members":[{"membershipId":"...","accountId":"...","email":"owner@example.com","role":"OWNER"}]}`. Incluye únicamente memberships activas, también la del requester y todos los owners; excluye invitaciones pendientes. Primero aparecen los owners y después los collaborators; dentro de cada rol se ordena por fecha de creación de la membership y luego por ID de membership, ambos ascendentes. Un UUID inválido o nil o un query parameter inesperado devuelve `400 INVALID_REQUEST`; un token ausente o inválido devuelve `401 UNAUTHENTICATED`. Una mascota inexistente, una membership ausente o una membership inactiva del requester devuelve `404 PET_NOT_FOUND`.
 
 Para corregir el perfil de una mascota, envía `PATCH /pets/{petId}` como owner activo de una mascota activa. Incluye al menos uno de `name`, `species`, `breed`, `sex`, `birthInformation`, `color`, `distinctiveMarks` o `microchip`. Los objetos `breed` y `birthInformation` usan las mismas estructuras completas que el registro. Los campos omitidos se conservan; envía `null` para limpiar `color`, `distinctiveMarks` o `microchip`. La respuesta `200` tiene la misma estructura que `GET /pets/{petId}`, con `role: "OWNER"`. Un no-op después de normalizar no cambia `updated_at`. Una estructura HTTP inválida devuelve `400 INVALID_REQUEST`; un valor rechazado por el dominio devuelve `422 INVALID_PET`. Una mascota inexistente, archivada o inaccesible devuelve `404 PET_NOT_FOUND`.
 
@@ -119,6 +124,10 @@ pnpm db:migrate
 
 Las migraciones SQL versionadas se guardarán en `drizzle/`. No se genera una
 migración vacía mientras no exista un esquema de dominio.
+
+Consulta [Lecturas de miembros de mascotas](docs/pet-members-read.md) para conocer
+la frontera de consulta de email, la consistencia de lectura y la deuda técnica
+separada sobre la FK ausente entre memberships y accounts.
 
 ## Verificación
 

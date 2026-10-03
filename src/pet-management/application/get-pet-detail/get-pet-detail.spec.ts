@@ -10,7 +10,9 @@ const PET_ID: string = 'b30a4c42-84e5-4765-99d4-1efb17f09c12';
 const ACCOUNT_ID: string = '550e8400-e29b-41d4-a716-446655440000';
 
 class InMemoryPetQueryRepository implements PetQueryRepository {
-  findAccessibleMembers(): Promise<null> { return Promise.resolve(null); }
+  findAccessibleMembers(): Promise<null> {
+    return Promise.resolve(null);
+  }
   readonly requestedDetails: { petId: string; accountId: string }[] = [];
   readonly requestedAccountIds: string[] = [];
   error: Error | null = null;
