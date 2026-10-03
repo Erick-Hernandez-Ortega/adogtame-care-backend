@@ -1,3 +1,8 @@
+import {
+  decideCollaboratorRemoval,
+  type CollaboratorRemovalDecision,
+  type RemoveCollaboratorCommand,
+} from '../../../application/remove-collaborator/remove-collaborator';
 import { Injectable } from '@nestjs/common';
 import { and, eq } from 'drizzle-orm';
 import {
@@ -6,6 +11,7 @@ import {
 } from '../../../application/leave-pet-as-collaborator/leave-pet-as-collaborator';
 import type {
   LeavePetPersistenceResult,
+  RemoveCollaboratorPersistenceResult,
   PetRepository,
 } from '../../../application/persistence/pet.repository';
 import { BirthInformation } from '../../../domain/birth-information/birth-information';
@@ -178,6 +184,83 @@ export class DrizzlePetRepository implements PetRepository {
           role: PetMembershipRole.COLLABORATOR,
           status: PetMembershipStatus.INACTIVE,
         };
+      },
+      { isolationLevel: 'read committed' },
+    );
+  }
+
+  async removeCollaboratorIfOwned(
+    command: RemoveCollaboratorCommand,
+  ): Promise<RemoveCollaboratorPersistenceResult> {
+    return this.databaseService.connection.transaction(
+      async (transaction): Promise<RemoveCollaboratorPersistenceResult> => {
+        // The Pet lock serializes administrative operations before membership locks.
+        const petRows = await transaction
+          .select({ status: pets.status })
+          .from(pets)
+          .where(eq(pets.id, command.petId))
+          .for('update');
+        if (petRows[0]?.status !== PetStatus.ACTIVE)
+          return { outcome: 'PET_NOT_FOUND' };
+
+        const requesterRows = await transaction
+          .select()
+          .from(petMemberships)
+          .where(
+            and(
+              eq(petMemberships.petId, command.petId),
+              eq(petMemberships.accountId, command.requesterAccountId),
+            ),
+          )
+          .for('update');
+        const requester = requesterRows[0];
+        if (
+          requester?.status !== PetMembershipStatus.ACTIVE ||
+          requester.role !== PetMembershipRole.OWNER
+        ) {
+          return { outcome: 'PET_NOT_FOUND' };
+        }
+
+        const targetRows = await transaction
+          .select()
+          .from(petMemberships)
+          .where(
+            and(
+              eq(petMemberships.petId, command.petId),
+              eq(petMemberships.id, command.targetMembershipId),
+            ),
+          )
+          .for('update');
+        const target = targetRows[0];
+        if (target === undefined) return { outcome: 'PET_MEMBER_NOT_FOUND' };
+        const membership: PetMembership = PetMembership.reconstitute({
+          id: MembershipId.from(target.id),
+          accountId: AccountId.from(target.accountId),
+          role: target.role as PetMembershipRoleType,
+          status: target.status as PetMembershipStatusType,
+        });
+        const decision: CollaboratorRemovalDecision =
+          decideCollaboratorRemoval(membership);
+        if (decision.outcome === 'OWNER_REMOVAL_NOT_SUPPORTED')
+          return { outcome: decision.outcome };
+        if (decision.membershipToSave !== null) {
+          const changedRows = await transaction
+            .update(petMemberships)
+            .set({ status: decision.membershipToSave.status })
+            .where(
+              and(
+                eq(petMemberships.id, target.id),
+                eq(petMemberships.petId, command.petId),
+                eq(petMemberships.accountId, target.accountId),
+                eq(petMemberships.role, PetMembershipRole.COLLABORATOR),
+                eq(petMemberships.status, PetMembershipStatus.ACTIVE),
+              ),
+            )
+            .returning({ id: petMemberships.id });
+          if (changedRows.length !== 1)
+            throw new Error('Membership transition did not update one row');
+        }
+        return { outcome: 'REMOVED' };
       },
       { isolationLevel: 'read committed' },
     );

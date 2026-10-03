@@ -38,7 +38,7 @@ describe('OpenAPI documentation (e2e)', () => {
     await application.close();
   });
 
-  it('serves Swagger UI and documents all twenty-one operations and their contracts', async () => {
+  it('serves Swagger UI and documents all twenty-two operations and their contracts', async () => {
     const htmlResponse = await request(application.getHttpServer())
       .get('/docs')
       .expect(200);
@@ -56,6 +56,7 @@ describe('OpenAPI documentation (e2e)', () => {
       ['/pets', 'get'],
       ['/pets/{petId}', 'get'],
       ['/pets/{petId}/members', 'get'],
+      ['/pets/{petId}/members/{membershipId}', 'delete'],
       ['/pets/{petId}', 'patch'],
       ['/pets', 'post'],
       ['/pets/{petId}/invitations', 'post'],
@@ -94,7 +95,40 @@ describe('OpenAPI documentation (e2e)', () => {
           Number(Boolean(path?.delete)),
         0,
       ),
-    ).toBe(21);
+    ).toBe(22);
+
+    const removal: OperationObject | undefined =
+      document.paths['/pets/{petId}/members/{membershipId}']?.delete;
+    expect(Object.keys(removal?.responses ?? {}).sort()).toEqual([
+      '204',
+      '400',
+      '401',
+      '404',
+      '409',
+    ]);
+    expect(
+      (removal?.responses['204'] as ResponseObject).content,
+    ).toBeUndefined();
+    expect(removal?.parameters).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: 'petId', in: 'path', required: true }),
+        expect.objectContaining({
+          name: 'membershipId',
+          in: 'path',
+          required: true,
+        }),
+      ]),
+    );
+    const missingSchemas = responseSchema(removal, '404')
+      ?.oneOf as SchemaObject[];
+    expect(
+      missingSchemas.map(
+        (schema): unknown => (schema.properties?.code as SchemaObject).enum,
+      ),
+    ).toEqual([['PET_NOT_FOUND'], ['PET_MEMBER_NOT_FOUND']]);
+    expect(responseSchema(removal, '409')).toMatchObject({
+      properties: { code: { enum: ['OWNER_REMOVAL_NOT_SUPPORTED'] } },
+    });
 
     expect(document.components?.securitySchemes?.bearer).toMatchObject({
       type: 'http',

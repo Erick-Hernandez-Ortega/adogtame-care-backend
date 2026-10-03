@@ -1,3 +1,4 @@
+import { RemoveCollaborator } from '../application/remove-collaborator/remove-collaborator';
 import { Module } from '@nestjs/common';
 import { AcceptInvitation } from '../application/accept-invitation/accept-invitation';
 import { RejectInvitation } from '../application/reject-invitation/reject-invitation';
@@ -38,6 +39,12 @@ import { DrizzlePetRepository } from './persistence/drizzle/drizzle-pet.reposito
   imports: [DatabaseModule, IdentityModule],
   controllers: [PetsController, PetInvitationsController],
   providers: [
+    {
+      provide: RemoveCollaborator,
+      inject: [PET_REPOSITORY],
+      useFactory: (petRepository: PetRepository): RemoveCollaborator =>
+        new RemoveCollaborator(petRepository),
+    },
     DrizzlePetQueryRepository,
     DrizzlePetInvitationRepository,
     {

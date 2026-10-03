@@ -82,6 +82,8 @@ describe('LeavePetAsCollaborator', () => {
       .fn<Promise<LeavePetPersistenceResult>, [string, string]>()
       .mockResolvedValue(result);
     const repository: PetRepository = {
+      removeCollaboratorIfOwned:
+        jest.fn() as PetRepository['removeCollaboratorIfOwned'],
       save: jest.fn() as PetRepository['save'],
       correctProfileIfOwned:
         jest.fn() as PetRepository['correctProfileIfOwned'],

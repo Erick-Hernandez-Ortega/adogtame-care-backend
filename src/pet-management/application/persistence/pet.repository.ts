@@ -12,7 +12,24 @@ export type LeavePetPersistenceResult =
       status: 'INACTIVE';
     };
 
+export interface RemoveCollaboratorCommand {
+  requesterAccountId: string;
+  petId: string;
+  targetMembershipId: string;
+}
+
+export interface RemoveCollaboratorPersistenceResult {
+  outcome:
+    | 'PET_NOT_FOUND'
+    | 'PET_MEMBER_NOT_FOUND'
+    | 'OWNER_REMOVAL_NOT_SUPPORTED'
+    | 'REMOVED';
+}
+
 export interface PetRepository {
+  removeCollaboratorIfOwned(
+    command: RemoveCollaboratorCommand,
+  ): Promise<RemoveCollaboratorPersistenceResult>;
   save(pet: Pet): Promise<void>;
   correctProfileIfOwned(
     petId: string,

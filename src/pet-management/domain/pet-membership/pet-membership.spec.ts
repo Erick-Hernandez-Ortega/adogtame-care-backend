@@ -60,6 +60,37 @@ describe('PetMembership', () => {
     expect(membership.role).toBe(PetMembershipRole.OWNER);
   });
 
+  it('removes an active collaborator while preserving identity and role', () => {
+    const membership: PetMembership = PetMembership.createCollaborator(
+      AccountId.from(ACCOUNT_ID_V1),
+    );
+    const removed: PetMembership = membership.removeAsCollaborator();
+    expect(removed.id).toBe(membership.id);
+    expect(removed.accountId).toBe(membership.accountId);
+    expect(removed.role).toBe(PetMembershipRole.COLLABORATOR);
+    expect(removed.status).toBe(PetMembershipStatus.INACTIVE);
+    expect(membership.status).toBe(PetMembershipStatus.ACTIVE);
+    expect(() => removed.removeAsCollaborator()).toThrow(
+      'Only an active collaborator can be removed',
+    );
+  });
+
+  it.each([PetMembershipStatus.ACTIVE, PetMembershipStatus.INACTIVE])(
+    'does not remove a %s owner as collaborator',
+    (status) => {
+      const membership: PetMembership = PetMembership.reconstitute({
+        id: MembershipId.from(ACCOUNT_ID_V7),
+        accountId: AccountId.from(ACCOUNT_ID_V1),
+        role: PetMembershipRole.OWNER,
+        status,
+      });
+      expect(() => membership.removeAsCollaborator()).toThrow(
+        'Only an active collaborator can be removed',
+      );
+      expect(membership.status).toBe(status);
+    },
+  );
+
   it('leaves an active collaborator without changing identity or role', () => {
     const membership = PetMembership.createCollaborator(
       AccountId.from(ACCOUNT_ID_V1),

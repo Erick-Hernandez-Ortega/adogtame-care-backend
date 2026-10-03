@@ -114,6 +114,21 @@ export class PetMembership {
       throw new TypeError('Only an active collaborator can leave a pet');
     }
 
+    return this.inactivateCollaborator();
+  }
+
+  removeAsCollaborator(): PetMembership {
+    if (
+      this.role !== PetMembershipRole.COLLABORATOR ||
+      this.status !== PetMembershipStatus.ACTIVE
+    ) {
+      throw new TypeError('Only an active collaborator can be removed');
+    }
+
+    return this.inactivateCollaborator();
+  }
+
+  private inactivateCollaborator(): PetMembership {
     return new PetMembership(
       this.id,
       this.accountId,

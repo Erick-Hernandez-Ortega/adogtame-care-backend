@@ -1,8 +1,20 @@
 import {
+  RemoveCollaborator,
+  PetMemberNotFoundError,
+  OwnerRemovalNotSupportedError,
+} from '../../../application/remove-collaborator/remove-collaborator';
+import {
+  removeCollaboratorPetIdSchema,
+  removeCollaboratorMembershipIdSchema,
+  removeCollaboratorQuerySchema,
+  removeCollaboratorBodySchema,
+} from '../schemas/remove-collaborator.schema';
+import {
   BadRequestException,
   Body,
   ConflictException,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
@@ -101,6 +113,7 @@ import {
 @ApiBearerAuth()
 export class PetsController {
   constructor(
+    private readonly removeCollaborator: RemoveCollaborator,
     private readonly registerPet: RegisterPet,
     private readonly listMyPets: ListMyPets,
     private readonly getPetDetail: GetPetDetail,
@@ -241,6 +254,114 @@ export class PetsController {
           message: error.message,
         });
       }
+      throw error;
+    }
+  }
+
+  @Delete(':petId/members/:membershipId')
+  @UseGuards(AuthenticationGuard)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary: 'Remove a pet collaborator',
+    description:
+      'An active owner of an active pet may remove collaborator access. The membership is preserved internally. Repeating removal of an inactive collaborator succeeds without an update. Owners cannot be removed. No query parameters are accepted; the body must be absent or empty.',
+  })
+  @ApiParam({
+    name: 'petId',
+    description: 'Non-nil pet UUID',
+    schema: { type: 'string', format: 'uuid' },
+  })
+  @ApiParam({
+    name: 'membershipId',
+    description: 'Non-nil membership UUID',
+    schema: { type: 'string', format: 'uuid' },
+  })
+  @ApiResponse({
+    status: 204,
+    description: 'Collaborator access removed or already inactive',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid path, unexpected query parameters, or nonempty body',
+    schema: errorSchema(['INVALID_REQUEST'], 'Request path is invalid'),
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Missing or invalid Bearer token',
+    schema: errorSchema(['UNAUTHENTICATED'], 'Authentication is required'),
+  })
+  @ApiResponse({
+    status: 404,
+    description:
+      'Pet is missing, archived, or inaccessible to an active owner; or target member is missing from the accessible pet',
+    schema: {
+      oneOf: [
+        errorSchema(['PET_NOT_FOUND'], 'Pet was not found'),
+        errorSchema(['PET_MEMBER_NOT_FOUND'], 'Pet member was not found'),
+      ],
+    },
+  })
+  @ApiResponse({
+    status: 409,
+    description: 'Owner removal is not supported, including self-removal',
+    schema: errorSchema(
+      ['OWNER_REMOVAL_NOT_SUPPORTED'],
+      'Owner removal is not supported',
+    ),
+  })
+  async removeMember(
+    @CurrentAccountId() requesterAccountId: string,
+    @Param('petId') petId: string,
+    @Param('membershipId') membershipId: string,
+    @Query() query: unknown,
+    @Body() body: unknown,
+  ): Promise<void> {
+    const parsedPetId = removeCollaboratorPetIdSchema.safeParse(petId);
+    const parsedMembershipId =
+      removeCollaboratorMembershipIdSchema.safeParse(membershipId);
+    if (!parsedPetId.success || !parsedMembershipId.success) {
+      throw new BadRequestException({
+        code: 'INVALID_REQUEST',
+        message: 'Request path is invalid',
+      });
+    }
+    if (!removeCollaboratorQuerySchema.safeParse(query).success) {
+      throw new BadRequestException({
+        code: 'INVALID_REQUEST',
+        message: 'Request query is invalid',
+      });
+    }
+    if (
+      body !== undefined &&
+      !removeCollaboratorBodySchema.safeParse(body).success
+    ) {
+      throw new BadRequestException({
+        code: 'INVALID_REQUEST',
+        message: 'Request body is invalid',
+      });
+    }
+    try {
+      await this.removeCollaborator.execute({
+        requesterAccountId,
+        petId: parsedPetId.data,
+        targetMembershipId: parsedMembershipId.data,
+      });
+    } catch (error: unknown) {
+      if (error instanceof PetNotFoundError)
+        throw new NotFoundException({
+          code: 'PET_NOT_FOUND',
+          message: error.message,
+        });
+      if (error instanceof PetMemberNotFoundError)
+        throw new NotFoundException({
+          code: 'PET_MEMBER_NOT_FOUND',
+          message: error.message,
+        });
+      if (error instanceof OwnerRemovalNotSupportedError)
+        throw new ConflictException({
+          code: 'OWNER_REMOVAL_NOT_SUPPORTED',
+          message: error.message,
+        });
       throw error;
     }
   }
