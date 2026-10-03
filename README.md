@@ -70,6 +70,7 @@ Bearer prefix to requests automatically.
 | `POST /auth/login`                            | Get access token        | No           |
 | `GET /pets`                                   | List accessible pets    | Yes          |
 | `GET /pets/{petId}`                           | Get pet profile         | Yes          |
+| `PATCH /pets/{petId}`                         | Correct pet profile     | Yes          |
 | `POST /pets`                                  | Register pet            | Yes          |
 | `POST /pets/{petId}/invitations`              | Invite collaborator     | Yes          |
 | `POST /pets/{petId}/leave`                    | Leave as collaborator   | Yes          |
@@ -84,6 +85,8 @@ Bearer prefix to requests automatically.
 | `POST /pet-invitations/{invitationId}/accept` | Accept invitation       | Yes          |
 | `POST /pet-invitations/{invitationId}/reject` | Reject invitation       | Yes          |
 | `POST /pet-invitations/{invitationId}/cancel` | Cancel invitation       | Yes          |
+
+To correct a pet profile, send `PATCH /pets/{petId}` as an active owner of an active pet. Include at least one of `name`, `species`, `breed`, `sex`, `birthInformation`, `color`, `distinctiveMarks`, or `microchip`. The nested `breed` and `birthInformation` objects use the same complete shapes as registration. Omitted fields are preserved; send `null` to clear `color`, `distinctiveMarks`, or `microchip`. The `200` response has the same shape as `GET /pets/{petId}`, with `role: "OWNER"`. A normalized no-op does not change `updated_at`. Invalid request structure returns `400 INVALID_REQUEST`; domain-invalid values return `422 INVALID_PET`. Missing, archived, or inaccessible pets return `404 PET_NOT_FOUND`.
 
 To record a weight, send `POST /pets/{petId}/health/weight-records` with a Bearer token and JSON such as `{"weightKg":"12.3456","measuredDate":"2026-09-26"}`. Weight is a positive decimal string in kilograms with at most four decimal places. The measured date is a valid calendar date no later than today in UTC. An active owner or collaborator of an active pet receives `201` with the record ID, pet ID, canonical `weightKg`, `measuredDate`, and `recordedByAccountId`. An inaccessible or archived pet returns `404 PET_NOT_FOUND`.
 

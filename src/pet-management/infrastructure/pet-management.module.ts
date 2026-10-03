@@ -10,6 +10,7 @@ import {
 } from '../application/identity/account-lookup';
 import { GetPetDetail } from '../application/get-pet-detail/get-pet-detail';
 import { InviteCollaborator } from '../application/invite-collaborator/invite-collaborator';
+import { ListPetMembers } from '../application/list-pet-members/list-pet-members';
 import { ListMyPets } from '../application/list-my-pets/list-my-pets';
 import { LeavePetAsCollaborator } from '../application/leave-pet-as-collaborator/leave-pet-as-collaborator';
 import {
@@ -25,6 +26,7 @@ import {
   type PetRepository,
 } from '../application/persistence/pet.repository';
 import { RegisterPet } from '../application/register-pet/register-pet';
+import { UpdatePetProfile } from '../application/update-pet-profile/update-pet-profile';
 import { CLOCK, type Clock } from '../application/time/clock';
 import { PetsController } from './http/controllers/pets.controller';
 import { PetInvitationsController } from './http/controllers/pet-invitations.controller';
@@ -55,6 +57,12 @@ import { DrizzlePetRepository } from './persistence/drizzle/drizzle-pet.reposito
       inject: [PET_QUERY_REPOSITORY],
       useFactory: (petQueryRepository: PetQueryRepository): ListMyPets =>
         new ListMyPets(petQueryRepository),
+    },
+    {
+      provide: ListPetMembers,
+      inject: [PET_QUERY_REPOSITORY, ACCOUNT_LOOKUP],
+      useFactory: (petQueryRepository: PetQueryRepository, accountLookup: AccountLookup): ListPetMembers =>
+        new ListPetMembers(petQueryRepository, accountLookup),
     },
     {
       provide: GetPetDetail,
@@ -118,6 +126,12 @@ import { DrizzlePetRepository } from './persistence/drizzle/drizzle-pet.reposito
       inject: [PET_REPOSITORY],
       useFactory: (petRepository: PetRepository): RegisterPet =>
         new RegisterPet(petRepository),
+    },
+    {
+      provide: UpdatePetProfile,
+      inject: [PET_REPOSITORY],
+      useFactory: (petRepository: PetRepository): UpdatePetProfile =>
+        new UpdatePetProfile(petRepository),
     },
     {
       provide: LeavePetAsCollaborator,

@@ -39,7 +39,17 @@ export interface PetDetail {
   readonly role: PetMembershipRole;
 }
 
+export interface PetMemberSummary {
+  readonly membershipId: string;
+  readonly accountId: string;
+  readonly role: PetMembershipRole;
+}
+
 export interface PetQueryRepository {
+  findAccessibleMembers(
+    petId: string,
+    accountId: string,
+  ): Promise<PetMemberSummary[] | null>;
   findAccessibleByAccountId(accountId: string): Promise<AccessiblePetSummary[]>;
   findAccessibleDetailById(
     petId: string,

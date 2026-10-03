@@ -8,7 +8,9 @@ import {
   HttpStatus,
   NotFoundException,
   Param,
+  Patch,
   Post,
+  Query,
   Req,
   UnprocessableEntityException,
   UseGuards,
@@ -34,6 +36,8 @@ import {
   InviteCollaborator,
 } from '../../../application/invite-collaborator/invite-collaborator';
 import type { CreatedPetInvitation } from '../../../application/invite-collaborator/invite-collaborator.types';
+import { ListPetMembers, type PetMembers } from '../../../application/list-pet-members/list-pet-members';
+import { listPetMembersIdSchema, listPetMembersQuerySchema } from '../schemas/list-pet-members.schema';
 import { ListMyPets } from '../../../application/list-my-pets/list-my-pets';
 import {
   LeavePetAsCollaborator,
@@ -53,6 +57,10 @@ import type {
   RegisterPetCommand,
 } from '../../../application/register-pet/register-pet.types';
 import {
+  InvalidPetProfileError,
+  UpdatePetProfile,
+} from '../../../application/update-pet-profile/update-pet-profile';
+import {
   registerPetSchema,
   type RegisterPetRequest,
 } from '../schemas/register-pet.schema';
@@ -70,10 +78,17 @@ import {
   inviteCollaboratorRequestSchema,
   leftPetAsCollaboratorResponseSchema,
   petDetailResponseSchema,
+  petMembersResponseSchema,
   petSummaryResponseSchema,
   registeredPetResponseSchema,
   registerPetRequestSchema,
+  updatePetProfileRequestSchema,
 } from '../schemas/openapi.schemas';
+import {
+  updatePetProfileIdSchema,
+  updatePetProfileSchema,
+  type UpdatePetProfileRequest,
+} from '../schemas/update-pet-profile.schema';
 
 @Controller('pets')
 @ApiTags('Pets')
@@ -83,6 +98,8 @@ export class PetsController {
     private readonly registerPet: RegisterPet,
     private readonly listMyPets: ListMyPets,
     private readonly getPetDetail: GetPetDetail,
+    private readonly listPetMembers: ListPetMembers,
+    private readonly updatePetProfile: UpdatePetProfile,
     private readonly inviteCollaborator: InviteCollaborator,
     private readonly leavePetAsCollaborator: LeavePetAsCollaborator,
   ) {}
@@ -155,6 +172,120 @@ export class PetsController {
         });
       }
 
+      throw error;
+    }
+  }
+
+  @Get(':petId/members')
+  @UseGuards(AuthenticationGuard)
+  @ApiOperation({
+    summary: 'List current pet members',
+    description: 'Active owners and collaborators may read members of active or archived pets. Only active memberships are returned, including the requester. Owners appear first, followed by creation date and membership ID ascending. No query parameters are accepted.',
+  })
+  @ApiParam({ name: 'petId', description: 'Non-nil pet UUID', schema: { type: 'string', format: 'uuid' } })
+  @ApiResponse({ status: 200, description: 'Current pet members', schema: petMembersResponseSchema })
+  @ApiResponse({ status: 400, description: 'Invalid pet UUID or unexpected query parameters', schema: errorSchema(['INVALID_REQUEST'], 'Request query is invalid') })
+  @ApiResponse({ status: 401, description: 'Missing or invalid Bearer token', schema: errorSchema(['UNAUTHENTICATED'], 'Authentication is required') })
+  @ApiResponse({ status: 404, description: 'Pet is missing or inaccessible', schema: errorSchema(['PET_NOT_FOUND'], 'Pet was not found') })
+  async members(
+    @CurrentAccountId() accountId: string,
+    @Param('petId') petId: string,
+    @Query() query: unknown,
+  ): Promise<PetMembers> {
+    const parsedId = listPetMembersIdSchema.safeParse(petId);
+    if (!parsedId.success) {
+      throw new BadRequestException({ code: 'INVALID_REQUEST', message: 'Pet id is invalid' });
+    }
+    if (!listPetMembersQuerySchema.safeParse(query).success) {
+      throw new BadRequestException({ code: 'INVALID_REQUEST', message: 'Request query is invalid' });
+    }
+    try {
+      return await this.listPetMembers.execute(parsedId.data, accountId);
+    } catch (error: unknown) {
+      if (error instanceof PetNotFoundError) {
+        throw new NotFoundException({ code: 'PET_NOT_FOUND', message: error.message });
+      }
+      throw error;
+    }
+  }
+
+  @Patch(':petId')
+  @UseGuards(AuthenticationGuard)
+  @ApiOperation({
+    summary: 'Correct a pet profile',
+    description:
+      'Only an active owner can correct the profile of an active pet. Omitted fields are preserved; null clears optional text fields.',
+  })
+  @ApiParam({
+    name: 'petId',
+    description: 'Non-nil pet UUID',
+    schema: { type: 'string', format: 'uuid' },
+  })
+  @ApiBody({ schema: updatePetProfileRequestSchema })
+  @ApiResponse({
+    status: 200,
+    description: 'Corrected pet profile and current account role',
+    schema: petDetailResponseSchema,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid pet UUID or request body',
+    schema: errorSchema(['INVALID_REQUEST'], 'Request body is invalid'),
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Missing or invalid Bearer token',
+    schema: errorSchema(['UNAUTHENTICATED'], 'Authentication is required'),
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Pet is missing or current account is not an active owner',
+    schema: errorSchema(['PET_NOT_FOUND'], 'Pet was not found'),
+  })
+  @ApiResponse({
+    status: 422,
+    description: 'Pet profile violates domain invariants',
+    schema: errorSchema(['INVALID_PET'], 'Pet data is invalid'),
+  })
+  async updateProfile(
+    @CurrentAccountId() accountId: string,
+    @Param('petId') petId: string,
+    @Body() body: unknown,
+  ): Promise<PetDetail> {
+    const parsedId = updatePetProfileIdSchema.safeParse(petId);
+    if (!parsedId.success) {
+      throw new BadRequestException({
+        code: 'INVALID_REQUEST',
+        message: 'Pet id is invalid',
+      });
+    }
+    const parsedBody = updatePetProfileSchema.safeParse(body);
+    if (!parsedBody.success) {
+      throw new BadRequestException({
+        code: 'INVALID_REQUEST',
+        message: 'Request body is invalid',
+      });
+    }
+    const request: UpdatePetProfileRequest = parsedBody.data;
+    try {
+      return await this.updatePetProfile.execute({
+        ...request,
+        petId: parsedId.data,
+        authenticatedAccountId: accountId,
+      });
+    } catch (error: unknown) {
+      if (error instanceof PetNotFoundError) {
+        throw new NotFoundException({
+          code: 'PET_NOT_FOUND',
+          message: error.message,
+        });
+      }
+      if (error instanceof InvalidPetProfileError) {
+        throw new UnprocessableEntityException({
+          code: 'INVALID_PET',
+          message: error.message,
+        });
+      }
       throw error;
     }
   }

@@ -14,6 +14,11 @@ export type LeavePetPersistenceResult =
 
 export interface PetRepository {
   save(pet: Pet): Promise<void>;
+  correctProfileIfOwned(
+    petId: string,
+    authenticatedAccountId: string,
+    correct: (pet: Pet) => Pet,
+  ): Promise<Pet | null>;
   leaveAsCollaborator(
     petId: string,
     authenticatedAccountId: string,

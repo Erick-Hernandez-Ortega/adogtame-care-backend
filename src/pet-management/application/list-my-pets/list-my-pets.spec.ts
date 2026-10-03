@@ -8,6 +8,7 @@ import { ListMyPets } from './list-my-pets';
 const ACCOUNT_ID: string = '550e8400-e29b-41d4-a716-446655440000';
 
 class InMemoryPetQueryRepository implements PetQueryRepository {
+  findAccessibleMembers(): Promise<null> { return Promise.resolve(null); }
   readonly requestedAccountIds: string[] = [];
   readonly requestedDetails: { petId: string; accountId: string }[] = [];
 
@@ -78,6 +79,7 @@ describe('ListMyPets', () => {
   it('propagates repository errors', async () => {
     const persistenceError = new Error('Database unavailable');
     const repository: PetQueryRepository = {
+      findAccessibleMembers: jest.fn().mockResolvedValue(null),
       findAccessibleByAccountId: jest
         .fn<Promise<AccessiblePetSummary[]>, [string]>()
         .mockRejectedValue(persistenceError),

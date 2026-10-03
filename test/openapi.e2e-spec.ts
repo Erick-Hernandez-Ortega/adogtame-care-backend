@@ -38,7 +38,7 @@ describe('OpenAPI documentation (e2e)', () => {
     await application.close();
   });
 
-  it('serves Swagger UI and documents all nineteen routes and their contracts', async () => {
+  it('serves Swagger UI and documents all twenty routes and their contracts', async () => {
     const htmlResponse = await request(application.getHttpServer())
       .get('/docs')
       .expect(200);
@@ -55,6 +55,7 @@ describe('OpenAPI documentation (e2e)', () => {
       ['/auth/login', 'post'],
       ['/pets', 'get'],
       ['/pets/{petId}', 'get'],
+      ['/pets/{petId}', 'patch'],
       ['/pets', 'post'],
       ['/pets/{petId}/invitations', 'post'],
       ['/pets/{petId}/leave', 'post'],
@@ -92,7 +93,7 @@ describe('OpenAPI documentation (e2e)', () => {
           Number(Boolean(path?.delete)),
         0,
       ),
-    ).toBe(19);
+    ).toBe(20);
 
     expect(document.components?.securitySchemes?.bearer).toMatchObject({
       type: 'http',
@@ -113,6 +114,30 @@ describe('OpenAPI documentation (e2e)', () => {
     const login = document.paths['/auth/login']?.post;
     const list = document.paths['/pets']?.get;
     const detail = document.paths['/pets/{petId}']?.get;
+    const profileUpdate = document.paths['/pets/{petId}']?.patch;
+    expect(profileUpdate?.responses['200']).toBeDefined();
+    expect(profileUpdate?.responses['400']).toBeDefined();
+    expect(profileUpdate?.responses['401']).toBeDefined();
+    expect(profileUpdate?.responses['404']).toBeDefined();
+    expect(profileUpdate?.responses['422']).toBeDefined();
+    const profileRequest =
+      profileUpdate?.requestBody && 'content' in profileUpdate.requestBody
+        ? (profileUpdate.requestBody.content['application/json']
+            ?.schema as SchemaObject)
+        : undefined;
+    expect(profileRequest).toMatchObject({
+      type: 'object',
+      minProperties: 1,
+      additionalProperties: false,
+    });
+    for (const field of ['color', 'distinctiveMarks', 'microchip']) {
+      expect(profileRequest?.properties?.[field]).toMatchObject({
+        nullable: true,
+      });
+    }
+    expect(responseSchema(profileUpdate, '200')).toEqual(
+      responseSchema(detail, '200'),
+    );
     const create = document.paths['/pets']?.post;
     const invite = document.paths['/pets/{petId}/invitations']?.post;
     const leave = document.paths['/pets/{petId}/leave']?.post;

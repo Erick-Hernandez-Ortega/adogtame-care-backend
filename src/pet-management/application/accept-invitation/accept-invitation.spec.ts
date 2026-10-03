@@ -209,6 +209,7 @@ describe('AcceptInvitation', () => {
       >()
       .mockResolvedValue(result);
     const accountLookup: AccountLookup = {
+      findEmailsByAccountIds: jest.fn().mockResolvedValue([]),
       findAccountIdByEmail: jest
         .fn()
         .mockResolvedValue(null) as AccountLookup['findAccountIdByEmail'],

@@ -3,6 +3,7 @@ import { Breed } from '../breed/breed';
 import { AccountId, PetMembership } from '../pet-membership/pet-membership';
 import { generateUuid, isValidUuid } from '../shared/uuid';
 import type {
+  CorrectPetProfileInput,
   PetProperties,
   PetSex as PetSexType,
   PetSpecies as PetSpeciesType,
@@ -55,23 +56,7 @@ export class Pet {
   private constructor(private readonly properties: PetProperties) {}
 
   static register(input: RegisterPetInput): Pet {
-    const name: string = Pet.requiredText(input.name, 'Pet name');
-
-    if (!SUPPORTED_SPECIES.has(input.species)) {
-      throw new TypeError('Pet species is not supported');
-    }
-
-    if (!SUPPORTED_SEXES.has(input.sex)) {
-      throw new TypeError('Pet sex is not supported');
-    }
-
-    if (!(input.breed instanceof Breed)) {
-      throw new TypeError('Pet breed must be a Breed');
-    }
-
-    if (!(input.birthInformation instanceof BirthInformation)) {
-      throw new TypeError('Pet birth information must be a BirthInformation');
-    }
+    const profile = Pet.validateProfile(input);
 
     const ownerAccountId: AccountId = AccountId.from(input.ownerAccountId);
     const initialOwner: PetMembership =
@@ -79,19 +64,69 @@ export class Pet {
 
     return new Pet({
       id: PetId.generate(),
-      name,
-      species: input.species,
-      breed: input.breed,
-      sex: input.sex,
-      birthInformation: input.birthInformation,
-      color: Pet.optionalText(input.color, 'Pet color'),
-      distinctiveMarks: Pet.optionalText(
-        input.distinctiveMarks,
-        'Pet distinctive marks',
-      ),
-      microchip: Pet.optionalText(input.microchip, 'Pet microchip'),
+      ...profile,
       status: PetStatus.ACTIVE,
       memberships: [initialOwner],
+    });
+  }
+
+  static reconstitute(properties: PetProperties): Pet {
+    if (
+      !(properties.id instanceof PetId) ||
+      !Object.values(PetStatus).includes(properties.status) ||
+      !properties.memberships.every(
+        (membership) => membership instanceof PetMembership,
+      )
+    ) {
+      throw new TypeError('Pet state is invalid');
+    }
+
+    const profile = Pet.validateProfile(properties);
+    return new Pet({
+      id: properties.id,
+      ...profile,
+      status: properties.status,
+      memberships: [...properties.memberships],
+    });
+  }
+
+  correctProfile(input: CorrectPetProfileInput): Pet {
+    const profile = Pet.validateProfile({
+      name: input.name ?? this.name,
+      species: input.species ?? this.species,
+      breed: input.breed ?? this.breed,
+      sex: input.sex ?? this.sex,
+      birthInformation: input.birthInformation ?? this.birthInformation,
+      color:
+        input.color === undefined ? this.color : (input.color ?? undefined),
+      distinctiveMarks:
+        input.distinctiveMarks === undefined
+          ? this.distinctiveMarks
+          : (input.distinctiveMarks ?? undefined),
+      microchip:
+        input.microchip === undefined
+          ? this.microchip
+          : (input.microchip ?? undefined),
+    });
+
+    if (
+      profile.name === this.name &&
+      profile.species === this.species &&
+      profile.breed.name === this.breed.name &&
+      profile.breed.kind === this.breed.kind &&
+      profile.sex === this.sex &&
+      profile.birthInformation.date === this.birthInformation.date &&
+      profile.birthInformation.accuracy === this.birthInformation.accuracy &&
+      profile.color === this.color &&
+      profile.distinctiveMarks === this.distinctiveMarks &&
+      profile.microchip === this.microchip
+    ) {
+      return this;
+    }
+
+    return new Pet({
+      ...this.properties,
+      ...profile,
     });
   }
 
@@ -137,6 +172,57 @@ export class Pet {
 
   get memberships(): readonly PetMembership[] {
     return [...this.properties.memberships];
+  }
+
+  private static validateProfile(
+    input: Pick<
+      PetProperties,
+      | 'name'
+      | 'species'
+      | 'breed'
+      | 'sex'
+      | 'birthInformation'
+      | 'color'
+      | 'distinctiveMarks'
+      | 'microchip'
+    >,
+  ): Pick<
+    PetProperties,
+    | 'name'
+    | 'species'
+    | 'breed'
+    | 'sex'
+    | 'birthInformation'
+    | 'color'
+    | 'distinctiveMarks'
+    | 'microchip'
+  > {
+    const name: string = Pet.requiredText(input.name, 'Pet name');
+    if (!SUPPORTED_SPECIES.has(input.species)) {
+      throw new TypeError('Pet species is not supported');
+    }
+    if (!SUPPORTED_SEXES.has(input.sex)) {
+      throw new TypeError('Pet sex is not supported');
+    }
+    if (!(input.breed instanceof Breed)) {
+      throw new TypeError('Pet breed must be a Breed');
+    }
+    if (!(input.birthInformation instanceof BirthInformation)) {
+      throw new TypeError('Pet birth information must be a BirthInformation');
+    }
+    return {
+      name,
+      species: input.species,
+      breed: input.breed,
+      sex: input.sex,
+      birthInformation: input.birthInformation,
+      color: Pet.optionalText(input.color, 'Pet color'),
+      distinctiveMarks: Pet.optionalText(
+        input.distinctiveMarks,
+        'Pet distinctive marks',
+      ),
+      microchip: Pet.optionalText(input.microchip, 'Pet microchip'),
+    };
   }
 
   private static requiredText(value: string, fieldName: string): string {

@@ -8,6 +8,8 @@ import type {
   LeavePetPersistenceResult,
   PetRepository,
 } from '../../../application/persistence/pet.repository';
+import { BirthInformation } from '../../../domain/birth-information/birth-information';
+import { Breed } from '../../../domain/breed/breed';
 import {
   AccountId,
   MembershipId,
@@ -19,13 +21,103 @@ import type {
   PetMembershipRole as PetMembershipRoleType,
   PetMembershipStatus as PetMembershipStatusType,
 } from '../../../domain/pet-membership/pet-membership.types';
-import type { Pet } from '../../../domain/pet/pet';
+import { Pet, PetId, PetStatus } from '../../../domain/pet/pet';
+import type { PetSex, PetSpecies } from '../../../domain/pet/pet.types';
 import { DatabaseService } from '../../../../infrastructure/database/database.service';
 import { petMemberships, pets } from './pet-management.schema';
 
 @Injectable()
 export class DrizzlePetRepository implements PetRepository {
   constructor(private readonly databaseService: DatabaseService) {}
+
+  async correctProfileIfOwned(
+    petId: string,
+    authenticatedAccountId: string,
+    correct: (pet: Pet) => Pet,
+  ): Promise<Pet | null> {
+    return this.databaseService.connection.transaction(
+      async (transaction): Promise<Pet | null> => {
+        const petRows = await transaction
+          .select()
+          .from(pets)
+          .where(eq(pets.id, petId))
+          .for('update');
+        const petRow = petRows[0];
+        if (petRow?.status !== PetStatus.ACTIVE) return null;
+
+        const requesterRows = await transaction
+          .select({ role: petMemberships.role, status: petMemberships.status })
+          .from(petMemberships)
+          .where(
+            and(
+              eq(petMemberships.petId, petId),
+              eq(petMemberships.accountId, authenticatedAccountId),
+            ),
+          )
+          .for('update');
+        if (
+          requesterRows[0]?.status !== PetMembershipStatus.ACTIVE ||
+          requesterRows[0]?.role !== PetMembershipRole.OWNER
+        ) {
+          return null;
+        }
+
+        const membershipRows = await transaction
+          .select()
+          .from(petMemberships)
+          .where(eq(petMemberships.petId, petId));
+        const memberships: PetMembership[] = membershipRows.map((row) =>
+          PetMembership.reconstitute({
+            id: MembershipId.from(row.id),
+            accountId: AccountId.from(row.accountId),
+            role: row.role as PetMembershipRoleType,
+            status: row.status as PetMembershipStatusType,
+          }),
+        );
+        const breed: Breed =
+          petRow.breedKind === 'KNOWN'
+            ? Breed.known(petRow.breedName)
+            : Breed.custom(petRow.breedName);
+        const birthInformation: BirthInformation =
+          petRow.birthDateAccuracy === 'EXACT'
+            ? BirthInformation.exact(petRow.birthDate)
+            : BirthInformation.approximate(petRow.birthDate);
+        const pet: Pet = Pet.reconstitute({
+          id: PetId.from(petRow.id),
+          name: petRow.name,
+          species: petRow.species as PetSpecies,
+          breed,
+          sex: petRow.sex as PetSex,
+          birthInformation,
+          color: petRow.color ?? undefined,
+          distinctiveMarks: petRow.distinctiveMarks ?? undefined,
+          microchip: petRow.microchip ?? undefined,
+          status: PetStatus.ACTIVE,
+          memberships,
+        });
+        const corrected: Pet = correct(pet);
+        if (corrected === pet) return pet;
+
+        await transaction
+          .update(pets)
+          .set({
+            name: corrected.name,
+            species: corrected.species,
+            breedName: corrected.breed.name,
+            breedKind: corrected.breed.kind,
+            sex: corrected.sex,
+            birthDate: corrected.birthInformation.date,
+            birthDateAccuracy: corrected.birthInformation.accuracy,
+            color: corrected.color ?? null,
+            distinctiveMarks: corrected.distinctiveMarks ?? null,
+            microchip: corrected.microchip ?? null,
+          })
+          .where(eq(pets.id, petId));
+        return corrected;
+      },
+      { isolationLevel: 'read committed' },
+    );
+  }
 
   async leaveAsCollaborator(
     petId: string,

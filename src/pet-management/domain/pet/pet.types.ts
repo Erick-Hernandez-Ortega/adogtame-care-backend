@@ -21,6 +21,17 @@ export interface RegisterPetInput {
   microchip?: string;
 }
 
+export interface CorrectPetProfileInput {
+  name?: string;
+  species?: PetSpecies;
+  breed?: Breed;
+  sex?: PetSex;
+  birthInformation?: BirthInformation;
+  color?: string | null;
+  distinctiveMarks?: string | null;
+  microchip?: string | null;
+}
+
 export interface PetProperties {
   readonly id: PetId;
   readonly name: string;

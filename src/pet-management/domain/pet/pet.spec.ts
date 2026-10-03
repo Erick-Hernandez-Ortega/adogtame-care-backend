@@ -1,6 +1,8 @@
 import { BirthInformation } from '../birth-information/birth-information';
 import { Breed } from '../breed/breed';
 import {
+  AccountId,
+  PetMembership,
   PetMembershipRole,
   PetMembershipStatus,
 } from '../pet-membership/pet-membership';
@@ -122,6 +124,109 @@ describe('Pet', () => {
     expect(() => Pet.register(validPetInput({ sex: unsupportedSex }))).toThrow(
       'Pet sex is not supported',
     );
+  });
+
+  it('corrects each profile concept and validates the final combination', () => {
+    const original: Pet = Pet.register(validPetInput());
+    const corrected: Pet = original.correctProfile({
+      name: ' Nala ',
+      species: PetSpecies.CAT,
+      breed: Breed.custom(' Domestic shorthair '),
+      sex: PetSex.UNKNOWN,
+      birthInformation: BirthInformation.approximate('2020-01-02'),
+      color: ' Black ',
+      distinctiveMarks: ' White paws ',
+      microchip: ' 12345 ',
+    });
+
+    expect(corrected).not.toBe(original);
+    expect(corrected.id).toBe(original.id);
+    expect(corrected.status).toBe(original.status);
+    expect(corrected.memberships).toEqual(original.memberships);
+    expect(corrected).toMatchObject({
+      name: 'Nala',
+      species: 'CAT',
+      breed: { name: 'Domestic shorthair', kind: 'CUSTOM' },
+      sex: 'UNKNOWN',
+      birthInformation: { date: '2020-01-02', accuracy: 'APPROXIMATE' },
+      color: 'Black',
+      distinctiveMarks: 'White paws',
+      microchip: '12345',
+    });
+    expect(original.name).toBe('Luna');
+    expect(original.species).toBe('DOG');
+  });
+
+  it('preserves omitted fields and clears nullable fields', () => {
+    const original: Pet = Pet.register(
+      validPetInput({
+        color: 'Golden',
+        distinctiveMarks: 'White spot',
+        microchip: '12345',
+      }),
+    );
+    const corrected: Pet = original.correctProfile({ color: null });
+
+    expect(corrected.color).toBeUndefined();
+    expect(corrected.distinctiveMarks).toBe('White spot');
+    expect(corrected.microchip).toBe('12345');
+    expect(
+      corrected.correctProfile({
+        distinctiveMarks: null,
+        microchip: null,
+      }),
+    ).toMatchObject({
+      distinctiveMarks: undefined,
+      microchip: undefined,
+    });
+  });
+
+  it('returns the same aggregate for normalized and null no-ops', () => {
+    const original: Pet = Pet.register(validPetInput());
+
+    expect(original.correctProfile({ name: '  Luna  ', color: null })).toBe(
+      original,
+    );
+    expect(
+      original.correctProfile({
+        breed: Breed.known(' Labrador Retriever '),
+        birthInformation: BirthInformation.exact('2021-06-14'),
+      }),
+    ).toBe(original);
+  });
+
+  it('does not partially mutate the aggregate after a late invalid field', () => {
+    const original: Pet = Pet.register(validPetInput());
+
+    expect(() =>
+      original.correctProfile({ name: 'Nala', microchip: '   ' }),
+    ).toThrow('Pet microchip cannot be empty');
+    expect(original.name).toBe('Luna');
+    expect(original.microchip).toBeUndefined();
+  });
+
+  it('preserves reconstituted membership history through correction', () => {
+    const original: Pet = Pet.register(validPetInput());
+    const collaborator: PetMembership = PetMembership.createCollaborator(
+      AccountId.from('a3ef9f14-9e82-45d6-a5ba-89d31c7aa2e1'),
+    ).leaveAsCollaborator();
+    const restored: Pet = Pet.reconstitute({
+      id: original.id,
+      name: original.name,
+      species: original.species,
+      breed: original.breed,
+      sex: original.sex,
+      birthInformation: original.birthInformation,
+      color: original.color,
+      distinctiveMarks: original.distinctiveMarks,
+      microchip: original.microchip,
+      status: original.status,
+      memberships: [...original.memberships, collaborator],
+    });
+
+    const corrected: Pet = restored.correctProfile({ sex: PetSex.MALE });
+    expect(corrected.memberships).toEqual(restored.memberships);
+    expect(corrected.memberships[1]).toBe(collaborator);
   });
 });
 

@@ -2,10 +2,18 @@ import type { SchemaObject } from '@nestjs/swagger';
 import { z } from 'zod';
 import { inviteCollaboratorSchema } from './invite-collaborator.schema';
 import { registerPetSchema } from './register-pet.schema';
+import { updatePetProfileSchema } from './update-pet-profile.schema';
 
 export const registerPetRequestSchema = z.toJSONSchema(registerPetSchema, {
   target: 'openapi-3.0',
 }) as SchemaObject;
+
+export const updatePetProfileRequestSchema: SchemaObject = {
+  ...(z.toJSONSchema(updatePetProfileSchema, {
+    target: 'openapi-3.0',
+  }) as SchemaObject),
+  minProperties: 1,
+};
 
 export const inviteCollaboratorRequestSchema = z.toJSONSchema(
   inviteCollaboratorSchema,
@@ -213,5 +221,27 @@ export const cancelledInvitationResponseSchema: SchemaObject = {
     id: '6fe44a29-206e-4875-9f3e-72026868135e',
     petId: '42b30488-fd7c-4c5d-b9cc-8c7aa5d171dd',
     status: 'CANCELLED',
+  },
+};
+
+export const petMembersResponseSchema: SchemaObject = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['members'],
+  properties: {
+    members: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['membershipId', 'accountId', 'email', 'role'],
+        properties: {
+          membershipId: { type: 'string', format: 'uuid' },
+          accountId: { type: 'string', format: 'uuid' },
+          email: { type: 'string', format: 'email', example: 'owner@example.com' },
+          role: { type: 'string', enum: ['OWNER', 'COLLABORATOR'] },
+        },
+      },
+    },
   },
 };

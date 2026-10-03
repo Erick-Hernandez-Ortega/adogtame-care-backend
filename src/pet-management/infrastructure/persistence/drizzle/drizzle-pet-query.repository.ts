@@ -1,9 +1,11 @@
 import { Injectable } from '@nestjs/common';
-import { and, asc, eq } from 'drizzle-orm';
+import { and, asc, eq, inArray, sql } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/pg-core';
 import { DatabaseService } from '../../../../infrastructure/database/database.service';
 import type {
   AccessiblePetSummary,
   PetDetail,
+  PetMemberSummary,
   PetQueryRepository,
 } from '../../../application/persistence/pet-query.repository';
 import type { BirthDateAccuracy } from '../../../domain/birth-information/birth-information.types';
@@ -24,6 +26,44 @@ import { petMemberships, pets } from './pet-management.schema';
 @Injectable()
 export class DrizzlePetQueryRepository implements PetQueryRepository {
   constructor(private readonly databaseService: DatabaseService) {}
+
+  async findAccessibleMembers(
+    petId: string,
+    accountId: string,
+  ): Promise<PetMemberSummary[] | null> {
+    const requesterMemberships = alias(petMemberships, 'requester_memberships');
+    const rows = await this.databaseService.connection
+      .select({
+        membershipId: petMemberships.id,
+        accountId: petMemberships.accountId,
+        role: petMemberships.role,
+      })
+      .from(pets)
+      .innerJoin(requesterMemberships, and(
+        eq(requesterMemberships.petId, pets.id),
+        eq(requesterMemberships.accountId, accountId),
+        eq(requesterMemberships.status, PetMembershipStatus.ACTIVE),
+        inArray(requesterMemberships.role, [PetMembershipRoleValue.OWNER, PetMembershipRoleValue.COLLABORATOR]),
+      ))
+      .innerJoin(petMemberships, and(
+        eq(petMemberships.petId, pets.id),
+        eq(petMemberships.status, PetMembershipStatus.ACTIVE),
+      ))
+      .where(and(eq(pets.id, petId), inArray(pets.status, [PetStatus.ACTIVE, PetStatus.ARCHIVED])))
+      .orderBy(
+        asc(sql`case when ${petMemberships.role} = 'OWNER' then 0 else 1 end`),
+        asc(petMemberships.createdAt),
+        asc(petMemberships.id),
+      );
+    if (rows.length === 0) {
+      return null;
+    }
+    return rows.map((row): PetMemberSummary => ({
+      membershipId: row.membershipId,
+      accountId: row.accountId,
+      role: row.role as PetMembershipRole,
+    }));
+  }
 
   async findAccessibleByAccountId(
     accountId: string,

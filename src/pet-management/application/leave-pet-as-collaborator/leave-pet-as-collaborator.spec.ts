@@ -83,6 +83,8 @@ describe('LeavePetAsCollaborator', () => {
       .mockResolvedValue(result);
     const repository: PetRepository = {
       save: jest.fn() as PetRepository['save'],
+      correctProfileIfOwned:
+        jest.fn() as PetRepository['correctProfileIfOwned'],
       leaveAsCollaborator,
     };
     return {

@@ -97,6 +97,7 @@ describe('RejectInvitation', () => {
       .fn<Promise<RejectInvitationPersistenceResult>, [string, string]>()
       .mockResolvedValue(result);
     const accountLookup: AccountLookup = {
+      findEmailsByAccountIds: jest.fn().mockResolvedValue([]),
       findAccountIdByEmail: jest
         .fn()
         .mockResolvedValue(null) as AccountLookup['findAccountIdByEmail'],
