@@ -20,7 +20,7 @@ class InMemoryPetRepository implements PetRepository {
     return Promise.resolve({ outcome: 'PET_NOT_FOUND' });
   }
 
-  removeCollaboratorIfOwned(): Promise<{ outcome: 'PET_NOT_FOUND' }> {
+  removeMemberIfOwned(): Promise<{ outcome: 'PET_NOT_FOUND' }> {
     return Promise.resolve({ outcome: 'PET_NOT_FOUND' });
   }
 
@@ -130,8 +130,7 @@ describe('RegisterPet', () => {
     const repository: PetRepository = {
       promoteCollaboratorIfOwned:
         jest.fn() as PetRepository['promoteCollaboratorIfOwned'],
-      removeCollaboratorIfOwned:
-        jest.fn() as PetRepository['removeCollaboratorIfOwned'],
+      removeMemberIfOwned: jest.fn() as PetRepository['removeMemberIfOwned'],
       save: jest.fn<Promise<void>, [Pet]>().mockRejectedValue(persistenceError),
       correctProfileIfOwned:
         jest.fn() as PetRepository['correctProfileIfOwned'],

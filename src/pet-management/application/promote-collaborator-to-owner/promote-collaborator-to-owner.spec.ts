@@ -4,7 +4,7 @@ import type {
   PromoteCollaboratorCommand,
   PromoteCollaboratorPersistenceResult,
 } from '../persistence/pet.repository';
-import { PetMemberNotFoundError } from '../remove-collaborator/remove-collaborator';
+import { PetMemberNotFoundError } from '../remove-pet-member/remove-pet-member';
 import {
   PetMemberInactiveError,
   PromoteCollaboratorToOwner,
@@ -28,8 +28,7 @@ describe('PromoteCollaboratorToOwner', () => {
       .mockResolvedValue({ outcome });
     const repository: PetRepository = {
       promoteCollaboratorIfOwned,
-      removeCollaboratorIfOwned:
-        jest.fn() as PetRepository['removeCollaboratorIfOwned'],
+      removeMemberIfOwned: jest.fn() as PetRepository['removeMemberIfOwned'],
       leave: jest.fn() as PetRepository['leave'],
       correctProfileIfOwned:
         jest.fn() as PetRepository['correctProfileIfOwned'],

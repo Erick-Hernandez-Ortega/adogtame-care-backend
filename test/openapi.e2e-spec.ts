@@ -49,6 +49,10 @@ describe('OpenAPI documentation (e2e)', () => {
       .expect(200);
     const document: OpenAPIObject = jsonResponse.body as OpenAPIObject;
 
+    expect(JSON.stringify(document)).not.toContain(
+      'OWNER_REMOVAL_NOT_SUPPORTED',
+    );
+
     const routes: [string, string][] = [
       ['/', 'get'],
       ['/accounts', 'post'],
@@ -154,8 +158,11 @@ describe('OpenAPI documentation (e2e)', () => {
         (schema): unknown => (schema.properties?.code as SchemaObject).enum,
       ),
     ).toEqual([['PET_NOT_FOUND'], ['PET_MEMBER_NOT_FOUND']]);
+    expect(JSON.stringify(responseSchema(removal, '409'))).not.toContain(
+      'LAST_OWNER_CANNOT_BE_REMOVED',
+    );
     expect(responseSchema(removal, '409')).toMatchObject({
-      properties: { code: { enum: ['OWNER_REMOVAL_NOT_SUPPORTED'] } },
+      properties: { code: { enum: ['SELF_REMOVAL_NOT_SUPPORTED'] } },
     });
 
     expect(document.components?.securitySchemes?.bearer).toMatchObject({

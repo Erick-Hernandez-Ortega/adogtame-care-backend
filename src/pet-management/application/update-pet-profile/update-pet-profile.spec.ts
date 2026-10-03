@@ -51,8 +51,7 @@ function setup(currentPet: Pet | null = pet()) {
   const repository: PetRepository = {
     promoteCollaboratorIfOwned:
       jest.fn() as PetRepository['promoteCollaboratorIfOwned'],
-    removeCollaboratorIfOwned:
-      jest.fn() as PetRepository['removeCollaboratorIfOwned'],
+    removeMemberIfOwned: jest.fn() as PetRepository['removeMemberIfOwned'],
     save: jest.fn() as PetRepository['save'],
     correctProfileIfOwned,
     leave: jest.fn() as PetRepository['leave'],
@@ -187,8 +186,7 @@ describe('UpdatePetProfile', () => {
     const repository: PetRepository = {
       promoteCollaboratorIfOwned:
         jest.fn() as PetRepository['promoteCollaboratorIfOwned'],
-      removeCollaboratorIfOwned:
-        jest.fn() as PetRepository['removeCollaboratorIfOwned'],
+      removeMemberIfOwned: jest.fn() as PetRepository['removeMemberIfOwned'],
       save: jest.fn() as PetRepository['save'],
       correctProfileIfOwned: jest
         .fn()

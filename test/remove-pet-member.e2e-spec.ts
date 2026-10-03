@@ -96,12 +96,13 @@ describe('DELETE /pets/:petId/members/:membershipId (e2e)', () => {
 
   async function addCollaborator(
     status: 'ACTIVE' | 'INACTIVE' = 'ACTIVE',
+    role: 'OWNER' | 'COLLABORATOR' = 'COLLABORATOR',
   ): Promise<void> {
     await database.connection.insert(petMemberships).values({
       id: membershipId,
       petId,
       accountId: collaborator.id,
-      role: 'COLLABORATOR',
+      role,
       status,
     });
   }
@@ -162,6 +163,7 @@ describe('DELETE /pets/:petId/members/:membershipId (e2e)', () => {
 
   it.each([
     'collaborator',
+    'inactive collaborator',
     'inactive owner',
     'outsider',
     'archived',
@@ -171,6 +173,13 @@ describe('DELETE /pets/:petId/members/:membershipId (e2e)', () => {
     let token: string = owner.token;
     let requestedPetId: string = petId;
     if (scenario === 'collaborator') token = collaborator.token;
+    if (scenario === 'inactive collaborator') {
+      await database.connection
+        .update(petMemberships)
+        .set({ status: 'INACTIVE' })
+        .where(eq(petMemberships.id, membershipId));
+      token = collaborator.token;
+    }
     if (scenario === 'outsider') token = outsider.token;
     if (scenario === 'inactive owner')
       await database.connection
@@ -223,21 +232,74 @@ describe('DELETE /pets/:petId/members/:membershipId (e2e)', () => {
   });
 
   it.each(['ACTIVE', 'INACTIVE'] as const)(
-    'rejects a second %s owner and self-removal',
+    'removes another %s owner, retries, and excludes it from GET members',
     async (status) => {
-      await addCollaborator(status);
-      await database.connection
-        .update(petMemberships)
-        .set({ role: 'OWNER' })
+      await addCollaborator(status, 'OWNER');
+      const removed = await removeMember().expect(204);
+      expect(removed.text).toBe('');
+      await removeMember().send({}).expect(204);
+      const memberships = await database.connection
+        .select()
+        .from(petMemberships)
         .where(eq(petMemberships.id, membershipId));
-      for (const target of [membershipId, await ownerMembershipId()]) {
-        const response = await removeMember(owner.token, target).expect(409);
-        expect(response.body).toMatchObject({
-          code: 'OWNER_REMOVAL_NOT_SUPPORTED',
-        });
-      }
+      expect(memberships[0]).toMatchObject({
+        id: membershipId,
+        accountId: collaborator.id,
+        role: 'OWNER',
+        status: 'INACTIVE',
+      });
+      const after = await request(application.getHttpServer())
+        .get(`/pets/${petId}/members`)
+        .set('Authorization', `Bearer ${owner.token}`)
+        .expect(200);
+      expect(
+        (after.body as { members: { membershipId: string }[] }).members.map(
+          (member): string => member.membershipId,
+        ),
+      ).not.toContain(membershipId);
+      const denied = await request(application.getHttpServer())
+        .get(`/pets/${petId}/members`)
+        .set('Authorization', `Bearer ${collaborator.token}`)
+        .expect(404);
+      expect(denied.body).toMatchObject({ code: 'PET_NOT_FOUND' });
     },
   );
+
+  it.each([1, 2])(
+    'rejects self-removal before the last-owner decision with %s owners',
+    async (ownerTotal) => {
+      if (ownerTotal === 2) await addCollaborator('ACTIVE', 'OWNER');
+      const before = await database.connection
+        .select()
+        .from(petMemberships)
+        .where(eq(petMemberships.petId, petId));
+      const response = await removeMember(
+        owner.token,
+        (await ownerMembershipId()).toUpperCase(),
+      ).expect(409);
+      expect(response.body).toMatchObject({
+        code: 'SELF_REMOVAL_NOT_SUPPORTED',
+      });
+      expect(
+        await database.connection
+          .select()
+          .from(petMemberships)
+          .where(eq(petMemberships.petId, petId)),
+      ).toEqual(before);
+    },
+  );
+
+  it('reauthorizes an inactive target retry after the requester is removed', async () => {
+    await addCollaborator('ACTIVE', 'OWNER');
+    await removeMember(collaborator.token, await ownerMembershipId()).expect(
+      204,
+    );
+    const response = await removeMember(
+      owner.token,
+      await ownerMembershipId(),
+    ).expect(404);
+    expect(response.body).toMatchObject({ code: 'PET_NOT_FOUND' });
+  });
 
   it('requires authentication before structural validation', async () => {
     for (const path of [

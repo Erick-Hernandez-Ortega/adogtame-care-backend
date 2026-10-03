@@ -215,3 +215,36 @@ describe('owner leave transition', () => {
     );
   });
 });
+
+describe('owner removal transition', () => {
+  it('preserves identity and owner role and returns an inactive owner unchanged', () => {
+    const membership: PetMembership = PetMembership.createInitialOwner(
+      AccountId.from(ACCOUNT_ID_V1),
+    );
+    const removed: PetMembership = membership.removeAsOwner();
+    expect(removed).toMatchObject({
+      id: membership.id,
+      accountId: membership.accountId,
+      role: 'OWNER',
+      status: 'INACTIVE',
+    });
+    expect(removed.removeAsOwner()).toBe(removed);
+    expect(membership.status).toBe('ACTIVE');
+  });
+
+  it.each(['ACTIVE', 'INACTIVE'] as const)(
+    'rejects a %s collaborator using the owner transition',
+    (status) => {
+      const membership: PetMembership = PetMembership.reconstitute({
+        id: MembershipId.generate(),
+        accountId: AccountId.from(ACCOUNT_ID_V1),
+        role: 'COLLABORATOR',
+        status,
+      });
+      expect(() => membership.removeAsOwner()).toThrow(
+        'Only an owner can be removed as an owner',
+      );
+      expect(membership.status).toBe(status);
+    },
+  );
+});

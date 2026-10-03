@@ -127,6 +127,19 @@ export class PetMembership {
     );
   }
 
+  removeAsOwner(): PetMembership {
+    if (this.role !== PetMembershipRole.OWNER) {
+      throw new TypeError('Only an owner can be removed as an owner');
+    }
+    if (this.status === PetMembershipStatus.INACTIVE) return this;
+    return new PetMembership(
+      this.id,
+      this.accountId,
+      this.role,
+      PetMembershipStatus.INACTIVE,
+    );
+  }
+
   leaveAsOwner(): PetMembership {
     if (this.role !== PetMembershipRole.OWNER) {
       throw new TypeError('Only an owner can leave as an owner');

@@ -7,17 +7,18 @@ export interface LeavePetPersistenceResult {
     'PET_NOT_FOUND' | 'LAST_OWNER_CANNOT_LEAVE' | 'LEFT' | 'ALREADY_LEFT';
 }
 
-export interface RemoveCollaboratorCommand {
+export interface RemovePetMemberCommand {
   requesterAccountId: string;
   petId: string;
   targetMembershipId: string;
 }
 
-export interface RemoveCollaboratorPersistenceResult {
+export interface RemovePetMemberPersistenceResult {
   outcome:
     | 'PET_NOT_FOUND'
     | 'PET_MEMBER_NOT_FOUND'
-    | 'OWNER_REMOVAL_NOT_SUPPORTED'
+    | 'SELF_REMOVAL_NOT_SUPPORTED'
+    | 'LAST_OWNER_CANNOT_BE_REMOVED'
     | 'REMOVED';
 }
 
@@ -40,9 +41,9 @@ export interface PetRepository {
   promoteCollaboratorIfOwned(
     command: PromoteCollaboratorCommand,
   ): Promise<PromoteCollaboratorPersistenceResult>;
-  removeCollaboratorIfOwned(
-    command: RemoveCollaboratorCommand,
-  ): Promise<RemoveCollaboratorPersistenceResult>;
+  removeMemberIfOwned(
+    command: RemovePetMemberCommand,
+  ): Promise<RemovePetMemberPersistenceResult>;
   save(pet: Pet): Promise<void>;
   correctProfileIfOwned(
     petId: string,

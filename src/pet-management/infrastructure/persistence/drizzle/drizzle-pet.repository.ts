@@ -1,8 +1,7 @@
 import {
-  decideCollaboratorRemoval,
-  type CollaboratorRemovalDecision,
-  type RemoveCollaboratorCommand,
-} from '../../../application/remove-collaborator/remove-collaborator';
+  PetMemberRemovalPolicy,
+  type PetMemberRemovalDecision,
+} from '../../../domain/pet/pet-member-removal.policy';
 import { Injectable } from '@nestjs/common';
 import { and, eq, exists, ne } from 'drizzle-orm';
 import {
@@ -11,7 +10,8 @@ import {
 } from '../../../domain/pet/pet-leave.policy';
 import type {
   LeavePetPersistenceResult,
-  RemoveCollaboratorPersistenceResult,
+  RemovePetMemberPersistenceResult,
+  RemovePetMemberCommand,
   PetRepository,
   PromoteCollaboratorCommand,
   PromoteCollaboratorPersistenceResult,
@@ -306,12 +306,12 @@ export class DrizzlePetRepository implements PetRepository {
     );
   }
 
-  async removeCollaboratorIfOwned(
-    command: RemoveCollaboratorCommand,
-  ): Promise<RemoveCollaboratorPersistenceResult> {
+  async removeMemberIfOwned(
+    command: RemovePetMemberCommand,
+  ): Promise<RemovePetMemberPersistenceResult> {
     return this.databaseService.connection.transaction(
-      async (transaction): Promise<RemoveCollaboratorPersistenceResult> => {
-        // The Pet lock serializes administrative operations before membership locks.
+      async (transaction): Promise<RemovePetMemberPersistenceResult> => {
+        // Pet is the owner-set mutex; acquire it first (see docs/pet-member-removal.md).
         const petRows = await transaction
           .select({ status: pets.status })
           .from(pets)
@@ -356,9 +356,40 @@ export class DrizzlePetRepository implements PetRepository {
           role: target.role as PetMembershipRoleType,
           status: target.status as PetMembershipStatusType,
         });
-        const decision: CollaboratorRemovalDecision =
-          decideCollaboratorRemoval(membership);
-        if (decision.outcome === 'OWNER_REMOVAL_NOT_SUPPORTED')
+        let hasAnotherActiveOwner: boolean = false;
+        if (
+          requester.id !== target.id &&
+          membership.status === PetMembershipStatus.ACTIVE &&
+          membership.role === PetMembershipRole.OWNER
+        ) {
+          const otherOwnerRows = await transaction
+            .select({
+              hasAnotherActiveOwner: exists(
+                transaction
+                  .select({ id: petMemberships.id })
+                  .from(petMemberships)
+                  .where(
+                    and(
+                      eq(petMemberships.petId, command.petId),
+                      eq(petMemberships.role, PetMembershipRole.OWNER),
+                      eq(petMemberships.status, PetMembershipStatus.ACTIVE),
+                      ne(petMemberships.id, target.id),
+                    ),
+                  ),
+              ),
+            })
+            .from(pets)
+            .where(eq(pets.id, command.petId));
+          hasAnotherActiveOwner =
+            otherOwnerRows[0]?.hasAnotherActiveOwner === true;
+        }
+        const decision: PetMemberRemovalDecision =
+          PetMemberRemovalPolicy.decide(
+            MembershipId.from(requester.id),
+            membership,
+            hasAnotherActiveOwner,
+          );
+        if (decision.outcome !== 'REMOVED')
           return { outcome: decision.outcome };
         if (decision.membershipToSave !== null) {
           const changedRows = await transaction
@@ -369,7 +400,7 @@ export class DrizzlePetRepository implements PetRepository {
                 eq(petMemberships.id, target.id),
                 eq(petMemberships.petId, command.petId),
                 eq(petMemberships.accountId, target.accountId),
-                eq(petMemberships.role, PetMembershipRole.COLLABORATOR),
+                eq(petMemberships.role, membership.role),
                 eq(petMemberships.status, PetMembershipStatus.ACTIVE),
               ),
             )

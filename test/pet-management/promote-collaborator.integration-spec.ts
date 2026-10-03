@@ -15,9 +15,8 @@ import {
 } from '../../src/pet-management/application/promote-collaborator-to-owner/promote-collaborator-to-owner';
 import {
   PetMemberNotFoundError,
-  OwnerRemovalNotSupportedError,
-  RemoveCollaborator,
-} from '../../src/pet-management/application/remove-collaborator/remove-collaborator';
+  RemovePetMember,
+} from '../../src/pet-management/application/remove-pet-member/remove-pet-member';
 import { CLOCK } from '../../src/pet-management/application/time/clock';
 import { BirthInformation } from '../../src/pet-management/domain/birth-information/birth-information';
 import { Breed } from '../../src/pet-management/domain/breed/breed';
@@ -41,7 +40,7 @@ describe('PromoteCollaboratorToOwner with PostgreSQL (integration)', () => {
   let application: INestApplicationContext;
   let database: DatabaseService;
   let promote: PromoteCollaboratorToOwner;
-  let remove: RemoveCollaborator;
+  let remove: RemovePetMember;
   let leave: LeavePet;
   let accept: AcceptInvitation;
   let listMembers: ListPetMembers;
@@ -53,6 +52,7 @@ describe('PromoteCollaboratorToOwner with PostgreSQL (integration)', () => {
   let collaboratorId: string;
   let collaboratorEmail: string;
   let membershipId: string;
+  let blockerBackendId: number;
 
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -64,7 +64,7 @@ describe('PromoteCollaboratorToOwner with PostgreSQL (integration)', () => {
     application = moduleFixture;
     database = application.get(DatabaseService);
     promote = application.get(PromoteCollaboratorToOwner);
-    remove = application.get(RemoveCollaborator);
+    remove = application.get(RemovePetMember);
     leave = application.get(LeavePet);
     accept = application.get(AcceptInvitation);
     listMembers = application.get(ListPetMembers);
@@ -174,11 +174,17 @@ describe('PromoteCollaboratorToOwner with PostgreSQL (integration)', () => {
   ): Promise<void> {
     const deadline: number = Date.now() + 5000;
     while (Date.now() < deadline) {
-      const results = await database.connection.execute(
-        sql`SELECT count(*)::int AS waiting FROM pg_stat_activity WHERE wait_event_type = 'Lock' AND query ILIKE ${'%"' + table + '"%'}`,
-      );
+      const results = await database.connection.execute(sql`
+        WITH RECURSIVE blocked AS (
+          SELECT pid FROM pg_stat_activity WHERE ${blockerBackendId} = ANY(pg_blocking_pids(pid))
+          UNION
+          SELECT activity.pid FROM pg_stat_activity activity JOIN blocked ON blocked.pid = ANY(pg_blocking_pids(activity.pid))
+        )
+        SELECT count(*)::int AS waiting FROM pg_stat_activity
+        WHERE pid IN (SELECT pid FROM blocked) AND wait_event_type = 'Lock' AND query ILIKE ${'%' + '"' + table + '"' + '%'}
+      `);
       if (Number(results[0]?.waiting ?? 0) >= expected) return;
-      await new Promise<void>((resolve) => setTimeout(resolve, 10));
+      await new Promise<void>((resolve) => setImmediate(resolve));
     }
     throw new Error(`Expected ${expected} lock waiters on ${table}`);
   }
@@ -339,6 +345,10 @@ describe('PromoteCollaboratorToOwner with PostgreSQL (integration)', () => {
       acquired = resolve;
     });
     const blocker = database.connection.transaction(async (transaction) => {
+      const backendRows = await transaction.execute(
+        sql`SELECT pg_backend_pid() AS id`,
+      );
+      blockerBackendId = Number(backendRows[0].id);
       if (table === 'pets')
         await transaction
           .select({ id: pets.id })
@@ -362,7 +372,7 @@ describe('PromoteCollaboratorToOwner with PostgreSQL (integration)', () => {
   }
 
   it.each(['promote', 'remove'] as const)(
-    'serializes %s first against Remove Collaborator',
+    'serializes %s first against Remove Pet Member',
     async (firstAction) => {
       await addMembership();
       const releaseAndWait = await blockRow('pets', pet.id.value);
@@ -387,14 +397,11 @@ describe('PromoteCollaboratorToOwner with PostgreSQL (integration)', () => {
       }
       const results: unknown[] = await Promise.all([first, second]);
       expect(results[0]).toBeUndefined();
-      expect(results[1]).toBeInstanceOf(
-        firstAction === 'promote'
-          ? OwnerRemovalNotSupportedError
-          : PetMemberInactiveError,
-      );
+      if (firstAction === 'promote') expect(results[1]).toBeUndefined();
+      else expect(results[1]).toBeInstanceOf(PetMemberInactiveError);
       expect((await targetRows())[0]).toMatchObject({
         role: firstAction === 'promote' ? 'OWNER' : 'COLLABORATOR',
-        status: firstAction === 'promote' ? 'ACTIVE' : 'INACTIVE',
+        status: 'INACTIVE',
       });
     },
   );

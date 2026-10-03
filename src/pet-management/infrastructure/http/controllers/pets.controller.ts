@@ -1,8 +1,9 @@
 import {
-  RemoveCollaborator,
+  RemovePetMember,
   PetMemberNotFoundError,
-  OwnerRemovalNotSupportedError,
-} from '../../../application/remove-collaborator/remove-collaborator';
+  SelfRemovalNotSupportedError,
+  LastOwnerCannotBeRemovedError,
+} from '../../../application/remove-pet-member/remove-pet-member';
 import {
   PetMemberInactiveError,
   PromoteCollaboratorToOwner,
@@ -14,11 +15,11 @@ import {
   promoteCollaboratorQuerySchema,
 } from '../schemas/promote-collaborator.schema';
 import {
-  removeCollaboratorPetIdSchema,
-  removeCollaboratorMembershipIdSchema,
-  removeCollaboratorQuerySchema,
-  removeCollaboratorBodySchema,
-} from '../schemas/remove-collaborator.schema';
+  removePetMemberPetIdSchema,
+  removePetMemberMembershipIdSchema,
+  removePetMemberQuerySchema,
+  removePetMemberBodySchema,
+} from '../schemas/remove-pet-member.schema';
 import {
   BadRequestException,
   Body,
@@ -122,7 +123,7 @@ import {
 @ApiBearerAuth()
 export class PetsController {
   constructor(
-    private readonly removeCollaborator: RemoveCollaborator,
+    private readonly removePetMember: RemovePetMember,
     private readonly promoteCollaboratorToOwner: PromoteCollaboratorToOwner,
     private readonly registerPet: RegisterPet,
     private readonly listMyPets: ListMyPets,
@@ -374,9 +375,9 @@ export class PetsController {
   @UseGuards(AuthenticationGuard)
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
-    summary: 'Remove a pet collaborator',
+    summary: 'Remove a pet member',
     description:
-      'An active owner of an active pet may remove collaborator access. The membership is preserved internally. Repeating removal of an inactive collaborator succeeds without an update. Owners cannot be removed. No query parameters are accepted; the body must be absent or empty.',
+      'An active owner of an active pet may remove another owner or collaborator while preserving membership history and at least one active owner. An inactive target succeeds without an update. Self-removal returns SELF_REMOVAL_NOT_SUPPORTED; use Leave instead. LAST_OWNER_CANNOT_BE_REMOVED is an internal defensive invariant outcome, not a normally reachable HTTP conflict: an authorized requester distinct from the target remains an active owner. No query parameters are accepted; the body must be absent or empty.',
   })
   @ApiParam({
     name: 'petId',
@@ -390,7 +391,7 @@ export class PetsController {
   })
   @ApiResponse({
     status: 204,
-    description: 'Collaborator access removed or already inactive',
+    description: 'Member access removed or already inactive',
   })
   @ApiResponse({
     status: 400,
@@ -415,10 +416,10 @@ export class PetsController {
   })
   @ApiResponse({
     status: 409,
-    description: 'Owner removal is not supported, including self-removal',
+    description: 'Self-removal is not supported; use Leave instead',
     schema: errorSchema(
-      ['OWNER_REMOVAL_NOT_SUPPORTED'],
-      'Owner removal is not supported',
+      ['SELF_REMOVAL_NOT_SUPPORTED'],
+      'Self-removal is not supported; use Leave instead',
     ),
   })
   async removeMember(
@@ -428,16 +429,16 @@ export class PetsController {
     @Query() query: unknown,
     @Body() body: unknown,
   ): Promise<void> {
-    const parsedPetId = removeCollaboratorPetIdSchema.safeParse(petId);
+    const parsedPetId = removePetMemberPetIdSchema.safeParse(petId);
     const parsedMembershipId =
-      removeCollaboratorMembershipIdSchema.safeParse(membershipId);
+      removePetMemberMembershipIdSchema.safeParse(membershipId);
     if (!parsedPetId.success || !parsedMembershipId.success) {
       throw new BadRequestException({
         code: 'INVALID_REQUEST',
         message: 'Request path is invalid',
       });
     }
-    if (!removeCollaboratorQuerySchema.safeParse(query).success) {
+    if (!removePetMemberQuerySchema.safeParse(query).success) {
       throw new BadRequestException({
         code: 'INVALID_REQUEST',
         message: 'Request query is invalid',
@@ -445,7 +446,7 @@ export class PetsController {
     }
     if (
       body !== undefined &&
-      !removeCollaboratorBodySchema.safeParse(body).success
+      !removePetMemberBodySchema.safeParse(body).success
     ) {
       throw new BadRequestException({
         code: 'INVALID_REQUEST',
@@ -453,7 +454,7 @@ export class PetsController {
       });
     }
     try {
-      await this.removeCollaborator.execute({
+      await this.removePetMember.execute({
         requesterAccountId,
         petId: parsedPetId.data,
         targetMembershipId: parsedMembershipId.data,
@@ -469,9 +470,14 @@ export class PetsController {
           code: 'PET_MEMBER_NOT_FOUND',
           message: error.message,
         });
-      if (error instanceof OwnerRemovalNotSupportedError)
+      if (error instanceof LastOwnerCannotBeRemovedError)
         throw new ConflictException({
-          code: 'OWNER_REMOVAL_NOT_SUPPORTED',
+          code: 'LAST_OWNER_CANNOT_BE_REMOVED',
+          message: error.message,
+        });
+      if (error instanceof SelfRemovalNotSupportedError)
+        throw new ConflictException({
+          code: 'SELF_REMOVAL_NOT_SUPPORTED',
           message: error.message,
         });
       throw error;

@@ -4,7 +4,7 @@ import type {
   PromoteCollaboratorCommand,
   PromoteCollaboratorPersistenceResult,
 } from '../persistence/pet.repository';
-import { PetMemberNotFoundError } from '../remove-collaborator/remove-collaborator';
+import { PetMemberNotFoundError } from '../remove-pet-member/remove-pet-member';
 
 export type { PromoteCollaboratorCommand } from '../persistence/pet.repository';
 

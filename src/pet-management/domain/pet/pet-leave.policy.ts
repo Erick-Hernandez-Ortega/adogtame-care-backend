@@ -3,6 +3,7 @@ import {
   PetMembershipRole,
   PetMembershipStatus,
 } from '../pet-membership/pet-membership';
+import { preservesActiveOwnerOnDeactivation } from './pet-owner-invariant';
 
 export interface PetLeaveDecision {
   outcome: 'LEFT' | 'ALREADY_LEFT' | 'LAST_OWNER_CANNOT_LEAVE';
@@ -18,7 +19,9 @@ export class PetLeavePolicy {
       return { outcome: 'ALREADY_LEFT', membershipToSave: null };
     }
     if (membership.role === PetMembershipRole.OWNER) {
-      if (!hasAnotherActiveOwner) {
+      if (
+        !preservesActiveOwnerOnDeactivation(membership, hasAnotherActiveOwner)
+      ) {
         return { outcome: 'LAST_OWNER_CANNOT_LEAVE', membershipToSave: null };
       }
       return { outcome: 'LEFT', membershipToSave: membership.leaveAsOwner() };

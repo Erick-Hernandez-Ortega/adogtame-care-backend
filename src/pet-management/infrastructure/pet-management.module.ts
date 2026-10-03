@@ -1,4 +1,4 @@
-import { RemoveCollaborator } from '../application/remove-collaborator/remove-collaborator';
+import { RemovePetMember } from '../application/remove-pet-member/remove-pet-member';
 import { PromoteCollaboratorToOwner } from '../application/promote-collaborator-to-owner/promote-collaborator-to-owner';
 import { Module } from '@nestjs/common';
 import { AcceptInvitation } from '../application/accept-invitation/accept-invitation';
@@ -47,10 +47,10 @@ import { DrizzlePetRepository } from './persistence/drizzle/drizzle-pet.reposito
         new PromoteCollaboratorToOwner(petRepository),
     },
     {
-      provide: RemoveCollaborator,
+      provide: RemovePetMember,
       inject: [PET_REPOSITORY],
-      useFactory: (petRepository: PetRepository): RemoveCollaborator =>
-        new RemoveCollaborator(petRepository),
+      useFactory: (petRepository: PetRepository): RemovePetMember =>
+        new RemovePetMember(petRepository),
     },
     DrizzlePetQueryRepository,
     DrizzlePetInvitationRepository,

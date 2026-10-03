@@ -20,8 +20,7 @@ describe('LeavePet', () => {
     const repository: PetRepository = {
       promoteCollaboratorIfOwned:
         jest.fn() as PetRepository['promoteCollaboratorIfOwned'],
-      removeCollaboratorIfOwned:
-        jest.fn() as PetRepository['removeCollaboratorIfOwned'],
+      removeMemberIfOwned: jest.fn() as PetRepository['removeMemberIfOwned'],
       save: jest.fn() as PetRepository['save'],
       correctProfileIfOwned:
         jest.fn() as PetRepository['correctProfileIfOwned'],

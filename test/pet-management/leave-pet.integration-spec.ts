@@ -13,7 +13,7 @@ import {
 } from '../../src/pet-management/application/leave-pet/leave-pet';
 import { ListPetMembers } from '../../src/pet-management/application/list-pet-members/list-pet-members';
 import { PromoteCollaboratorToOwner } from '../../src/pet-management/application/promote-collaborator-to-owner/promote-collaborator-to-owner';
-import { RemoveCollaborator } from '../../src/pet-management/application/remove-collaborator/remove-collaborator';
+import { RemovePetMember } from '../../src/pet-management/application/remove-pet-member/remove-pet-member';
 import { CLOCK } from '../../src/pet-management/application/time/clock';
 import { BirthInformation } from '../../src/pet-management/domain/birth-information/birth-information';
 import { Breed } from '../../src/pet-management/domain/breed/breed';
@@ -58,7 +58,7 @@ describe('LeavePet with PostgreSQL (integration)', () => {
   let leave: LeavePet;
   let accept: AcceptInvitation;
   let promote: PromoteCollaboratorToOwner;
-  let remove: RemoveCollaborator;
+  let remove: RemovePetMember;
   let listMembers: ListPetMembers;
   let invitationRepository: DrizzlePetInvitationRepository;
   let pet: Pet;
@@ -77,7 +77,7 @@ describe('LeavePet with PostgreSQL (integration)', () => {
     leave = application.get(LeavePet);
     accept = application.get(AcceptInvitation);
     promote = application.get(PromoteCollaboratorToOwner);
-    remove = application.get(RemoveCollaborator);
+    remove = application.get(RemovePetMember);
     listMembers = application.get(ListPetMembers);
     invitationRepository = application.get(DrizzlePetInvitationRepository);
   });

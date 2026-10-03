@@ -10,7 +10,9 @@ own memberships are both `404 PET_NOT_FOUND`.
 
 `PetLeavePolicy` expresses only Leave: an active owner can leave when another
 active owner exists for the same pet. Otherwise the result is
-`LAST_OWNER_CANNOT_LEAVE`, mapped to HTTP `409`. Collaborators need no owner
+`LAST_OWNER_CANNOT_LEAVE`, mapped to HTTP `409`. The owner-set predicate is
+shared with `PetMemberRemovalPolicy` through the small `pet-owner-invariant.ts`
+domain function. Collaborators need no owner
 check. `PetMembership.leaveAsOwner()` and `leaveAsCollaborator()` express local
 transitions; the entity does not know the other memberships. Call the owner
 transition only after the policy allows it.
@@ -43,7 +45,8 @@ requires all writers affecting the owner set to respect this protocol:
 - Register inserts a new Pet and its initial owner in one transaction; it does
   not update existing pets.
 - Promote locks Pet, requester membership, then target membership.
-- Remove Collaborator uses the same order and refuses owner targets.
+- Remove Member uses the same order, rejects self-removal, and checks owner
+  preservation before removing another active owner. Inactive targets are no-ops.
 - Accept locks Invitation, Pet, then membership; it creates or reactivates as
   collaborator, never as owner. An active membership is preserved.
 - Leave locks Pet then its own membership for both roles.
