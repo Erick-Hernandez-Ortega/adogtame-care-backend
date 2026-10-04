@@ -1,6 +1,7 @@
 import type { SchemaObject } from '@nestjs/swagger';
 import { z } from 'zod';
 import { recordPetAllergySchema } from './record-pet-allergy.schema';
+import { recordPetMedicalConditionSchema } from './record-pet-medical-condition.schema';
 import {
   AllergyCategory,
   AllergySeverity,
@@ -13,6 +14,73 @@ import {
   recordVaccinationSchema,
   updateVaccinationRecordSchema,
 } from './record-vaccination.schema';
+
+export const recordPetMedicalConditionRequestSchema: SchemaObject = {
+  ...(z.toJSONSchema(recordPetMedicalConditionSchema, {
+    target: 'openapi-3.0',
+  }) as SchemaObject),
+  properties: {
+    name: {
+      type: 'string',
+      minLength: 1,
+      maxLength: 255,
+      description:
+        'Trimmed, nonempty name; casing is preserved. Limits count Unicode code points.',
+    },
+    diagnosedDate: {
+      type: 'string',
+      format: 'date',
+      nullable: true,
+      description:
+        'Exact known date of the reported diagnosis, YYYY-MM-DD, not later than today UTC. Omit or send null if unknown or only approximate.',
+    },
+    notes: {
+      type: 'string',
+      nullable: true,
+      minLength: 1,
+      maxLength: 2000,
+      description:
+        'Omit or send null when absent. Present text must remain nonempty after trimming. Limits count Unicode code points.',
+    },
+  },
+  example: {
+    name: 'Epilepsy',
+    diagnosedDate: '2026-03-14',
+    notes: 'Recurring seizures monitored by veterinarian.',
+  },
+};
+
+export const recordedPetMedicalConditionResponseSchema: SchemaObject = {
+  type: 'object',
+  additionalProperties: false,
+  required: [
+    'id',
+    'petId',
+    'name',
+    'status',
+    'diagnosedDate',
+    'notes',
+    'recordedByAccountId',
+  ],
+  properties: {
+    id: { type: 'string', format: 'uuid' },
+    petId: { type: 'string', format: 'uuid' },
+    name: { type: 'string', minLength: 1, maxLength: 255, example: 'Epilepsy' },
+    status: {
+      type: 'string',
+      enum: ['ACTIVE'],
+      description: 'Record always creates a currently active condition.',
+    },
+    diagnosedDate: {
+      type: 'string',
+      format: 'date',
+      nullable: true,
+      example: '2026-03-14',
+    },
+    notes: { type: 'string', nullable: true, minLength: 1, maxLength: 2000 },
+    recordedByAccountId: { type: 'string', format: 'uuid' },
+  },
+};
 
 export const recordVaccinationRequestSchema: SchemaObject = {
   ...(z.toJSONSchema(recordVaccinationSchema, {

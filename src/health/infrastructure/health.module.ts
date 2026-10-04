@@ -1,4 +1,11 @@
 import { Module } from '@nestjs/common';
+import { RecordPetMedicalCondition } from '../application/record-pet-medical-condition/record-pet-medical-condition';
+import {
+  PET_MEDICAL_CONDITION_REPOSITORY,
+  type PetMedicalConditionRepository,
+} from '../application/persistence/pet-medical-condition.repository';
+import { DrizzlePetMedicalConditionRepository } from './persistence/drizzle/drizzle-pet-medical-condition.repository';
+import { PetMedicalConditionsController } from './http/controllers/pet-medical-conditions.controller';
 import { DeletePetAllergy } from '../application/delete-pet-allergy/delete-pet-allergy';
 import { UpdatePetAllergy } from '../application/update-pet-allergy/update-pet-allergy';
 import { ListPetAllergies } from '../application/list-pet-allergies/list-pet-allergies';
@@ -51,11 +58,26 @@ import { DrizzleVaccinationHistoryReader } from './persistence/drizzle/drizzle-v
 @Module({
   imports: [DatabaseModule, IdentityModule],
   controllers: [
+    PetMedicalConditionsController,
     WeightRecordsController,
     VaccinationRecordsController,
     PetAllergiesController,
   ],
   providers: [
+    DrizzlePetMedicalConditionRepository,
+    {
+      provide: PET_MEDICAL_CONDITION_REPOSITORY,
+      useExisting: DrizzlePetMedicalConditionRepository,
+    },
+    {
+      provide: RecordPetMedicalCondition,
+      inject: [PET_MEDICAL_CONDITION_REPOSITORY, HEALTH_CLOCK],
+      useFactory: (
+        repository: PetMedicalConditionRepository,
+        clock: Clock,
+      ): RecordPetMedicalCondition =>
+        new RecordPetMedicalCondition(repository, clock),
+    },
     {
       provide: DeletePetAllergy,
       inject: [PET_ALLERGY_REPOSITORY],

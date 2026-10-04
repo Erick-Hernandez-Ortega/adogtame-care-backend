@@ -13,6 +13,43 @@ import {
 import { accounts } from '../../../../identity/infrastructure/persistence/drizzle/identity.schema';
 import { pets } from '../../../../pet-management/infrastructure/persistence/drizzle/pet-management.schema';
 
+export const healthPetMedicalConditions = pgTable(
+  'health_pet_medical_conditions',
+  {
+    id: uuid('id').primaryKey(),
+    petId: uuid('pet_id')
+      .notNull()
+      .references(() => pets.id, { onDelete: 'restrict' }),
+    name: varchar('name', { length: 255 }).notNull(),
+    status: text('status').notNull().default('ACTIVE'),
+    diagnosedDate: date('diagnosed_date', { mode: 'string' }),
+    notes: varchar('notes', { length: 2000 }),
+    recordedByAccountId: uuid('recorded_by_account_id')
+      .notNull()
+      .references(() => accounts.id, { onDelete: 'restrict' }),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    check(
+      'health_pet_medical_conditions_name_not_empty',
+      sql`btrim(${table.name}) <> ''`,
+    ),
+    check(
+      'health_pet_medical_conditions_status_supported',
+      sql`${table.status} in ('ACTIVE', 'RESOLVED')`,
+    ),
+    check(
+      'health_pet_medical_conditions_notes_not_empty',
+      sql`${table.notes} is null or btrim(${table.notes}) <> ''`,
+    ),
+  ],
+);
+
 export const healthWeightRecords = pgTable(
   'health_weight_records',
   {

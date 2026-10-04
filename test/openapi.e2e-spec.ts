@@ -38,7 +38,7 @@ describe('OpenAPI documentation (e2e)', () => {
     await application.close();
   });
 
-  it('serves Swagger UI and documents all twenty-nine operations and their contracts', async () => {
+  it('serves Swagger UI and documents all thirty operations and their contracts', async () => {
     const htmlResponse = await request(application.getHttpServer())
       .get('/docs')
       .expect(200);
@@ -68,6 +68,7 @@ describe('OpenAPI documentation (e2e)', () => {
       ['/pets/{petId}/leave', 'post'],
       ['/pets/{petId}/archive', 'post'],
       ['/pets/{petId}/restore', 'post'],
+      ['/pets/{petId}/health/medical-conditions', 'post'],
       ['/pets/{petId}/health/allergies', 'post'],
       ['/pets/{petId}/health/allergies', 'get'],
       ['/pets/{petId}/health/allergies/{allergyId}', 'patch'],
@@ -106,7 +107,115 @@ describe('OpenAPI documentation (e2e)', () => {
           Number(Boolean(path?.delete)),
         0,
       ),
-    ).toBe(29);
+    ).toBe(30);
+
+    const medicalCondition: OperationObject | undefined =
+      document.paths['/pets/{petId}/health/medical-conditions']?.post;
+    expect(medicalCondition?.security).toEqual([{ bearer: [] }]);
+    expect(Object.keys(medicalCondition?.responses ?? {}).sort()).toEqual([
+      '201',
+      '400',
+      '401',
+      '404',
+    ]);
+    expect(medicalCondition?.parameters).toEqual([
+      expect.objectContaining({
+        name: 'petId',
+        in: 'path',
+        required: true,
+        schema: { type: 'string', format: 'uuid' },
+      }),
+    ]);
+    const medicalConditionRequest = (
+      medicalCondition?.requestBody as {
+        content: { 'application/json': { schema: SchemaObject } };
+      }
+    ).content['application/json'].schema;
+    expect(medicalConditionRequest).toMatchObject({
+      type: 'object',
+      additionalProperties: false,
+      required: ['name'],
+    });
+    expect(
+      Object.keys(medicalConditionRequest.properties ?? {}).sort(),
+    ).toEqual(['diagnosedDate', 'name', 'notes']);
+    expect(medicalConditionRequest.properties?.name).toMatchObject({
+      type: 'string',
+      minLength: 1,
+      maxLength: 255,
+    });
+    expect(medicalConditionRequest.properties?.name).not.toHaveProperty(
+      'nullable',
+      true,
+    );
+    expect(medicalConditionRequest.properties?.diagnosedDate).toMatchObject({
+      type: 'string',
+      format: 'date',
+      nullable: true,
+    });
+    expect(medicalConditionRequest.properties?.notes).toMatchObject({
+      type: 'string',
+      nullable: true,
+      minLength: 1,
+      maxLength: 2000,
+    });
+    const medicalConditionResponse = responseSchema(medicalCondition, '201');
+    expect(medicalConditionResponse?.additionalProperties).toBe(false);
+    expect(medicalConditionResponse?.required).toEqual([
+      'id',
+      'petId',
+      'name',
+      'status',
+      'diagnosedDate',
+      'notes',
+      'recordedByAccountId',
+    ]);
+    expect(
+      Object.keys(medicalConditionResponse?.properties ?? {}).sort(),
+    ).toEqual([
+      'diagnosedDate',
+      'id',
+      'name',
+      'notes',
+      'petId',
+      'recordedByAccountId',
+      'status',
+    ]);
+    expect(medicalConditionResponse?.properties?.status).toMatchObject({
+      enum: ['ACTIVE'],
+    });
+    expect(medicalConditionResponse?.properties?.diagnosedDate).toMatchObject({
+      format: 'date',
+      nullable: true,
+    });
+    expect(medicalConditionResponse?.properties?.notes).toMatchObject({
+      nullable: true,
+      maxLength: 2000,
+    });
+    for (const field of ['id', 'petId', 'recordedByAccountId'])
+      expect(medicalConditionResponse?.properties?.[field]).toMatchObject({
+        type: 'string',
+        format: 'uuid',
+      });
+    for (const code of [
+      'INVALID_REQUEST',
+      'INVALID_MEDICAL_CONDITION_NAME',
+      'INVALID_MEDICAL_CONDITION_DIAGNOSED_DATE',
+      'INVALID_MEDICAL_CONDITION_NOTES',
+    ])
+      expect(JSON.stringify(responseSchema(medicalCondition, '400'))).toContain(
+        code,
+      );
+    expect(JSON.stringify(responseSchema(medicalCondition, '401'))).toContain(
+      'UNAUTHENTICATED',
+    );
+    expect(JSON.stringify(responseSchema(medicalCondition, '404'))).toContain(
+      'PET_NOT_FOUND',
+    );
+    for (const method of ['get', 'patch', 'delete'] as const)
+      expect(
+        document.paths['/pets/{petId}/health/medical-conditions']?.[method],
+      ).toBeUndefined();
 
     const allergyUpdate: OperationObject | undefined =
       document.paths['/pets/{petId}/health/allergies/{allergyId}']?.patch;
