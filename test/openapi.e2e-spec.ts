@@ -38,7 +38,7 @@ describe('OpenAPI documentation (e2e)', () => {
     await application.close();
   });
 
-  it('serves Swagger UI and documents all twenty-eight operations and their contracts', async () => {
+  it('serves Swagger UI and documents all twenty-nine operations and their contracts', async () => {
     const htmlResponse = await request(application.getHttpServer())
       .get('/docs')
       .expect(200);
@@ -71,6 +71,7 @@ describe('OpenAPI documentation (e2e)', () => {
       ['/pets/{petId}/health/allergies', 'post'],
       ['/pets/{petId}/health/allergies', 'get'],
       ['/pets/{petId}/health/allergies/{allergyId}', 'patch'],
+      ['/pets/{petId}/health/allergies/{allergyId}', 'delete'],
       ['/pets/{petId}/health/weight-records', 'post'],
       ['/pets/{petId}/health/weight-records', 'get'],
       ['/pets/{petId}/health/weight-records/{weightRecordId}', 'patch'],
@@ -105,7 +106,7 @@ describe('OpenAPI documentation (e2e)', () => {
           Number(Boolean(path?.delete)),
         0,
       ),
-    ).toBe(28);
+    ).toBe(29);
 
     const allergyUpdate: OperationObject | undefined =
       document.paths['/pets/{petId}/health/allergies/{allergyId}']?.patch;
@@ -181,9 +182,37 @@ describe('OpenAPI documentation (e2e)', () => {
         '201',
       ),
     );
-    expect(
-      document.paths['/pets/{petId}/health/allergies/{allergyId}']?.delete,
-    ).toBeUndefined();
+    const allergyDelete: OperationObject | undefined =
+      document.paths['/pets/{petId}/health/allergies/{allergyId}']?.delete;
+    expect(allergyDelete?.security).toEqual([{ bearer: [] }]);
+    expect(Object.keys(allergyDelete?.responses ?? {}).sort()).toEqual([
+      '204',
+      '400',
+      '401',
+      '404',
+    ]);
+    expect(allergyDelete?.requestBody).toBeUndefined();
+    expect(allergyDelete?.parameters).toEqual(allergyUpdate?.parameters);
+    expect(allergyDelete?.responses['204']).not.toHaveProperty('content');
+    expect(JSON.stringify(responseSchema(allergyDelete, '400'))).toContain(
+      'INVALID_REQUEST',
+    );
+    expect(JSON.stringify(responseSchema(allergyDelete, '401'))).toContain(
+      'UNAUTHENTICATED',
+    );
+    for (const code of ['PET_NOT_FOUND', 'PET_ALLERGY_NOT_FOUND']) {
+      expect(JSON.stringify(responseSchema(allergyDelete, '404'))).toContain(
+        code,
+      );
+    }
+    for (const description of [
+      'Hard delete',
+      'clinical resolution',
+      'Archived pets are read-only',
+      'second DELETE',
+    ]) {
+      expect(allergyDelete?.description).toContain(description);
+    }
 
     const allergy: OperationObject | undefined =
       document.paths['/pets/{petId}/health/allergies']?.post;

@@ -2,6 +2,7 @@ import { INestApplicationContext } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { eq, inArray, sql } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
+import { DeletePetAllergy } from '../../src/health/application/delete-pet-allergy/delete-pet-allergy';
 import { AppModule } from '../../src/app.module';
 import {
   PetNotFoundError,
@@ -561,4 +562,111 @@ describe('UpdatePetAllergy with PostgreSQL (integration)', () => {
       severity: 'SEVERE',
     });
   });
+  function deleteAllergy(
+    allergyId: string,
+    authenticatedAccountId: string = collaboratorId,
+  ): Promise<void> {
+    return application.get(DeletePetAllergy).execute({
+      petId,
+      allergyId,
+      authenticatedAccountId,
+    });
+  }
+
+  it.each([false, true])(
+    'serializes Delete and Update without resurrection, deleteFirst=%s',
+    async (isDeleteFirst: boolean) => {
+      const created = await create();
+      const deletion = (): Promise<void> => deleteAllergy(created.id);
+      const correction = (): Promise<UpdatedPetAllergy> => update(created.id);
+      const [first, second] = await race(
+        isDeleteFirst ? deletion : correction,
+        isDeleteFirst ? correction : deletion,
+      );
+      expect(first.error).toBeUndefined();
+      if (isDeleteFirst) {
+        expect(second.error).toBeInstanceOf(PetAllergyNotFoundError);
+      } else {
+        expect(first.value).toMatchObject({
+          id: created.id,
+          severity: 'SEVERE',
+        });
+        expect(second.error).toBeUndefined();
+      }
+      expect(await physicalRow(created.id)).toBeUndefined();
+    },
+  );
+
+  it('serializes two Deletes into one success and one missing target', async () => {
+    const created = await create();
+    const [first, second] = await race(
+      () => deleteAllergy(created.id, ownerId),
+      () => deleteAllergy(created.id, collaboratorId),
+    );
+    expect(first.error).toBeUndefined();
+    expect(second.error).toBeInstanceOf(PetAllergyNotFoundError);
+    expect(await physicalRow(created.id)).toBeUndefined();
+  });
+
+  it.each(['archive', 'leave', 'remove'] as const)(
+    'denies Delete after %s wins the Pet lock',
+    async (action: AccessChange) => {
+      const created = await create();
+      const before = await physicalRow(created.id);
+      const [change, deletion] = await race(
+        () => changeAccess(action),
+        () => deleteAllergy(created.id),
+      );
+      expect(change.error).toBeUndefined();
+      expect(deletion.error).toBeInstanceOf(PetNotFoundError);
+      expect(await physicalRow(created.id)).toEqual(before);
+      if (action === 'archive') {
+        const listed = await application.get(ListPetAllergies).execute({
+          petId,
+          authenticatedAccountId: ownerId,
+        });
+        expect(listed.items).toEqual([
+          expect.objectContaining({ id: created.id }),
+        ]);
+      }
+    },
+  );
+
+  it.each(['archive', 'leave', 'remove'] as const)(
+    'confirms Delete before %s changes access',
+    async (action: AccessChange) => {
+      const created = await create();
+      const [deletion, change] = await race(
+        () => deleteAllergy(created.id),
+        () => changeAccess(action),
+      );
+      expect(deletion.error).toBeUndefined();
+      expect(change.error).toBeUndefined();
+      expect(await physicalRow(created.id)).toBeUndefined();
+    },
+  );
+
+  it.each([false, true])(
+    'observes archived state without retry when racing Restore, deleteFirst=%s',
+    async (isDeleteFirst: boolean) => {
+      const created = await create();
+      await changeAccess('archive');
+      const before = await physicalRow(created.id);
+      const deletion = (): Promise<void> => deleteAllergy(created.id);
+      const restoration = (): Promise<void> => changeAccess('restore');
+      const [first, second] = await race(
+        isDeleteFirst ? deletion : restoration,
+        isDeleteFirst ? restoration : deletion,
+      );
+      if (isDeleteFirst) {
+        expect(first.error).toBeInstanceOf(PetNotFoundError);
+        expect(second.error).toBeUndefined();
+        expect(await physicalRow(created.id)).toEqual(before);
+      } else {
+        expect(first.error).toBeUndefined();
+        expect(second.error).toBeUndefined();
+        expect(await physicalRow(created.id)).toBeUndefined();
+      }
+    },
+  );
 });

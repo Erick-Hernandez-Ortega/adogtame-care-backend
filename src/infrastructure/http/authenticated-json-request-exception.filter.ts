@@ -31,7 +31,7 @@ export class AuthenticatedJsonRequestExceptionFilter extends BaseExceptionFilter
     return (
       (request.method === 'POST' &&
         /^\/pets\/[^/]+\/restore\/?$/i.test(request.path)) ||
-      (request.method === 'PATCH' &&
+      ((request.method === 'PATCH' || request.method === 'DELETE') &&
         /^\/pets\/[^/]+\/health\/allergies\/[^/]+\/?$/i.test(request.path))
     );
   }

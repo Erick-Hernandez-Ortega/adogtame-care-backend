@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { DeletePetAllergy } from '../application/delete-pet-allergy/delete-pet-allergy';
 import { UpdatePetAllergy } from '../application/update-pet-allergy/update-pet-allergy';
 import { ListPetAllergies } from '../application/list-pet-allergies/list-pet-allergies';
 import {
@@ -55,6 +56,12 @@ import { DrizzleVaccinationHistoryReader } from './persistence/drizzle/drizzle-v
     PetAllergiesController,
   ],
   providers: [
+    {
+      provide: DeletePetAllergy,
+      inject: [PET_ALLERGY_REPOSITORY],
+      useFactory: (repository: PetAllergyRepository): DeletePetAllergy =>
+        new DeletePetAllergy(repository),
+    },
     {
       provide: UpdatePetAllergy,
       inject: [PET_ALLERGY_REPOSITORY],

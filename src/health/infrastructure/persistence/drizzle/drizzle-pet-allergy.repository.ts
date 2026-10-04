@@ -7,6 +7,8 @@ import {
 } from '../../../../pet-management/infrastructure/persistence/drizzle/pet-management.schema';
 import type {
   CreatePetAllergyOutcome,
+  DeletePetAllergyOutcome,
+  PetAllergyAccess,
   PetAllergyCorrection,
   UpdatePetAllergyOutcome,
   PetAllergyRepository,
@@ -136,6 +138,62 @@ export class DrizzlePetAllergyRepository implements PetAllergyRepository {
             ),
           );
         return { status: 'UPDATED', allergy: corrected };
+      },
+      { isolationLevel: 'read committed' },
+    );
+  }
+
+  async deleteIfPetWritable(
+    access: PetAllergyAccess,
+  ): Promise<DeletePetAllergyOutcome> {
+    return this.databaseService.connection.transaction(
+      async (transaction): Promise<DeletePetAllergyOutcome> => {
+        const petRows = await transaction
+          .select({ status: pets.status })
+          .from(pets)
+          .where(eq(pets.id, access.petId))
+          .for('update');
+        if (petRows[0]?.status !== 'ACTIVE') return 'PET_NOT_FOUND';
+
+        const membershipRows = await transaction
+          .select({ role: petMemberships.role, status: petMemberships.status })
+          .from(petMemberships)
+          .where(
+            and(
+              eq(petMemberships.petId, access.petId),
+              eq(petMemberships.accountId, access.authenticatedAccountId),
+            ),
+          )
+          .for('update');
+        const membership = membershipRows[0];
+        if (
+          membership?.status !== 'ACTIVE' ||
+          (membership.role !== 'OWNER' && membership.role !== 'COLLABORATOR')
+        ) {
+          return 'PET_NOT_FOUND';
+        }
+
+        const allergyRows = await transaction
+          .select({ id: healthPetAllergies.id })
+          .from(healthPetAllergies)
+          .where(
+            and(
+              eq(healthPetAllergies.id, access.allergyId),
+              eq(healthPetAllergies.petId, access.petId),
+            ),
+          )
+          .for('update');
+        if (allergyRows.length === 0) return 'PET_ALLERGY_NOT_FOUND';
+        const deletedRows = await transaction
+          .delete(healthPetAllergies)
+          .where(
+            and(
+              eq(healthPetAllergies.id, access.allergyId),
+              eq(healthPetAllergies.petId, access.petId),
+            ),
+          )
+          .returning({ id: healthPetAllergies.id });
+        return deletedRows.length === 0 ? 'PET_ALLERGY_NOT_FOUND' : 'DELETED';
       },
       { isolationLevel: 'read committed' },
     );

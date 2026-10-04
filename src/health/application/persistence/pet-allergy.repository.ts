@@ -5,6 +5,15 @@ export const PET_ALLERGY_REPOSITORY: unique symbol = Symbol(
 );
 export type CreatePetAllergyOutcome = 'CREATED' | 'PET_NOT_FOUND';
 
+export interface PetAllergyAccess {
+  petId: string;
+  allergyId: string;
+  authenticatedAccountId: string;
+}
+
+export type DeletePetAllergyOutcome =
+  'DELETED' | 'PET_NOT_FOUND' | 'PET_ALLERGY_NOT_FOUND';
+
 export interface PetAllergyCorrection {
   petId: string;
   allergyId: string;
@@ -21,6 +30,9 @@ export type UpdatePetAllergyOutcome =
   | { status: 'PET_ALLERGY_NOT_FOUND' };
 
 export interface PetAllergyRepository {
+  deleteIfPetWritable(
+    access: PetAllergyAccess,
+  ): Promise<DeletePetAllergyOutcome>;
   correctIfPetWritable(
     correction: PetAllergyCorrection,
   ): Promise<UpdatePetAllergyOutcome>;

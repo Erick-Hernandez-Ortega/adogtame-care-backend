@@ -47,6 +47,7 @@ function setup(outcome?: UpdatePetAllergyOutcome) {
     });
   const repository: PetAllergyRepository = {
     createIfPetWritable: jest.fn(),
+    deleteIfPetWritable: jest.fn(),
     correctIfPetWritable,
   };
   const command: UpdatePetAllergyCommand = {

@@ -3,6 +3,9 @@ import {
   Body,
   Controller,
   Get,
+  Delete,
+  HttpCode,
+  HttpStatus,
   NotFoundException,
   Param,
   Patch,
@@ -18,6 +21,8 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { DeletePetAllergy } from '../../../application/delete-pet-allergy/delete-pet-allergy';
+import { deletePetAllergySchema } from '../schemas/delete-pet-allergy.schema';
 import { AuthenticationGuard } from '../../../../identity/infrastructure/http/authentication/authentication.guard';
 import { CurrentAccountId } from '../../../../identity/infrastructure/http/decorators/current-account-id.decorator';
 import { errorSchema } from '../../../../infrastructure/http/openapi-error.schema';
@@ -66,6 +71,7 @@ export class PetAllergiesController {
     private readonly recordPetAllergy: RecordPetAllergy,
     private readonly listPetAllergies: ListPetAllergies,
     private readonly updatePetAllergy: UpdatePetAllergy,
+    private readonly deletePetAllergy: DeletePetAllergy,
   ) {}
 
   @Get()
@@ -304,6 +310,95 @@ export class PetAllergiesController {
           message: error.message,
         });
       this.rethrowCorrectionError(error);
+    }
+  }
+
+  @Delete(':allergyId')
+  @UseGuards(AuthenticationGuard)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary: 'Delete an erroneous pet allergy record',
+    description:
+      'Hard delete corrects an erroneous record; it does not represent clinical resolution, cure, or tolerance. Active owners and collaborators may delete records on active pets regardless of original authorship. Archived pets are read-only. A second DELETE returns PET_ALLERGY_NOT_FOUND. No query parameters or functional body are accepted; an absent body or empty JSON object is valid.',
+  })
+  @ApiParam({
+    name: 'petId',
+    description: 'Non-nil pet UUID',
+    schema: { type: 'string', format: 'uuid' },
+  })
+  @ApiParam({
+    name: 'allergyId',
+    description: 'Non-nil allergy UUID',
+    schema: { type: 'string', format: 'uuid' },
+  })
+  @ApiResponse({
+    status: 204,
+    description: 'Pet allergy record permanently deleted',
+  })
+  @ApiResponse({
+    status: 400,
+    description:
+      'Invalid path, unexpected query parameters, or nonempty/invalid JSON body',
+    schema: errorSchema(['INVALID_REQUEST'], 'Request body is invalid'),
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Missing or invalid Bearer token',
+    schema: errorSchema(['UNAUTHENTICATED'], 'Authentication is required'),
+  })
+  @ApiResponse({
+    status: 404,
+    description:
+      'Pet missing, archived, or inaccessible; or allergy missing from an authorized pet',
+    schema: {
+      oneOf: [
+        errorSchema(['PET_NOT_FOUND'], 'Pet was not found'),
+        errorSchema(['PET_ALLERGY_NOT_FOUND'], 'Pet allergy was not found'),
+      ],
+    },
+  })
+  async delete(
+    @CurrentAccountId() authenticatedAccountId: string,
+    @Param('petId') petId: string,
+    @Param('allergyId') allergyId: string,
+    @Query() query: unknown,
+    @Body() body: unknown,
+  ): Promise<void> {
+    const parsedPetId = allergyPetIdSchema.safeParse(petId);
+    const parsedAllergyId = allergyIdSchema.safeParse(allergyId);
+    if (!parsedPetId.success || !parsedAllergyId.success)
+      throw new BadRequestException({
+        code: 'INVALID_REQUEST',
+        message: 'Request path is invalid',
+      });
+    if (!listPetAllergiesQuerySchema.safeParse(query).success)
+      throw new BadRequestException({
+        code: 'INVALID_REQUEST',
+        message: 'Request query is invalid',
+      });
+    if (body !== undefined && !deletePetAllergySchema.safeParse(body).success)
+      throw new BadRequestException({
+        code: 'INVALID_REQUEST',
+        message: 'Request body is invalid',
+      });
+    try {
+      await this.deletePetAllergy.execute({
+        petId: parsedPetId.data,
+        allergyId: parsedAllergyId.data,
+        authenticatedAccountId,
+      });
+    } catch (error: unknown) {
+      if (error instanceof PetAllergyNotFoundError)
+        throw new NotFoundException({
+          code: 'PET_ALLERGY_NOT_FOUND',
+          message: error.message,
+        });
+      if (error instanceof PetNotFoundError)
+        throw new NotFoundException({
+          code: 'PET_NOT_FOUND',
+          message: error.message,
+        });
+      throw error;
     }
   }
 
