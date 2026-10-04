@@ -38,7 +38,7 @@ describe('OpenAPI documentation (e2e)', () => {
     await application.close();
   });
 
-  it('serves Swagger UI and documents all twenty-six operations and their contracts', async () => {
+  it('serves Swagger UI and documents all twenty-seven operations and their contracts', async () => {
     const htmlResponse = await request(application.getHttpServer())
       .get('/docs')
       .expect(200);
@@ -69,6 +69,7 @@ describe('OpenAPI documentation (e2e)', () => {
       ['/pets/{petId}/archive', 'post'],
       ['/pets/{petId}/restore', 'post'],
       ['/pets/{petId}/health/allergies', 'post'],
+      ['/pets/{petId}/health/allergies', 'get'],
       ['/pets/{petId}/health/weight-records', 'post'],
       ['/pets/{petId}/health/weight-records', 'get'],
       ['/pets/{petId}/health/weight-records/{weightRecordId}', 'patch'],
@@ -103,7 +104,7 @@ describe('OpenAPI documentation (e2e)', () => {
           Number(Boolean(path?.delete)),
         0,
       ),
-    ).toBe(26);
+    ).toBe(27);
 
     const allergy: OperationObject | undefined =
       document.paths['/pets/{petId}/health/allergies']?.post;
@@ -184,9 +185,74 @@ describe('OpenAPI documentation (e2e)', () => {
     expect(JSON.stringify(responseSchema(allergy, '404'))).toContain(
       'PET_NOT_FOUND',
     );
-    expect(
-      document.paths['/pets/{petId}/health/allergies']?.get,
-    ).toBeUndefined();
+    const allergyList: OperationObject | undefined =
+      document.paths['/pets/{petId}/health/allergies']?.get;
+    expect(Object.keys(allergyList?.responses ?? {}).sort()).toEqual([
+      '200',
+      '400',
+      '401',
+      '404',
+    ]);
+    expect(allergyList?.security).toEqual([{ bearer: [] }]);
+    expect(allergyList?.requestBody).toBeUndefined();
+    expect(allergyList?.parameters).toEqual([
+      {
+        name: 'petId',
+        in: 'path',
+        required: true,
+        description: 'Non-nil pet UUID',
+        schema: { type: 'string', format: 'uuid' },
+      },
+    ]);
+    const allergyListResponse: SchemaObject | undefined = responseSchema(
+      allergyList,
+      '200',
+    );
+    expect(allergyListResponse?.required).toEqual(['items']);
+    expect(Object.keys(allergyListResponse?.properties ?? {})).toEqual([
+      'items',
+    ]);
+    const allergyListItems: SchemaObject = allergyListResponse?.properties
+      ?.items as SchemaObject;
+    expect(allergyListItems.type).toBe('array');
+    const allergyListItem: SchemaObject =
+      allergyListItems.items as SchemaObject;
+    expect(allergyListItem.required).toEqual([
+      'id',
+      'allergen',
+      'category',
+      'severity',
+      'notes',
+      'recordedByAccountId',
+    ]);
+    expect(Object.keys(allergyListItem.properties ?? {}).sort()).toEqual([
+      'allergen',
+      'category',
+      'id',
+      'notes',
+      'recordedByAccountId',
+      'severity',
+    ]);
+    expect(allergyListItem.properties?.category).toMatchObject({
+      enum: ['FOOD', 'MEDICATION', 'ENVIRONMENTAL', 'OTHER'],
+    });
+    expect(allergyListItem.properties?.severity).toMatchObject({
+      enum: ['MILD', 'MODERATE', 'SEVERE', 'UNKNOWN'],
+    });
+    expect(allergyListItem.properties?.notes).toMatchObject({
+      type: 'string',
+      nullable: true,
+      maxLength: 2000,
+    });
+    for (const [status, code] of [
+      ['400', 'INVALID_REQUEST'],
+      ['401', 'UNAUTHENTICATED'],
+      ['404', 'PET_NOT_FOUND'],
+    ]) {
+      expect(JSON.stringify(responseSchema(allergyList, status))).toContain(
+        code,
+      );
+    }
     expect(
       document.paths['/pets/{petId}/health/allergies']?.patch,
     ).toBeUndefined();

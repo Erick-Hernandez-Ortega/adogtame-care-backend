@@ -106,6 +106,7 @@ export const healthPetAllergies = pgTable(
       .defaultNow(),
   },
   (table) => [
+    index('health_pet_allergies_pet_idx').on(table.petId),
     check(
       'health_pet_allergies_allergen_not_empty',
       sql`btrim(${table.allergen}) <> ''`,

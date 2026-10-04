@@ -203,3 +203,37 @@ export const recordedPetAllergyResponseSchema: SchemaObject = {
     recordedByAccountId: { type: 'string', format: 'uuid' },
   },
 };
+
+export const petAllergiesResponseSchema: SchemaObject = {
+  type: 'object',
+  required: ['items'],
+  properties: {
+    items: {
+      type: 'array',
+      items: {
+        type: 'object',
+        required: [
+          'id',
+          'allergen',
+          'category',
+          'severity',
+          'notes',
+          'recordedByAccountId',
+        ],
+        properties: {
+          id: { type: 'string', format: 'uuid' },
+          allergen: { type: 'string', minLength: 1, maxLength: 255 },
+          category: { type: 'string', enum: Object.values(AllergyCategory) },
+          severity: { type: 'string', enum: Object.values(AllergySeverity) },
+          notes: {
+            type: 'string',
+            nullable: true,
+            minLength: 1,
+            maxLength: 2000,
+          },
+          recordedByAccountId: { type: 'string', format: 'uuid' },
+        },
+      },
+    },
+  },
+};
