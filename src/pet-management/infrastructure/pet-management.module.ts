@@ -1,5 +1,3 @@
-import { APP_FILTER } from '@nestjs/core';
-import { RestoreRequestExceptionFilter } from './http/filters/restore-request-exception.filter';
 import { RestorePet } from '../application/restore-pet/restore-pet';
 import { ArchivePet } from '../application/archive-pet/archive-pet';
 import { RemovePetMember } from '../application/remove-pet-member/remove-pet-member';
@@ -44,7 +42,6 @@ import { DrizzlePetRepository } from './persistence/drizzle/drizzle-pet.reposito
   imports: [DatabaseModule, IdentityModule],
   controllers: [PetsController, PetInvitationsController],
   providers: [
-    { provide: APP_FILTER, useClass: RestoreRequestExceptionFilter },
     {
       provide: RestorePet,
       inject: [PET_REPOSITORY],

@@ -75,6 +75,29 @@ export class InvalidAllergyNotesValueError extends TypeError {
   }
 }
 
+export class InvalidAllergenValueError extends TypeError {
+  constructor(cause: TypeError | RangeError) {
+    super(cause.message, { cause });
+  }
+}
+
+interface ReconstitutePetAllergyInput extends CreatePetAllergyInput {
+  id: PetAllergyId;
+}
+
+interface CorrectPetAllergyInput {
+  allergen?: string;
+  category?: string;
+  severity?: string;
+  notes?: string | null;
+}
+
+interface ValidatedPetAllergyInformation {
+  category: AllergyCategory;
+  severity: AllergySeverity;
+  notes: string | null;
+}
+
 interface CreatePetAllergyInput {
   petId: PetId;
   allergen: Allergen;
@@ -96,6 +119,77 @@ export class PetAllergy {
   ) {}
 
   static create(input: CreatePetAllergyInput): PetAllergy {
+    const { category, severity, notes } = PetAllergy.validate(input);
+    return new PetAllergy(
+      PetAllergyId.generate(),
+      input.petId,
+      input.allergen,
+      category,
+      severity,
+      notes,
+      input.recordedByAccountId,
+    );
+  }
+
+  static reconstitute(input: ReconstitutePetAllergyInput): PetAllergy {
+    if (!(input.id instanceof PetAllergyId)) {
+      throw new TypeError('Pet allergy data is invalid');
+    }
+    const { category, severity, notes } = PetAllergy.validate(input);
+    return new PetAllergy(
+      input.id,
+      input.petId,
+      input.allergen,
+      category,
+      severity,
+      notes,
+      input.recordedByAccountId,
+    );
+  }
+
+  correct(input: CorrectPetAllergyInput): PetAllergy {
+    if (
+      input.allergen === undefined &&
+      input.category === undefined &&
+      input.severity === undefined &&
+      input.notes === undefined
+    ) {
+      throw new TypeError('Pet allergy correction is invalid');
+    }
+    let allergen: Allergen = this.allergen;
+    if (input.allergen !== undefined) {
+      try {
+        allergen = Allergen.from(input.allergen);
+      } catch (error: unknown) {
+        if (error instanceof TypeError || error instanceof RangeError) {
+          throw new InvalidAllergenValueError(error);
+        }
+        throw error;
+      }
+    }
+    const candidate: PetAllergy = PetAllergy.reconstitute({
+      id: this.id,
+      petId: this.petId,
+      allergen,
+      category: input.category === undefined ? this.category : input.category,
+      severity: input.severity === undefined ? this.severity : input.severity,
+      notes: input.notes === undefined ? this.notes : input.notes,
+      recordedByAccountId: this.recordedByAccountId,
+    });
+    if (
+      candidate.allergen.value === this.allergen.value &&
+      candidate.category === this.category &&
+      candidate.severity === this.severity &&
+      candidate.notes === this.notes
+    ) {
+      return this;
+    }
+    return candidate;
+  }
+
+  private static validate(
+    input: CreatePetAllergyInput,
+  ): ValidatedPetAllergyInformation {
     if (
       !(input.petId instanceof PetId) ||
       !(input.allergen instanceof Allergen) ||
@@ -106,15 +200,7 @@ export class PetAllergy {
     const category: AllergyCategory = PetAllergy.category(input.category);
     const severity: AllergySeverity = PetAllergy.severity(input.severity);
     const notes: string | null = PetAllergy.notes(input.notes);
-    return new PetAllergy(
-      PetAllergyId.generate(),
-      input.petId,
-      input.allergen,
-      category,
-      severity,
-      notes,
-      input.recordedByAccountId,
-    );
+    return { category, severity, notes };
   }
 
   private static category(value: string): AllergyCategory {

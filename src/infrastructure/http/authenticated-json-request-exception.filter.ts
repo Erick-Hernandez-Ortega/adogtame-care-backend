@@ -2,10 +2,10 @@ import { ArgumentsHost, BadRequestException, Catch } from '@nestjs/common';
 import { BaseExceptionFilter, HttpAdapterHost } from '@nestjs/core';
 import { ExecutionContextHost } from '@nestjs/core/helpers/execution-context-host';
 import type { Request } from 'express';
-import { AuthenticationGuard } from '../../../../identity/infrastructure/http/authentication/authentication.guard';
+import { AuthenticationGuard } from '../../identity/infrastructure/http/authentication/authentication.guard';
 
 @Catch(BadRequestException)
-export class RestoreRequestExceptionFilter extends BaseExceptionFilter<unknown> {
+export class AuthenticatedJsonRequestExceptionFilter extends BaseExceptionFilter<unknown> {
   constructor(
     adapterHost: HttpAdapterHost,
     private readonly authenticationGuard: AuthenticationGuard,
@@ -17,8 +17,7 @@ export class RestoreRequestExceptionFilter extends BaseExceptionFilter<unknown> 
     const request: Request = host.switchToHttp().getRequest<Request>();
     const response: string | object = exception.getResponse();
     if (
-      request.method !== 'POST' ||
-      !/^\/pets\/[^/]+\/restore\/?$/i.test(request.path) ||
+      !this.hasAuthenticationFirstParserContract(request) ||
       (typeof response === 'object' && 'code' in response)
     ) {
       super.catch(exception, host);
@@ -28,8 +27,17 @@ export class RestoreRequestExceptionFilter extends BaseExceptionFilter<unknown> 
     void this.rejectParserFailure(host);
   }
 
+  private hasAuthenticationFirstParserContract(request: Request): boolean {
+    return (
+      (request.method === 'POST' &&
+        /^\/pets\/[^/]+\/restore\/?$/i.test(request.path)) ||
+      (request.method === 'PATCH' &&
+        /^\/pets\/[^/]+\/health\/allergies\/[^/]+\/?$/i.test(request.path))
+    );
+  }
+
   private async rejectParserFailure(host: ArgumentsHost): Promise<void> {
-    // JSON parser failures precede route guards; retain Restore's authentication precedence.
+    // JSON parser failures precede route guards; these routes require authentication first.
     try {
       await this.authenticationGuard.canActivate(
         new ExecutionContextHost(host.getArgs<unknown[]>()),

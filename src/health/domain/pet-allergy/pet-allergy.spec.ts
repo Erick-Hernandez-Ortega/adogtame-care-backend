@@ -6,6 +6,7 @@ import {
   RecordedByAccountId,
   AllergyCategory,
   AllergySeverity,
+  InvalidAllergenValueError,
   InvalidAllergyCategoryValueError,
   InvalidAllergySeverityValueError,
   InvalidAllergyNotesValueError,
@@ -115,4 +116,108 @@ describe('PetAllergy', () => {
       expect(() => PetAllergyId.from(value)).toThrow(TypeError);
     },
   );
+});
+
+describe('PetAllergy correction', () => {
+  function current(): PetAllergy {
+    return PetAllergy.create({ ...input(), notes: 'Original notes' });
+  }
+  it('reconstitutes the same persistent identity without generating a new one', () => {
+    const allergy: PetAllergy = current();
+    const restored: PetAllergy = PetAllergy.reconstitute({ ...allergy });
+    expect(restored).toEqual(allergy);
+    expect(() =>
+      PetAllergy.reconstitute({
+        ...allergy,
+        id: 'bad' as unknown as PetAllergyId,
+      }),
+    ).toThrow(TypeError);
+    expect(() =>
+      PetAllergy.reconstitute({ ...allergy, category: 'bad' }),
+    ).toThrow(InvalidAllergyCategoryValueError);
+  });
+  it.each([
+    [{ allergen: '  Penicillin  ' }, { allergen: Allergen.from('Penicillin') }],
+    [{ category: 'OTHER' }, { category: 'OTHER' }],
+    [{ severity: 'SEVERE' }, { severity: 'SEVERE' }],
+    [{ notes: '  Corrected notes  ' }, { notes: 'Corrected notes' }],
+    [{ notes: null }, { notes: null }],
+    [
+      { allergen: '🐕'.repeat(255), notes: '🐕'.repeat(2000) },
+      { allergen: Allergen.from('🐕'.repeat(255)), notes: '🐕'.repeat(2000) },
+    ],
+    [
+      {
+        allergen: 'Penicillin',
+        category: 'MEDICATION',
+        severity: 'MODERATE',
+        notes: null,
+      },
+      {
+        allergen: Allergen.from('Penicillin'),
+        category: 'MEDICATION',
+        severity: 'MODERATE',
+        notes: null,
+      },
+    ],
+  ])(
+    'corrects %j while preserving all omitted data and identity',
+    (patch, expected) => {
+      const allergy: PetAllergy = current();
+      const before: PetAllergy = PetAllergy.reconstitute({ ...allergy });
+      const corrected: PetAllergy = allergy.correct(patch);
+      expect(corrected).toEqual({ ...allergy, ...expected });
+      expect(allergy).toEqual(before);
+      expect(corrected.id.value).toBe(allergy.id.value);
+      expect(corrected.petId.value).toBe(allergy.petId.value);
+      expect(corrected.recordedByAccountId.value).toBe(
+        allergy.recordedByAccountId.value,
+      );
+    },
+  );
+  it.each([
+    [{ allergen: '' }, InvalidAllergenValueError],
+    [{ allergen: ' ' }, InvalidAllergenValueError],
+    [{ allergen: '🐕'.repeat(256) }, InvalidAllergenValueError],
+    [{ allergen: null as unknown as string }, InvalidAllergenValueError],
+    [{ category: ' FOOD ' }, InvalidAllergyCategoryValueError],
+    [{ category: null as unknown as string }, InvalidAllergyCategoryValueError],
+    [{ severity: 'critical' }, InvalidAllergySeverityValueError],
+    [{ severity: null as unknown as string }, InvalidAllergySeverityValueError],
+    [{ notes: ' ' }, InvalidAllergyNotesValueError],
+    [{ notes: '🐕'.repeat(2001) }, InvalidAllergyNotesValueError],
+    [{ notes: 1 as unknown as string }, InvalidAllergyNotesValueError],
+    [
+      { allergen: 'Penicillin', category: 'MEDICATION', notes: '' },
+      InvalidAllergyNotesValueError,
+    ],
+    [{}, TypeError],
+  ])(
+    'rejects invalid correction %j without mutating the original',
+    (patch, errorClass) => {
+      const allergy: PetAllergy = current();
+      const before: PetAllergy = PetAllergy.reconstitute({ ...allergy });
+      expect(() => allergy.correct(patch)).toThrow(errorClass);
+      expect(allergy).toEqual(before);
+    },
+  );
+  it('returns the original instance for normalized no-ops', () => {
+    const allergy: PetAllergy = current();
+    for (const patch of [
+      { allergen: '  Chicken  ' },
+      { category: 'FOOD' },
+      { severity: 'UNKNOWN' },
+      { notes: '  Original notes  ' },
+      {
+        allergen: 'Chicken',
+        category: 'FOOD',
+        severity: 'UNKNOWN',
+        notes: 'Original notes',
+      },
+    ]) {
+      expect(allergy.correct(patch)).toBe(allergy);
+    }
+    const withoutNotes: PetAllergy = allergy.correct({ notes: null });
+    expect(withoutNotes.correct({ notes: null })).toBe(withoutNotes);
+  });
 });

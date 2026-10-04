@@ -237,3 +237,21 @@ export const petAllergiesResponseSchema: SchemaObject = {
     },
   },
 };
+
+export const updatePetAllergyRequestSchema: SchemaObject = {
+  type: 'object',
+  additionalProperties: false,
+  minProperties: 1,
+  properties: {
+    ...recordPetAllergyRequestSchema.properties,
+    notes: {
+      type: 'string',
+      nullable: true,
+      minLength: 1,
+      maxLength: 2000,
+      description:
+        'Omit to preserve current notes; send null to clear them. Text is trimmed and must remain nonempty.',
+    },
+  },
+  example: { severity: 'SEVERE', notes: null },
+};

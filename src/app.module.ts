@@ -1,4 +1,6 @@
 import { Module } from '@nestjs/common';
+import { APP_FILTER } from '@nestjs/core';
+import { AuthenticatedJsonRequestExceptionFilter } from './infrastructure/http/authenticated-json-request-exception.filter';
 import { ConfigModule } from '@nestjs/config';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -21,6 +23,9 @@ import { PetManagementModule } from './pet-management/infrastructure/pet-managem
     HealthModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [
+    AppService,
+    { provide: APP_FILTER, useClass: AuthenticatedJsonRequestExceptionFilter },
+  ],
 })
 export class AppModule {}

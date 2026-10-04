@@ -5,6 +5,7 @@ import {
   Get,
   NotFoundException,
   Param,
+  Patch,
   Post,
   Query,
   UseGuards,
@@ -41,10 +42,21 @@ import {
   type RecordPetAllergyRequest,
 } from '../schemas/record-pet-allergy.schema';
 import {
+  updatePetAllergyRequestSchema,
   recordPetAllergyRequestSchema,
   recordedPetAllergyResponseSchema,
   petAllergiesResponseSchema,
 } from '../schemas/openapi.schemas';
+
+import {
+  UpdatePetAllergy,
+  PetAllergyNotFoundError,
+  type UpdatedPetAllergy,
+} from '../../../application/update-pet-allergy/update-pet-allergy';
+import {
+  allergyIdSchema,
+  updatePetAllergySchema,
+} from '../schemas/update-pet-allergy.schema';
 
 @Controller('pets/:petId/health/allergies')
 @ApiTags('Health')
@@ -53,6 +65,7 @@ export class PetAllergiesController {
   constructor(
     private readonly recordPetAllergy: RecordPetAllergy,
     private readonly listPetAllergies: ListPetAllergies,
+    private readonly updatePetAllergy: UpdatePetAllergy,
   ) {}
 
   @Get()
@@ -190,32 +203,136 @@ export class PetAllergiesController {
         authenticatedAccountId,
       });
     } catch (error: unknown) {
-      if (error instanceof InvalidAllergenError)
-        throw new BadRequestException({
-          code: 'INVALID_ALLERGEN',
-          message: error.message,
-        });
-      if (error instanceof InvalidAllergyCategoryError)
-        throw new BadRequestException({
-          code: 'INVALID_ALLERGY_CATEGORY',
-          message: error.message,
-        });
-      if (error instanceof InvalidAllergySeverityError)
-        throw new BadRequestException({
-          code: 'INVALID_ALLERGY_SEVERITY',
-          message: error.message,
-        });
-      if (error instanceof InvalidAllergyNotesError)
-        throw new BadRequestException({
-          code: 'INVALID_ALLERGY_NOTES',
-          message: error.message,
-        });
-      if (error instanceof PetNotFoundError)
-        throw new NotFoundException({
-          code: 'PET_NOT_FOUND',
-          message: error.message,
-        });
-      throw error;
+      this.rethrowCorrectionError(error);
     }
+  }
+
+  @Patch(':allergyId')
+  @UseGuards(AuthenticationGuard)
+  @ApiOperation({
+    summary: 'Correct a known pet allergy',
+    description:
+      'Active owners and collaborators may correct allergen, category, severity, or notes of the same allergy on an active pet. Omitted fields are preserved; null clears notes. Original identity and recordedByAccountId are preserved. A normalized no-op returns 200 without a physical UPDATE. Pet access and target resolution precede semantic validation. No query parameters are accepted.',
+  })
+  @ApiParam({
+    name: 'petId',
+    description: 'Non-nil pet UUID',
+    schema: { type: 'string', format: 'uuid' },
+  })
+  @ApiParam({
+    name: 'allergyId',
+    description: 'Non-nil allergy UUID',
+    schema: { type: 'string', format: 'uuid' },
+  })
+  @ApiBody({ schema: updatePetAllergyRequestSchema })
+  @ApiResponse({
+    status: 200,
+    description: 'Corrected or unchanged pet allergy with original authorship',
+    schema: recordedPetAllergyResponseSchema,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid path, body, query, or clinical values',
+    schema: {
+      oneOf: [
+        errorSchema(['INVALID_REQUEST'], 'Request body is invalid'),
+        errorSchema(['INVALID_ALLERGEN'], 'Allergen cannot be empty'),
+        errorSchema(
+          ['INVALID_ALLERGY_CATEGORY'],
+          'Allergy category must be FOOD, MEDICATION, ENVIRONMENTAL, or OTHER',
+        ),
+        errorSchema(
+          ['INVALID_ALLERGY_SEVERITY'],
+          'Allergy severity must be MILD, MODERATE, SEVERE, or UNKNOWN',
+        ),
+        errorSchema(['INVALID_ALLERGY_NOTES'], 'Allergy notes cannot be empty'),
+      ],
+    },
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Missing or invalid Bearer token',
+    schema: errorSchema(['UNAUTHENTICATED'], 'Authentication is required'),
+  })
+  @ApiResponse({
+    status: 404,
+    description:
+      'Pet missing, archived, or inaccessible; or allergy missing from an authorized pet',
+    schema: {
+      oneOf: [
+        errorSchema(['PET_NOT_FOUND'], 'Pet was not found'),
+        errorSchema(['PET_ALLERGY_NOT_FOUND'], 'Pet allergy was not found'),
+      ],
+    },
+  })
+  async update(
+    @CurrentAccountId() authenticatedAccountId: string,
+    @Param('petId') petId: string,
+    @Param('allergyId') allergyId: string,
+    @Body() body: unknown,
+    @Query() query: unknown,
+  ): Promise<UpdatedPetAllergy> {
+    const parsedPetId = allergyPetIdSchema.safeParse(petId);
+    const parsedAllergyId = allergyIdSchema.safeParse(allergyId);
+    if (!parsedPetId.success || !parsedAllergyId.success)
+      throw new BadRequestException({
+        code: 'INVALID_REQUEST',
+        message: 'Request path is invalid',
+      });
+    const parsedBody = updatePetAllergySchema.safeParse(body);
+    if (!parsedBody.success)
+      throw new BadRequestException({
+        code: 'INVALID_REQUEST',
+        message: 'Request body is invalid',
+      });
+    if (!listPetAllergiesQuerySchema.safeParse(query).success)
+      throw new BadRequestException({
+        code: 'INVALID_REQUEST',
+        message: 'Request query is invalid',
+      });
+    try {
+      return await this.updatePetAllergy.execute({
+        ...parsedBody.data,
+        petId: parsedPetId.data,
+        allergyId: parsedAllergyId.data,
+        authenticatedAccountId,
+      });
+    } catch (error: unknown) {
+      if (error instanceof PetAllergyNotFoundError)
+        throw new NotFoundException({
+          code: 'PET_ALLERGY_NOT_FOUND',
+          message: error.message,
+        });
+      this.rethrowCorrectionError(error);
+    }
+  }
+
+  private rethrowCorrectionError(error: unknown): never {
+    if (error instanceof InvalidAllergenError)
+      throw new BadRequestException({
+        code: 'INVALID_ALLERGEN',
+        message: error.message,
+      });
+    if (error instanceof InvalidAllergyCategoryError)
+      throw new BadRequestException({
+        code: 'INVALID_ALLERGY_CATEGORY',
+        message: error.message,
+      });
+    if (error instanceof InvalidAllergySeverityError)
+      throw new BadRequestException({
+        code: 'INVALID_ALLERGY_SEVERITY',
+        message: error.message,
+      });
+    if (error instanceof InvalidAllergyNotesError)
+      throw new BadRequestException({
+        code: 'INVALID_ALLERGY_NOTES',
+        message: error.message,
+      });
+    if (error instanceof PetNotFoundError)
+      throw new NotFoundException({
+        code: 'PET_NOT_FOUND',
+        message: error.message,
+      });
+    throw error;
   }
 }

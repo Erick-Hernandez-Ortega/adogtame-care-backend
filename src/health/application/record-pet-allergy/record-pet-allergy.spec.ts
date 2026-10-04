@@ -14,6 +14,8 @@ import {
 } from './record-pet-allergy';
 
 class FakePetAllergyRepository implements PetAllergyRepository {
+  correctIfPetWritable: PetAllergyRepository['correctIfPetWritable'] =
+    jest.fn();
   readonly allergies: PetAllergy[] = [];
   readonly requesterAccountIds: string[] = [];
   outcome: CreatePetAllergyOutcome = 'CREATED';
