@@ -1,4 +1,11 @@
 import { Module } from '@nestjs/common';
+import {
+  PET_ALLERGY_REPOSITORY,
+  type PetAllergyRepository,
+} from '../application/persistence/pet-allergy.repository';
+import { RecordPetAllergy } from '../application/record-pet-allergy/record-pet-allergy';
+import { PetAllergiesController } from './http/controllers/pet-allergies.controller';
+import { DrizzlePetAllergyRepository } from './persistence/drizzle/drizzle-pet-allergy.repository';
 import { IdentityModule } from '../../identity/infrastructure/identity.module';
 import { DatabaseModule } from '../../infrastructure/database/database.module';
 import {
@@ -35,8 +42,23 @@ import { DrizzleVaccinationHistoryReader } from './persistence/drizzle/drizzle-v
 
 @Module({
   imports: [DatabaseModule, IdentityModule],
-  controllers: [WeightRecordsController, VaccinationRecordsController],
+  controllers: [
+    WeightRecordsController,
+    VaccinationRecordsController,
+    PetAllergiesController,
+  ],
   providers: [
+    DrizzlePetAllergyRepository,
+    {
+      provide: PET_ALLERGY_REPOSITORY,
+      useExisting: DrizzlePetAllergyRepository,
+    },
+    {
+      provide: RecordPetAllergy,
+      inject: [PET_ALLERGY_REPOSITORY],
+      useFactory: (repository: PetAllergyRepository): RecordPetAllergy =>
+        new RecordPetAllergy(repository),
+    },
     DrizzleWeightRecordRepository,
     DrizzleWeightHistoryReader,
     DrizzleVaccinationRecordRepository,

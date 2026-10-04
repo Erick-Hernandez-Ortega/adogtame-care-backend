@@ -63,7 +63,7 @@ To try protected routes, register with `POST /accounts` if needed, then call
 response, click **Authorize** in Swagger, and enter the token. Swagger adds the
 Bearer prefix to requests automatically.
 
-The API exposes 25 operations.
+The API exposes 26 operations.
 
 | Route                                         | Description             | Bearer token |
 | --------------------------------------------- | ----------------------- | ------------ |
@@ -81,6 +81,7 @@ The API exposes 25 operations.
 | `POST /pets/{petId}/archive` | Archive a pet | Yes |
 | `POST /pets/{petId}/restore` | Restore a pet | Yes |
 | `POST /pets/{petId}/leave`                    | Leave a pet   | Yes          |
+| `POST /pets/{petId}/health/allergies` | Record a known pet allergy | Yes |
 | `POST /pets/{petId}/health/weight-records`    | Record pet weight (kg)  | Yes          |
 | `GET /pets/{petId}/health/weight-records`     | List pet weight history | Yes          |
 | `PATCH /pets/{petId}/health/weight-records/{weightRecordId}` | Correct pet weight record | Yes |
@@ -106,6 +107,8 @@ To remove another pet member, send `DELETE /pets/{petId}/members/{membershipId}`
 To promote a collaborator, send `POST /pets/{petId}/members/{membershipId}/promote` as an active owner of an active pet. An active collaborator becomes an active owner in the same membership, retaining its membership ID, account ID, and creation time. An active owner, including the requester, returns `204` without an UPDATE or `updated_at` change. An inactive member returns `409 PET_MEMBER_INACTIVE` and is not reactivated. A missing, archived, or inaccessible pet returns `404 PET_NOT_FOUND` before target resolution; a missing member or one from another pet then returns `404 PET_MEMBER_NOT_FOUND`. Both path IDs must be non-nil UUIDs. Send no query parameters and no body or `{}`; invalid structure returns `400 INVALID_REQUEST`. A missing or invalid Bearer token returns `401 UNAUTHENTICATED`.
 
 To correct a pet profile, send `PATCH /pets/{petId}` as an active owner of an active pet. Include at least one of `name`, `species`, `breed`, `sex`, `birthInformation`, `color`, `distinctiveMarks`, or `microchip`. The nested `breed` and `birthInformation` objects use the same complete shapes as registration. Omitted fields are preserved; send `null` to clear `color`, `distinctiveMarks`, or `microchip`. The `200` response has the same shape as `GET /pets/{petId}`, with `role: "OWNER"`. A normalized no-op does not change `updated_at`. Invalid request structure returns `400 INVALID_REQUEST`; domain-invalid values return `422 INVALID_PET`. Missing, archived, or inaccessible pets return `404 PET_NOT_FOUND`.
+
+To record a known allergy in Health, send `POST /pets/{petId}/health/allergies` with a Bearer token and JSON such as `{"allergen":"Penicillin","category":"MEDICATION","severity":"SEVERE","notes":"Previous reaction reported by veterinarian."}`. Active owners and collaborators of active pets receive `201` with `id`, `petId`, `allergen`, `category`, `severity`, nullable `notes`, and `recordedByAccountId` from the authenticated account. Allergen is trimmed, preserves casing, and must contain 1–255 Unicode characters. Category is `FOOD`, `MEDICATION`, `ENVIRONMENTAL`, or `OTHER`; severity is required and must be `MILD`, `MODERATE`, `SEVERE`, or `UNKNOWN`. Severity describes known or reported gravity rather than a formal diagnosis. Optional notes are trimmed and limited to 2,000 Unicode characters; omission or null means absence, while present empty text is invalid. The body is strict. Structural errors return `400 INVALID_REQUEST`; semantic errors return `400 INVALID_ALLERGEN`, `INVALID_ALLERGY_CATEGORY`, `INVALID_ALLERGY_SEVERITY`, or `INVALID_ALLERGY_NOTES`. Missing/invalid authentication returns `401 UNAUTHENTICATED`; missing, archived, or inaccessible pets return `404 PET_NOT_FOUND`. Duplicates are allowed. Allergies have no clinical identification date or lifecycle status. Technical timestamps stay in persistence, and Archive/Restore preserve the allergy data. Access checks and INSERT are atomic under Pet → Membership locks. Only creation is available.
 
 To record a weight, send `POST /pets/{petId}/health/weight-records` with a Bearer token and JSON such as `{"weightKg":"12.3456","measuredDate":"2026-09-26"}`. Weight is a positive decimal string in kilograms with at most four decimal places. The measured date is a valid calendar date no later than today in UTC. An active owner or collaborator of an active pet receives `201` with the record ID, pet ID, canonical `weightKg`, `measuredDate`, and `recordedByAccountId`. An inaccessible or archived pet returns `404 PET_NOT_FOUND`.
 

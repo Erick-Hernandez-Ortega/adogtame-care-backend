@@ -63,7 +63,7 @@ después llama a `POST /auth/login` con tu correo y contraseña. Copia
 `accessToken` de la respuesta, pulsa **Authorize** en Swagger e introduce el
 token. Swagger añade automáticamente el prefijo Bearer a las peticiones.
 
-La API expone 25 operaciones.
+La API expone 26 operaciones.
 
 | Ruta                                          | Descripción                 | Token Bearer |
 | --------------------------------------------- | --------------------------- | ------------ |
@@ -81,6 +81,7 @@ La API expone 25 operaciones.
 | `POST /pets/{petId}/archive` | Archivar una mascota | Sí |
 | `POST /pets/{petId}/restore` | Restaurar una mascota | Sí |
 | `POST /pets/{petId}/leave`                    | Abandonar una mascota  | Sí           |
+| `POST /pets/{petId}/health/allergies` | Registrar una alergia conocida de la mascota | Sí |
 | `POST /pets/{petId}/health/weight-records`    | Registrar peso (kg)         | Sí           |
 | `GET /pets/{petId}/health/weight-records`     | Consultar historial de peso | Sí           |
 | `PATCH /pets/{petId}/health/weight-records/{weightRecordId}` | Corregir registro de peso | Sí |
@@ -106,6 +107,8 @@ Para remover a otro miembro de una mascota, envía `DELETE /pets/{petId}/members
 Para promover a un colaborador, envía `POST /pets/{petId}/members/{membershipId}/promote` como owner activo de una mascota activa. Un collaborator activo pasa a owner activo en la misma membership, conservando su ID, cuenta y fecha de creación. Un owner activo, incluido el requester, recibe `204` sin UPDATE ni cambio de `updated_at`. Un miembro inactivo devuelve `409 PET_MEMBER_INACTIVE` y no se reactiva. Una mascota inexistente, archivada o inaccesible devuelve `404 PET_NOT_FOUND` antes de resolver el destinatario; una membership inexistente o de otra mascota devuelve después `404 PET_MEMBER_NOT_FOUND`. Ambos IDs deben ser UUID válidos y no nil. Envía la solicitud sin query params y sin cuerpo o con `{}`; una estructura inválida devuelve `400 INVALID_REQUEST`. Un Bearer token ausente o inválido devuelve `401 UNAUTHENTICATED`.
 
 Para corregir el perfil de una mascota, envía `PATCH /pets/{petId}` como owner activo de una mascota activa. Incluye al menos uno de `name`, `species`, `breed`, `sex`, `birthInformation`, `color`, `distinctiveMarks` o `microchip`. Los objetos `breed` y `birthInformation` usan las mismas estructuras completas que el registro. Los campos omitidos se conservan; envía `null` para limpiar `color`, `distinctiveMarks` o `microchip`. La respuesta `200` tiene la misma estructura que `GET /pets/{petId}`, con `role: "OWNER"`. Un no-op después de normalizar no cambia `updated_at`. Una estructura HTTP inválida devuelve `400 INVALID_REQUEST`; un valor rechazado por el dominio devuelve `422 INVALID_PET`. Una mascota inexistente, archivada o inaccesible devuelve `404 PET_NOT_FOUND`.
+
+Para registrar una alergia conocida en Health, envía `POST /pets/{petId}/health/allergies` con un token Bearer y JSON como `{"allergen":"Penicillin","category":"MEDICATION","severity":"SEVERE","notes":"Previous reaction reported by veterinarian."}`. Owners y collaborators activos de mascotas activas reciben `201` con `id`, `petId`, `allergen`, `category`, `severity`, `notes` nullable y `recordedByAccountId` de la cuenta autenticada. Allergen aplica trim, conserva mayúsculas/minúsculas y admite entre 1 y 255 caracteres Unicode. Category es `FOOD`, `MEDICATION`, `ENVIRONMENTAL` u `OTHER`; severity es obligatoria y debe ser `MILD`, `MODERATE`, `SEVERE` o `UNKNOWN`. Severity expresa gravedad conocida o reportada, sin representar un diagnóstico formal. Notes es opcional, aplica trim y admite hasta 2,000 caracteres Unicode; omisión o null representan ausencia, pero texto presente vacío es inválido. El body es estricto. Los errores estructurales devuelven `400 INVALID_REQUEST`; los semánticos, `400 INVALID_ALLERGEN`, `INVALID_ALLERGY_CATEGORY`, `INVALID_ALLERGY_SEVERITY` o `INVALID_ALLERGY_NOTES`. La autenticación ausente/inválida devuelve `401 UNAUTHENTICATED`; mascotas inexistentes, archivadas o inaccesibles devuelven `404 PET_NOT_FOUND`. Se permiten duplicados. Las alergias no tienen fecha clínica de identificación ni estado de lifecycle. Los timestamps técnicos permanecen en persistence y Archive/Restore conservan los datos de alergia. La autorización y el INSERT son atómicos bajo locks Pet → Membership. Solo está disponible la creación.
 
 Para registrar un peso, envía `POST /pets/{petId}/health/weight-records` con un token Bearer y JSON como `{"weightKg":"12.3456","measuredDate":"2026-09-26"}`. El peso es un string decimal positivo en kilogramos con un máximo de cuatro decimales. La fecha de medición debe ser una fecha calendario válida no posterior a hoy en UTC. Un owner o collaborator activo de una mascota activa recibe `201` con el ID del registro, ID de la mascota, `weightKg` canónico, `measuredDate` y `recordedByAccountId`. Una mascota inaccesible o archivada devuelve `404 PET_NOT_FOUND`.
 

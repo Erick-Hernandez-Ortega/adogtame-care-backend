@@ -1,5 +1,10 @@
 import type { SchemaObject } from '@nestjs/swagger';
 import { z } from 'zod';
+import { recordPetAllergySchema } from './record-pet-allergy.schema';
+import {
+  AllergyCategory,
+  AllergySeverity,
+} from '../../../domain/pet-allergy/pet-allergy';
 import {
   recordPetWeightSchema,
   updatePetWeightRecordSchema,
@@ -140,5 +145,61 @@ export const petWeightHistoryResponseSchema: SchemaObject = {
       },
     },
     nextCursor: { type: 'string', nullable: true },
+  },
+};
+
+export const recordPetAllergyRequestSchema: SchemaObject = {
+  ...(z.toJSONSchema(recordPetAllergySchema, {
+    target: 'openapi-3.0',
+  }) as SchemaObject),
+  properties: {
+    allergen: {
+      type: 'string',
+      minLength: 1,
+      maxLength: 255,
+      description: 'Trimmed, nonempty allergen; casing is preserved.',
+    },
+    category: { type: 'string', enum: Object.values(AllergyCategory) },
+    severity: {
+      type: 'string',
+      enum: Object.values(AllergySeverity),
+      description:
+        'Known or reported severity, not a formal diagnosis. Use UNKNOWN when severity is not known.',
+    },
+    notes: {
+      type: 'string',
+      nullable: true,
+      minLength: 1,
+      maxLength: 2000,
+      description:
+        'Omit or send null when absent. Present text must remain nonempty after trimming.',
+    },
+  },
+  example: {
+    allergen: 'Penicillin',
+    category: 'MEDICATION',
+    severity: 'SEVERE',
+    notes: 'Previous reaction reported by veterinarian.',
+  },
+};
+export const recordedPetAllergyResponseSchema: SchemaObject = {
+  type: 'object',
+  required: [
+    'id',
+    'petId',
+    'allergen',
+    'category',
+    'severity',
+    'notes',
+    'recordedByAccountId',
+  ],
+  properties: {
+    id: { type: 'string', format: 'uuid' },
+    petId: { type: 'string', format: 'uuid' },
+    allergen: { type: 'string', minLength: 1, maxLength: 255 },
+    category: { type: 'string', enum: Object.values(AllergyCategory) },
+    severity: { type: 'string', enum: Object.values(AllergySeverity) },
+    notes: { type: 'string', nullable: true, minLength: 1, maxLength: 2000 },
+    recordedByAccountId: { type: 'string', format: 'uuid' },
   },
 };
