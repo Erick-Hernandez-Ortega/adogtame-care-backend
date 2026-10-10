@@ -33,7 +33,21 @@ export type ResolvePetMedicalConditionOutcome =
     | { status: 'PET_NOT_FOUND' }
     | { status: 'PET_MEDICAL_CONDITION_NOT_FOUND' };
 
+export interface PetMedicalConditionReopening {
+    petId: string;
+    conditionId: string;
+    authenticatedAccountId: string;
+}
+
+export type ReopenPetMedicalConditionOutcome =
+    | { status: 'REOPENED' | 'UNCHANGED'; condition: PetMedicalCondition }
+    | { status: 'PET_NOT_FOUND' }
+    | { status: 'PET_MEDICAL_CONDITION_NOT_FOUND' };
+
 export interface PetMedicalConditionRepository {
+    reopenIfPetWritable(
+        reopening: PetMedicalConditionReopening,
+    ): Promise<ReopenPetMedicalConditionOutcome>;
     resolveIfPetWritable(
         resolution: PetMedicalConditionResolution,
     ): Promise<ResolvePetMedicalConditionOutcome>;

@@ -413,3 +413,12 @@ export const resolvedPetMedicalConditionResponseSchema: SchemaObject = {
         status: { type: 'string', enum: ['RESOLVED'] },
     },
 };
+
+export const reopenedPetMedicalConditionResponseSchema: SchemaObject = {
+    ...updatedPetMedicalConditionResponseSchema,
+    properties: {
+        ...updatedPetMedicalConditionResponseSchema.properties,
+        status: { type: 'string', enum: ['ACTIVE'] },
+        resolvedDate: { type: 'string', format: 'date', nullable: true, enum: [null] },
+    },
+};

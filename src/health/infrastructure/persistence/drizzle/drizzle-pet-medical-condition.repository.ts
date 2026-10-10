@@ -7,6 +7,8 @@ import {
     pets,
 } from '../../../../pet-management/infrastructure/persistence/drizzle/pet-management.schema';
 import type {
+    PetMedicalConditionReopening,
+    ReopenPetMedicalConditionOutcome,
     PetMedicalConditionResolution,
     ResolvePetMedicalConditionOutcome,
     CreatePetMedicalConditionOutcome,
@@ -27,6 +29,97 @@ import { healthPetMedicalConditions } from './health.schema';
 @Injectable()
 export class DrizzlePetMedicalConditionRepository implements PetMedicalConditionRepository {
     constructor(private readonly databaseService: DatabaseService) {}
+
+    async reopenIfPetWritable(
+        reopening: PetMedicalConditionReopening,
+    ): Promise<ReopenPetMedicalConditionOutcome> {
+        return this.databaseService.connection.transaction(
+            async (transaction): Promise<ReopenPetMedicalConditionOutcome> => {
+                const petRows = await transaction
+                    .select({ status: pets.status })
+                    .from(pets)
+                    .where(eq(pets.id, reopening.petId))
+                    .for('update');
+
+                if (petRows[0]?.status !== 'ACTIVE') {
+                    return { status: 'PET_NOT_FOUND' };
+                }
+
+                const membershipRows = await transaction
+                    .select({ role: petMemberships.role, status: petMemberships.status })
+                    .from(petMemberships)
+                    .where(
+                        and(
+                            eq(petMemberships.petId, reopening.petId),
+                            eq(petMemberships.accountId, reopening.authenticatedAccountId),
+                        ),
+                    )
+                    .for('update');
+                const membership = membershipRows[0];
+
+                if (
+                    membership?.status !== 'ACTIVE' ||
+                    (membership.role !== 'OWNER' && membership.role !== 'COLLABORATOR')
+                ) {
+                    return { status: 'PET_NOT_FOUND' };
+                }
+
+                const conditionRows = await transaction
+                    .select()
+                    .from(healthPetMedicalConditions)
+                    .where(
+                        and(
+                            eq(healthPetMedicalConditions.id, reopening.conditionId),
+                            eq(healthPetMedicalConditions.petId, reopening.petId),
+                        ),
+                    )
+                    .for('update');
+                const row = conditionRows[0];
+
+                if (row === undefined) {
+                    return { status: 'PET_MEDICAL_CONDITION_NOT_FOUND' };
+                }
+
+                const condition: PetMedicalCondition = PetMedicalCondition.reconstitute({
+                    id: PetMedicalConditionId.from(row.id),
+                    petId: PetId.from(row.petId),
+                    name: MedicalConditionName.from(row.name),
+                    diagnosedDate:
+                        row.diagnosedDate === null
+                            ? null
+                            : DiagnosedDate.reconstitute(row.diagnosedDate),
+                    resolvedDate:
+                        row.resolvedDate === null
+                            ? null
+                            : ResolvedDate.reconstitute(row.resolvedDate),
+                    notes: row.notes,
+                    status: row.status,
+                    recordedByAccountId: RecordedByAccountId.from(row.recordedByAccountId),
+                });
+                const reopened: PetMedicalCondition = condition.reopen();
+
+                if (reopened === condition) {
+                    return { status: 'UNCHANGED', condition };
+                }
+
+                await transaction
+                    .update(healthPetMedicalConditions)
+                    .set({
+                        status: reopened.status,
+                        resolvedDate: reopened.resolvedDate?.value ?? null,
+                    })
+                    .where(
+                        and(
+                            eq(healthPetMedicalConditions.id, reopening.conditionId),
+                            eq(healthPetMedicalConditions.petId, reopening.petId),
+                        ),
+                    );
+
+                return { status: 'REOPENED', condition: reopened };
+            },
+            { isolationLevel: 'read committed' },
+        );
+    }
 
     async resolveIfPetWritable(
         resolution: PetMedicalConditionResolution,

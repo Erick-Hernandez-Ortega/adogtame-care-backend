@@ -33,7 +33,7 @@ describe('OpenAPI documentation (e2e)', () => {
         await application.close();
     });
 
-    it('serves Swagger UI and documents all thirty-three operations and their contracts', async () => {
+    it('serves Swagger UI and documents all thirty-four operations and their contracts', async () => {
         const htmlResponse = await request(application.getHttpServer()).get('/docs').expect(200);
 
         expect(htmlResponse.text).toContain('swagger-ui');
@@ -64,6 +64,7 @@ describe('OpenAPI documentation (e2e)', () => {
             ['/pets/{petId}/health/medical-conditions', 'get'],
             ['/pets/{petId}/health/medical-conditions/{conditionId}', 'patch'],
             ['/pets/{petId}/health/medical-conditions/{conditionId}/resolve', 'post'],
+            ['/pets/{petId}/health/medical-conditions/{conditionId}/reopen', 'post'],
             ['/pets/{petId}/health/allergies', 'post'],
             ['/pets/{petId}/health/allergies', 'get'],
             ['/pets/{petId}/health/allergies/{allergyId}', 'patch'],
@@ -99,7 +100,7 @@ describe('OpenAPI documentation (e2e)', () => {
                     Number(Boolean(path?.delete)),
                 0,
             ),
-        ).toBe(33);
+        ).toBe(34);
 
         const medicalCondition: OperationObject | undefined =
             document.paths['/pets/{petId}/health/medical-conditions']?.post;
@@ -300,12 +301,52 @@ describe('OpenAPI documentation (e2e)', () => {
 
         expect(conditionDetailPath?.get).toBeUndefined();
         expect(conditionDetailPath?.delete).toBeUndefined();
-        expect(
-            Object.keys(document.paths).some(
-                (path: string): boolean =>
-                    path.includes('medical-conditions') && /\/reopen$/.test(path),
-            ),
-        ).toBe(false);
+        const medicalConditionReopen =
+            document.paths['/pets/{petId}/health/medical-conditions/{conditionId}/reopen']?.post;
+
+        expect(medicalConditionReopen?.security).toEqual([{ bearer: [] }]);
+        expect(medicalConditionReopen?.requestBody).toBeUndefined();
+        expect(Object.keys(medicalConditionReopen?.responses ?? {}).sort()).toEqual([
+            '200',
+            '400',
+            '401',
+            '404',
+        ]);
+        expect(medicalConditionReopen?.parameters).toEqual(medicalConditionUpdate?.parameters);
+        const reopenResponse = responseSchema(medicalConditionReopen, '200');
+
+        expect(reopenResponse?.required).toEqual(medicalConditionResponse?.required);
+        expect(reopenResponse?.additionalProperties).toBe(false);
+        expect(Object.keys(reopenResponse?.properties ?? {}).sort()).toEqual(
+            Object.keys(medicalConditionResponse?.properties ?? {}).sort(),
+        );
+        expect(reopenResponse?.properties?.status).toMatchObject({ enum: ['ACTIVE'] });
+        expect(reopenResponse?.properties?.resolvedDate).toMatchObject({
+            nullable: true,
+            enum: [null],
+        });
+
+        for (const phrase of [
+            'erroneous resolution',
+            'clinical recurrence',
+            'without transition history',
+            'without UPDATE',
+            'after a new Resolve',
+            'empty object',
+        ]) {
+            expect(medicalConditionReopen?.description).toContain(phrase);
+        }
+
+        expect(JSON.stringify(responseSchema(medicalConditionReopen, '400'))).toContain(
+            'INVALID_REQUEST',
+        );
+        expect(JSON.stringify(responseSchema(medicalConditionReopen, '401'))).toContain(
+            'UNAUTHENTICATED',
+        );
+
+        for (const code of ['PET_NOT_FOUND', 'PET_MEDICAL_CONDITION_NOT_FOUND']) {
+            expect(JSON.stringify(responseSchema(medicalConditionReopen, '404'))).toContain(code);
+        }
 
         const medicalConditionResolve =
             document.paths['/pets/{petId}/health/medical-conditions/{conditionId}/resolve']?.post;

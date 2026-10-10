@@ -1,3 +1,5 @@
+import { ReopenPetMedicalCondition } from '../../../application/reopen-pet-medical-condition/reopen-pet-medical-condition';
+import { reopenPetMedicalConditionSchema } from '../schemas/reopen-pet-medical-condition.schema';
 import {
     ResolvePetMedicalCondition,
     InvalidMedicalConditionResolvedDateError,
@@ -57,6 +59,7 @@ import {
 } from '../schemas/record-pet-medical-condition.schema';
 import {
     resolvePetMedicalConditionRequestSchema,
+    reopenedPetMedicalConditionResponseSchema,
     resolvedPetMedicalConditionResponseSchema,
     recordPetMedicalConditionRequestSchema,
     updatePetMedicalConditionRequestSchema,
@@ -70,11 +73,118 @@ import {
 @ApiBearerAuth()
 export class PetMedicalConditionsController {
     constructor(
+        private readonly reopenPetMedicalCondition: ReopenPetMedicalCondition,
         private readonly resolvePetMedicalCondition: ResolvePetMedicalCondition,
         private readonly updatePetMedicalCondition: UpdatePetMedicalCondition,
         private readonly recordPetMedicalCondition: RecordPetMedicalCondition,
         private readonly listPetMedicalConditions: ListPetMedicalConditions,
     ) {}
+
+    @Post(':conditionId/reopen')
+    @HttpCode(200)
+    @UseGuards(AuthenticationGuard)
+    @ApiOperation({
+        summary: 'Correct an erroneous medical condition resolution',
+        description:
+            'Active owners and collaborators of ACTIVE pets may reopen conditions regardless of authorship. Reopen corrects an erroneous resolution; it does not represent clinical recurrence. RESOLVED becomes ACTIVE and the previous resolvedDate is cleared permanently, without transition history or audit. An authorized retry on ACTIVE returns the current condition without UPDATE or timestamp change. A Reopen after a new Resolve may change the state again. Body must be absent or an empty object. No query parameters are accepted.',
+    })
+    @ApiParam({
+        name: 'petId',
+        description: 'Non-nil pet UUID',
+        schema: { type: 'string', format: 'uuid' },
+    })
+    @ApiParam({
+        name: 'conditionId',
+        description: 'Non-nil medical condition UUID',
+        schema: { type: 'string', format: 'uuid' },
+    })
+    @ApiResponse({
+        status: 200,
+        description:
+            'Complete active condition with resolvedDate null; authorized retries are unchanged',
+        schema: reopenedPetMedicalConditionResponseSchema,
+    })
+    @ApiResponse({
+        status: 400,
+        description: 'Invalid path, body or query',
+        schema: errorSchema(['INVALID_REQUEST'], 'Request body is invalid'),
+    })
+    @ApiResponse({
+        status: 401,
+        description: 'Missing or invalid Bearer token',
+        schema: errorSchema(['UNAUTHENTICATED'], 'Authentication is required'),
+    })
+    @ApiResponse({
+        status: 404,
+        description:
+            'Pet missing, archived or inaccessible; condition missing or belongs to another pet',
+        schema: {
+            oneOf: [
+                errorSchema(['PET_NOT_FOUND'], 'Pet was not found'),
+                errorSchema(
+                    ['PET_MEDICAL_CONDITION_NOT_FOUND'],
+                    'Pet medical condition was not found',
+                ),
+            ],
+        },
+    })
+    async reopen(
+        @CurrentAccountId() authenticatedAccountId: string,
+        @Param('petId') petId: string,
+        @Param('conditionId') conditionId: string,
+        @Body() body: unknown,
+        @Query() query: unknown,
+    ): Promise<UpdatedPetMedicalCondition> {
+        const parsedPetId = medicalConditionPetIdSchema.safeParse(petId);
+        const parsedConditionId = medicalConditionIdSchema.safeParse(conditionId);
+
+        if (!parsedPetId.success || !parsedConditionId.success) {
+            throw new BadRequestException({
+                code: 'INVALID_REQUEST',
+                message: 'Request path is invalid',
+            });
+        }
+
+        const parsedBody = reopenPetMedicalConditionSchema.safeParse(body);
+
+        if (body !== undefined && !parsedBody.success) {
+            throw new BadRequestException({
+                code: 'INVALID_REQUEST',
+                message: 'Request body is invalid',
+            });
+        }
+
+        if (!recordPetMedicalConditionQuerySchema.safeParse(query).success) {
+            throw new BadRequestException({
+                code: 'INVALID_REQUEST',
+                message: 'Request query is invalid',
+            });
+        }
+
+        try {
+            return await this.reopenPetMedicalCondition.execute({
+                petId: parsedPetId.data,
+                conditionId: parsedConditionId.data,
+                authenticatedAccountId,
+            });
+        } catch (error: unknown) {
+            if (error instanceof PetNotFoundError) {
+                throw new NotFoundException({
+                    code: 'PET_NOT_FOUND',
+                    message: error.message,
+                });
+            }
+
+            if (error instanceof PetMedicalConditionNotFoundError) {
+                throw new NotFoundException({
+                    code: 'PET_MEDICAL_CONDITION_NOT_FOUND',
+                    message: error.message,
+                });
+            }
+
+            throw error;
+        }
+    }
 
     @Post(':conditionId/resolve')
     @HttpCode(200)

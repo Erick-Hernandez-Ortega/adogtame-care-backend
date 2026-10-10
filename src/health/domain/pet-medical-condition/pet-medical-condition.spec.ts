@@ -314,3 +314,64 @@ describe('PetMedicalCondition resolution', () => {
         ).toBeNull();
     });
 });
+
+describe('PetMedicalCondition reopening', () => {
+    const create = (): PetMedicalCondition =>
+        PetMedicalCondition.create({
+            petId: PetId.from('550e8400-e29b-41d4-a716-446655440001'),
+            recordedByAccountId: RecordedByAccountId.from('550e8400-e29b-41d4-a716-446655440002'),
+            name: MedicalConditionName.from('Epilepsy'),
+            diagnosedDate: DiagnosedDate.reconstitute('2027-02-10'),
+            notes: 'Clinical notes',
+        });
+
+    it.each(['2027-09-15', null])(
+        'clears %s without a Clock and preserves the original aggregate',
+        (resolvedDate) => {
+            const original: PetMedicalCondition = PetMedicalCondition.reconstitute({
+                ...create(),
+                status: 'RESOLVED',
+                resolvedDate:
+                    resolvedDate === null ? null : ResolvedDate.reconstitute(resolvedDate),
+            });
+            const snapshot = { ...original };
+            const reopened: PetMedicalCondition = original.reopen();
+
+            expect(reopened).not.toBe(original);
+            expect(reopened).toEqual({ ...original, status: 'ACTIVE', resolvedDate: null });
+            expect(original).toEqual(snapshot);
+            expect(reopened.id).toBe(original.id);
+            expect(reopened.petId).toBe(original.petId);
+            expect(reopened.recordedByAccountId).toBe(original.recordedByAccountId);
+            expect(reopened.name).toBe(original.name);
+            expect(reopened.diagnosedDate).toBe(original.diagnosedDate);
+            expect(reopened.reopen()).toBe(reopened);
+            expect(PetMedicalCondition.reconstitute({ ...reopened })).toEqual(reopened);
+            expect(() =>
+                PetMedicalCondition.reconstitute({
+                    ...reopened,
+                    resolvedDate: ResolvedDate.reconstitute('2027-09-15'),
+                }),
+            ).toThrow('Active medical conditions');
+        },
+    );
+
+    it('returns the original active instance', () => {
+        const active: PetMedicalCondition = create();
+
+        expect(active.reopen()).toBe(active);
+    });
+
+    it('can correct a new resolution after an earlier reopen', () => {
+        const active: PetMedicalCondition = create();
+        const resolved: PetMedicalCondition = active.resolve({ resolvedDate: null }, '2026-03-14');
+        const reopened: PetMedicalCondition = resolved.reopen();
+        const resolvedAgain: PetMedicalCondition = reopened.resolve(
+            { resolvedDate: '2026-03-14' },
+            '2026-03-14',
+        );
+
+        expect(resolvedAgain.reopen()).toEqual(reopened);
+        expect(resolvedAgain.reopen()).not.toBe(resolvedAgain);
+    });
+});

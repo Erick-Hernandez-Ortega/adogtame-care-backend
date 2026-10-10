@@ -259,6 +259,23 @@ export class PetMedicalCondition {
         });
     }
 
+    reopen(): PetMedicalCondition {
+        if (this.status === MedicalConditionStatus.ACTIVE) {
+            return this;
+        }
+
+        return PetMedicalCondition.reconstitute({
+            id: this.id,
+            petId: this.petId,
+            name: this.name,
+            diagnosedDate: this.diagnosedDate,
+            notes: this.notes,
+            recordedByAccountId: this.recordedByAccountId,
+            status: MedicalConditionStatus.ACTIVE,
+            resolvedDate: null,
+        });
+    }
+
     private static normalizeNotes(value: string | null | undefined): string | null {
         if (value === undefined || value === null) {
             return null;

@@ -52,6 +52,7 @@ function setup(status: string = 'ACTIVE') {
             },
         );
     const repository: PetMedicalConditionRepository = {
+        reopenIfPetWritable: jest.fn(),
         createIfPetWritable: jest.fn(),
         resolveIfPetWritable: jest.fn(),
         correctIfPetWritable,
