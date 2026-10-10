@@ -1,3 +1,4 @@
+import { DeletePetMedicalCondition } from '../application/delete-pet-medical-condition/delete-pet-medical-condition';
 import { ReopenPetMedicalCondition } from '../application/reopen-pet-medical-condition/reopen-pet-medical-condition';
 import { ResolvePetMedicalCondition } from '../application/resolve-pet-medical-condition/resolve-pet-medical-condition';
 import { Module } from '@nestjs/common';
@@ -73,6 +74,12 @@ import { DrizzleVaccinationHistoryReader } from './persistence/drizzle/drizzle-v
         PetAllergiesController,
     ],
     providers: [
+        {
+            provide: DeletePetMedicalCondition,
+            inject: [PET_MEDICAL_CONDITION_REPOSITORY],
+            useFactory: (repository: PetMedicalConditionRepository): DeletePetMedicalCondition =>
+                new DeletePetMedicalCondition(repository),
+        },
         {
             provide: ReopenPetMedicalCondition,
             inject: [PET_MEDICAL_CONDITION_REPOSITORY],

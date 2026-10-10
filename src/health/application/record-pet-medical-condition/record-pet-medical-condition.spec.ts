@@ -30,6 +30,7 @@ function setup() {
         >()
         .mockResolvedValue('CREATED');
     const repository: PetMedicalConditionRepository = {
+        deleteIfPetWritable: jest.fn(),
         reopenIfPetWritable: jest.fn(),
         createIfPetWritable,
         resolveIfPetWritable: jest.fn(),

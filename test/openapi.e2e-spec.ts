@@ -33,7 +33,7 @@ describe('OpenAPI documentation (e2e)', () => {
         await application.close();
     });
 
-    it('serves Swagger UI and documents all thirty-four operations and their contracts', async () => {
+    it('serves Swagger UI and documents all thirty-five operations and their contracts', async () => {
         const htmlResponse = await request(application.getHttpServer()).get('/docs').expect(200);
 
         expect(htmlResponse.text).toContain('swagger-ui');
@@ -63,6 +63,7 @@ describe('OpenAPI documentation (e2e)', () => {
             ['/pets/{petId}/health/medical-conditions', 'post'],
             ['/pets/{petId}/health/medical-conditions', 'get'],
             ['/pets/{petId}/health/medical-conditions/{conditionId}', 'patch'],
+            ['/pets/{petId}/health/medical-conditions/{conditionId}', 'delete'],
             ['/pets/{petId}/health/medical-conditions/{conditionId}/resolve', 'post'],
             ['/pets/{petId}/health/medical-conditions/{conditionId}/reopen', 'post'],
             ['/pets/{petId}/health/allergies', 'post'],
@@ -100,7 +101,7 @@ describe('OpenAPI documentation (e2e)', () => {
                     Number(Boolean(path?.delete)),
                 0,
             ),
-        ).toBe(34);
+        ).toBe(35);
 
         const medicalCondition: OperationObject | undefined =
             document.paths['/pets/{petId}/health/medical-conditions']?.post;
@@ -300,7 +301,37 @@ describe('OpenAPI documentation (e2e)', () => {
             document.paths['/pets/{petId}/health/medical-conditions/{conditionId}'];
 
         expect(conditionDetailPath?.get).toBeUndefined();
-        expect(conditionDetailPath?.delete).toBeUndefined();
+        const conditionDelete: OperationObject | undefined = conditionDetailPath?.delete;
+
+        expect(conditionDelete?.security).toEqual([{ bearer: [] }]);
+        expect(Object.keys(conditionDelete?.responses ?? {}).sort()).toEqual([
+            '204',
+            '400',
+            '401',
+            '404',
+        ]);
+        expect(conditionDelete?.requestBody).toBeUndefined();
+        expect(conditionDelete?.parameters).toEqual(medicalConditionUpdate?.parameters);
+        expect(conditionDelete?.responses['204']).not.toHaveProperty('content');
+        expect(JSON.stringify(responseSchema(conditionDelete, '400'))).toContain('INVALID_REQUEST');
+        expect(JSON.stringify(responseSchema(conditionDelete, '401'))).toContain('UNAUTHENTICATED');
+
+        for (const code of ['PET_NOT_FOUND', 'PET_MEDICAL_CONDITION_NOT_FOUND']) {
+            expect(JSON.stringify(responseSchema(conditionDelete, '404'))).toContain(code);
+        }
+
+        for (const description of [
+            'Hard delete',
+            'erroneous record',
+            'ACTIVE or RESOLVED',
+            'regardless of original authorship',
+            'Archived pets are read-only',
+            'second DELETE',
+            'clinical resolution',
+        ]) {
+            expect(conditionDelete?.description).toContain(description);
+        }
+
         const medicalConditionReopen =
             document.paths['/pets/{petId}/health/medical-conditions/{conditionId}/reopen']?.post;
 

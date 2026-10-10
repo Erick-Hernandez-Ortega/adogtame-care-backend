@@ -36,6 +36,7 @@ function setup() {
         Parameters<PetMedicalConditionRepository['reopenIfPetWritable']>
     >();
     const repository: PetMedicalConditionRepository = {
+        deleteIfPetWritable: jest.fn(),
         reopenIfPetWritable,
         createIfPetWritable: jest.fn(),
         correctIfPetWritable: jest.fn(),

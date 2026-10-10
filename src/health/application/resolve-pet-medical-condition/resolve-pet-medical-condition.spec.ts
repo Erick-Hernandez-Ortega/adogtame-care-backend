@@ -48,6 +48,7 @@ function setup(status: string = 'ACTIVE') {
             },
         );
     const repository: PetMedicalConditionRepository = {
+        deleteIfPetWritable: jest.fn(),
         reopenIfPetWritable: jest.fn(),
         createIfPetWritable: jest.fn(),
         correctIfPetWritable: jest.fn(),

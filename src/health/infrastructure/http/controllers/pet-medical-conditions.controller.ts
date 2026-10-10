@@ -1,3 +1,5 @@
+import { DeletePetMedicalCondition } from '../../../application/delete-pet-medical-condition/delete-pet-medical-condition';
+import { deletePetMedicalConditionSchema } from '../schemas/delete-pet-medical-condition.schema';
 import { ReopenPetMedicalCondition } from '../../../application/reopen-pet-medical-condition/reopen-pet-medical-condition';
 import { reopenPetMedicalConditionSchema } from '../schemas/reopen-pet-medical-condition.schema';
 import {
@@ -18,6 +20,7 @@ import {
     BadRequestException,
     Body,
     Controller,
+    Delete,
     Get,
     HttpCode,
     NotFoundException,
@@ -73,12 +76,115 @@ import {
 @ApiBearerAuth()
 export class PetMedicalConditionsController {
     constructor(
+        private readonly deletePetMedicalCondition: DeletePetMedicalCondition,
         private readonly reopenPetMedicalCondition: ReopenPetMedicalCondition,
         private readonly resolvePetMedicalCondition: ResolvePetMedicalCondition,
         private readonly updatePetMedicalCondition: UpdatePetMedicalCondition,
         private readonly recordPetMedicalCondition: RecordPetMedicalCondition,
         private readonly listPetMedicalConditions: ListPetMedicalConditions,
     ) {}
+
+    @Delete(':conditionId')
+    @UseGuards(AuthenticationGuard)
+    @HttpCode(204)
+    @ApiOperation({
+        summary: 'Delete an erroneous pet medical condition record',
+        description:
+            'Hard delete corrects an erroneous record; it does not represent clinical resolution, recovery, relapse, or treatment completion. Active owners and collaborators may delete ACTIVE or RESOLVED conditions on active pets regardless of original authorship. Archived pets are read-only. A second DELETE returns PET_MEDICAL_CONDITION_NOT_FOUND. No query parameters or functional body are accepted; an absent body or empty JSON object is valid.',
+    })
+    @ApiParam({
+        name: 'petId',
+        description: 'Non-nil pet UUID',
+        schema: { type: 'string', format: 'uuid' },
+    })
+    @ApiParam({
+        name: 'conditionId',
+        description: 'Non-nil medical condition UUID',
+        schema: { type: 'string', format: 'uuid' },
+    })
+    @ApiResponse({
+        status: 204,
+        description: 'Pet medical condition record permanently deleted',
+    })
+    @ApiResponse({
+        status: 400,
+        description: 'Invalid path, unexpected query parameters, or nonempty/invalid JSON body',
+        schema: errorSchema(['INVALID_REQUEST'], 'Request body is invalid'),
+    })
+    @ApiResponse({
+        status: 401,
+        description: 'Missing or invalid Bearer token',
+        schema: errorSchema(['UNAUTHENTICATED'], 'Authentication is required'),
+    })
+    @ApiResponse({
+        status: 404,
+        description:
+            'Pet missing, archived, or inaccessible; or condition missing from an authorized pet',
+        schema: {
+            oneOf: [
+                errorSchema(['PET_NOT_FOUND'], 'Pet was not found'),
+                errorSchema(
+                    ['PET_MEDICAL_CONDITION_NOT_FOUND'],
+                    'Pet medical condition was not found',
+                ),
+            ],
+        },
+    })
+    async delete(
+        @CurrentAccountId() authenticatedAccountId: string,
+        @Param('petId') petId: string,
+        @Param('conditionId') conditionId: string,
+        @Query() query: unknown,
+        @Body() body: unknown,
+    ): Promise<void> {
+        const parsedPetId = medicalConditionPetIdSchema.safeParse(petId);
+        const parsedConditionId = medicalConditionIdSchema.safeParse(conditionId);
+
+        if (!parsedPetId.success || !parsedConditionId.success) {
+            throw new BadRequestException({
+                code: 'INVALID_REQUEST',
+                message: 'Request path is invalid',
+            });
+        }
+
+        if (!recordPetMedicalConditionQuerySchema.safeParse(query).success) {
+            throw new BadRequestException({
+                code: 'INVALID_REQUEST',
+                message: 'Request query is invalid',
+            });
+        }
+
+        if (body !== undefined && !deletePetMedicalConditionSchema.safeParse(body).success) {
+            throw new BadRequestException({
+                code: 'INVALID_REQUEST',
+                message: 'Request body is invalid',
+            });
+        }
+
+        try {
+            await this.deletePetMedicalCondition.execute({
+                petId: parsedPetId.data,
+                conditionId: parsedConditionId.data,
+                authenticatedAccountId,
+            });
+        } catch (error: unknown) {
+            if (error instanceof PetMedicalConditionNotFoundError) {
+                throw new NotFoundException({
+                    code: 'PET_MEDICAL_CONDITION_NOT_FOUND',
+                    message: error.message,
+                });
+            }
+
+            if (error instanceof PetNotFoundError) {
+                throw new NotFoundException({
+                    code: 'PET_NOT_FOUND',
+                    message: error.message,
+                });
+            }
+
+            throw error;
+        }
+    }
 
     @Post(':conditionId/reopen')
     @HttpCode(200)

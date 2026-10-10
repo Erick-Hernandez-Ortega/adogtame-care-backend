@@ -7,6 +7,8 @@ import {
     pets,
 } from '../../../../pet-management/infrastructure/persistence/drizzle/pet-management.schema';
 import type {
+    PetMedicalConditionAccess,
+    DeletePetMedicalConditionOutcome,
     PetMedicalConditionReopening,
     ReopenPetMedicalConditionOutcome,
     PetMedicalConditionResolution,
@@ -29,6 +31,71 @@ import { healthPetMedicalConditions } from './health.schema';
 @Injectable()
 export class DrizzlePetMedicalConditionRepository implements PetMedicalConditionRepository {
     constructor(private readonly databaseService: DatabaseService) {}
+
+    async deleteIfPetWritable(
+        access: PetMedicalConditionAccess,
+    ): Promise<DeletePetMedicalConditionOutcome> {
+        return this.databaseService.connection.transaction(
+            async (transaction): Promise<DeletePetMedicalConditionOutcome> => {
+                const petRows = await transaction
+                    .select({ status: pets.status })
+                    .from(pets)
+                    .where(eq(pets.id, access.petId))
+                    .for('update');
+
+                if (petRows[0]?.status !== 'ACTIVE') {
+                    return 'PET_NOT_FOUND';
+                }
+
+                const membershipRows = await transaction
+                    .select({ role: petMemberships.role, status: petMemberships.status })
+                    .from(petMemberships)
+                    .where(
+                        and(
+                            eq(petMemberships.petId, access.petId),
+                            eq(petMemberships.accountId, access.authenticatedAccountId),
+                        ),
+                    )
+                    .for('update');
+                const membership = membershipRows[0];
+
+                if (
+                    membership?.status !== 'ACTIVE' ||
+                    (membership.role !== 'OWNER' && membership.role !== 'COLLABORATOR')
+                ) {
+                    return 'PET_NOT_FOUND';
+                }
+
+                const conditionRows = await transaction
+                    .select({ id: healthPetMedicalConditions.id })
+                    .from(healthPetMedicalConditions)
+                    .where(
+                        and(
+                            eq(healthPetMedicalConditions.id, access.conditionId),
+                            eq(healthPetMedicalConditions.petId, access.petId),
+                        ),
+                    )
+                    .for('update');
+
+                if (conditionRows.length === 0) {
+                    return 'PET_MEDICAL_CONDITION_NOT_FOUND';
+                }
+
+                const deletedRows = await transaction
+                    .delete(healthPetMedicalConditions)
+                    .where(
+                        and(
+                            eq(healthPetMedicalConditions.id, access.conditionId),
+                            eq(healthPetMedicalConditions.petId, access.petId),
+                        ),
+                    )
+                    .returning({ id: healthPetMedicalConditions.id });
+
+                return deletedRows.length === 0 ? 'PET_MEDICAL_CONDITION_NOT_FOUND' : 'DELETED';
+            },
+            { isolationLevel: 'read committed' },
+        );
+    }
 
     async reopenIfPetWritable(
         reopening: PetMedicalConditionReopening,
