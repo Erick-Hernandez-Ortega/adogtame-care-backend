@@ -1,3 +1,5 @@
+import { InvalidMedicalConditionResolvedDateValueError } from './pet-medical-condition';
+import { ResolvedDate } from '../resolved-date/resolved-date';
 import { DiagnosedDate } from '../diagnosed-date/diagnosed-date';
 import { MedicalConditionName } from '../medical-condition-name/medical-condition-name';
 import {
@@ -229,5 +231,86 @@ describe('PetMedicalCondition correction', () => {
     it('rejects empty corrections and unsupported persisted status', () => {
         expect(() => restored().correct({}, '2026-03-14')).toThrow(TypeError);
         expect(() => restored('UNKNOWN')).toThrow(TypeError);
+    });
+});
+
+describe('PetMedicalCondition resolution', () => {
+    const create = (): PetMedicalCondition =>
+        PetMedicalCondition.create({
+            petId: PetId.from('550e8400-e29b-41d4-a716-446655440001'),
+            recordedByAccountId: RecordedByAccountId.from('550e8400-e29b-41d4-a716-446655440002'),
+            name: MedicalConditionName.from('Dermatitis'),
+            diagnosedDate: DiagnosedDate.from('2026-02-15', '2026-03-14'),
+            notes: 'Clinical notes',
+        });
+
+    it.each(['2026-03-14', '2026-01-01', null])(
+        'resolves with %s preserving identity and clinical data',
+        (resolvedDate) => {
+            const original: PetMedicalCondition = create();
+            const resolved: PetMedicalCondition = original.resolve({ resolvedDate }, '2026-03-14');
+
+            expect(resolved).not.toBe(original);
+            expect(original.status).toBe('ACTIVE');
+            expect(original.resolvedDate).toBeNull();
+            expect(resolved).toMatchObject({
+                ...original,
+                status: 'RESOLVED',
+                resolvedDate: resolvedDate === null ? null : { value: resolvedDate },
+            });
+            expect(resolved.id).toBe(original.id);
+            expect(resolved.recordedByAccountId).toBe(original.recordedByAccountId);
+        },
+    );
+
+    it.each(['2026-03-14', null])(
+        'preserves original %s date and same instance on every retry',
+        (resolvedDate) => {
+            const resolved: PetMedicalCondition = create().resolve({ resolvedDate }, '2026-03-14');
+
+            for (const retryDate of [null, '2026-03-13', 'invalid', '9999-01-01']) {
+                expect(resolved.resolve({ resolvedDate: retryDate }, '2000-01-01')).toBe(resolved);
+            }
+
+            expect(resolved.correct({ notes: 'Corrected' }, '2000-01-01').resolvedDate).toBe(
+                resolved.resolvedDate,
+            );
+            expect(
+                resolved.correct({ diagnosedDate: '2026-03-14' }, '2026-03-14').resolvedDate,
+            ).toBe(resolved.resolvedDate);
+        },
+    );
+
+    it.each(['', '2026-02-29', '2026-03-15', '2026-3-14', '0000-01-01'])(
+        'rejects invalid new date %s',
+        (resolvedDate) => {
+            expect(() => create().resolve({ resolvedDate }, '2026-03-14')).toThrow(
+                InvalidMedicalConditionResolvedDateValueError,
+            );
+        },
+    );
+
+    it('reconstitutes persisted dates without temporal validation and enforces status consistency', () => {
+        const original: PetMedicalCondition = create();
+        const resolvedDate: ResolvedDate = ResolvedDate.reconstitute('2027-01-01');
+
+        expect(() =>
+            PetMedicalCondition.reconstitute({ ...original, status: 'ACTIVE', resolvedDate }),
+        ).toThrow('Active medical conditions');
+        const restored: PetMedicalCondition = PetMedicalCondition.reconstitute({
+            ...original,
+            status: 'RESOLVED',
+            resolvedDate,
+        });
+
+        expect(restored.resolvedDate).toBe(resolvedDate);
+        expect(restored.correct({ name: 'Updated' }, '2000-01-01').resolvedDate).toBe(resolvedDate);
+        expect(
+            PetMedicalCondition.reconstitute({
+                ...original,
+                status: 'RESOLVED',
+                resolvedDate: null,
+            }).resolvedDate,
+        ).toBeNull();
     });
 });

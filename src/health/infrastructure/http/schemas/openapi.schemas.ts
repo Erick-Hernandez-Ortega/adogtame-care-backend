@@ -47,7 +47,16 @@ export const recordPetMedicalConditionRequestSchema: SchemaObject = {
 export const recordedPetMedicalConditionResponseSchema: SchemaObject = {
     type: 'object',
     additionalProperties: false,
-    required: ['id', 'petId', 'name', 'status', 'diagnosedDate', 'notes', 'recordedByAccountId'],
+    required: [
+        'id',
+        'petId',
+        'name',
+        'status',
+        'diagnosedDate',
+        'resolvedDate',
+        'notes',
+        'recordedByAccountId',
+    ],
     properties: {
         id: { type: 'string', format: 'uuid' },
         petId: { type: 'string', format: 'uuid' },
@@ -63,6 +72,7 @@ export const recordedPetMedicalConditionResponseSchema: SchemaObject = {
             nullable: true,
             example: '2026-03-14',
         },
+        resolvedDate: { type: 'string', format: 'date', nullable: true },
         notes: { type: 'string', nullable: true, minLength: 1, maxLength: 2000 },
         recordedByAccountId: { type: 'string', format: 'uuid' },
     },
@@ -91,7 +101,7 @@ export const updatePetMedicalConditionRequestSchema: SchemaObject = {
         },
     },
     description:
-        'At least one field is required. Status, identity, author and technical timestamps cannot be modified. Update does not Resolve or Reopen.',
+        'At least one field is required. Status, resolvedDate, identity, author and technical timestamps cannot be modified. Update does not Resolve or Reopen.',
     example: {
         name: 'Osteoarthritis',
         diagnosedDate: '2026-02-10',
@@ -121,7 +131,15 @@ export const petMedicalConditionsResponseSchema: SchemaObject = {
             items: {
                 type: 'object',
                 additionalProperties: false,
-                required: ['id', 'name', 'status', 'diagnosedDate', 'notes', 'recordedByAccountId'],
+                required: [
+                    'id',
+                    'name',
+                    'status',
+                    'diagnosedDate',
+                    'resolvedDate',
+                    'notes',
+                    'recordedByAccountId',
+                ],
                 properties: {
                     id: { type: 'string', format: 'uuid' },
                     name: { type: 'string', minLength: 1, maxLength: 255 },
@@ -133,6 +151,7 @@ export const petMedicalConditionsResponseSchema: SchemaObject = {
                         description:
                             'Exact known date of the reported diagnosis; null when unknown or only approximate.',
                     },
+                    resolvedDate: { type: 'string', format: 'date', nullable: true },
                     notes: {
                         type: 'string',
                         nullable: true,
@@ -369,4 +388,28 @@ export const updatePetAllergyRequestSchema: SchemaObject = {
         },
     },
     example: { severity: 'SEVERE', notes: null },
+};
+
+export const resolvePetMedicalConditionRequestSchema: SchemaObject = {
+    type: 'object',
+    additionalProperties: false,
+    required: ['resolvedDate'],
+    properties: {
+        resolvedDate: {
+            type: 'string',
+            format: 'date',
+            nullable: true,
+            description:
+                'Required exact clinical resolution date, no later than today UTC, or null when unknown. No default. On RESOLVED retries the supplied value is ignored and the existing date is preserved.',
+        },
+    },
+    example: { resolvedDate: '2026-09-15' },
+};
+
+export const resolvedPetMedicalConditionResponseSchema: SchemaObject = {
+    ...updatedPetMedicalConditionResponseSchema,
+    properties: {
+        ...updatedPetMedicalConditionResponseSchema.properties,
+        status: { type: 'string', enum: ['RESOLVED'] },
+    },
 };

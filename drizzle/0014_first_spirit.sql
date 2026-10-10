@@ -1,0 +1,2 @@
+ALTER TABLE "health_pet_medical_conditions" ADD COLUMN "resolved_date" date;--> statement-breakpoint
+ALTER TABLE "health_pet_medical_conditions" ADD CONSTRAINT "health_pet_medical_conditions_active_resolved_date_null" CHECK ("health_pet_medical_conditions"."status" <> 'ACTIVE' OR "health_pet_medical_conditions"."resolved_date" IS NULL);

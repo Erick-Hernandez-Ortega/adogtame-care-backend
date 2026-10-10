@@ -162,6 +162,7 @@ describe('ListPetMedicalConditions with PostgreSQL (integration)', () => {
             id: input.id ?? randomUUID(),
             name: input.name ?? 'Epilepsy',
             status: input.status ?? 'ACTIVE',
+            resolvedDate: null,
             diagnosedDate: input.diagnosedDate === undefined ? '2026-03-14' : input.diagnosedDate,
             notes: input.notes ?? null,
             recordedByAccountId: input.recordedByAccountId ?? ownerId,

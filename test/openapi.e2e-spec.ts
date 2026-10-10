@@ -33,7 +33,7 @@ describe('OpenAPI documentation (e2e)', () => {
         await application.close();
     });
 
-    it('serves Swagger UI and documents all thirty-two operations and their contracts', async () => {
+    it('serves Swagger UI and documents all thirty-three operations and their contracts', async () => {
         const htmlResponse = await request(application.getHttpServer()).get('/docs').expect(200);
 
         expect(htmlResponse.text).toContain('swagger-ui');
@@ -63,6 +63,7 @@ describe('OpenAPI documentation (e2e)', () => {
             ['/pets/{petId}/health/medical-conditions', 'post'],
             ['/pets/{petId}/health/medical-conditions', 'get'],
             ['/pets/{petId}/health/medical-conditions/{conditionId}', 'patch'],
+            ['/pets/{petId}/health/medical-conditions/{conditionId}/resolve', 'post'],
             ['/pets/{petId}/health/allergies', 'post'],
             ['/pets/{petId}/health/allergies', 'get'],
             ['/pets/{petId}/health/allergies/{allergyId}', 'patch'],
@@ -98,7 +99,7 @@ describe('OpenAPI documentation (e2e)', () => {
                     Number(Boolean(path?.delete)),
                 0,
             ),
-        ).toBe(32);
+        ).toBe(33);
 
         const medicalCondition: OperationObject | undefined =
             document.paths['/pets/{petId}/health/medical-conditions']?.post;
@@ -160,6 +161,7 @@ describe('OpenAPI documentation (e2e)', () => {
             'name',
             'status',
             'diagnosedDate',
+            'resolvedDate',
             'notes',
             'recordedByAccountId',
         ]);
@@ -170,6 +172,7 @@ describe('OpenAPI documentation (e2e)', () => {
             'notes',
             'petId',
             'recordedByAccountId',
+            'resolvedDate',
             'status',
         ]);
         expect(medicalConditionResponse?.properties?.status).toMatchObject({
@@ -300,9 +303,51 @@ describe('OpenAPI documentation (e2e)', () => {
         expect(
             Object.keys(document.paths).some(
                 (path: string): boolean =>
-                    path.includes('medical-conditions') && /\/(resolve|reopen)$/.test(path),
+                    path.includes('medical-conditions') && /\/reopen$/.test(path),
             ),
         ).toBe(false);
+
+        const medicalConditionResolve =
+            document.paths['/pets/{petId}/health/medical-conditions/{conditionId}/resolve']?.post;
+
+        expect(medicalConditionResolve?.security).toEqual([{ bearer: [] }]);
+        expect(Object.keys(medicalConditionResolve?.responses ?? {}).sort()).toEqual([
+            '200',
+            '400',
+            '401',
+            '404',
+        ]);
+        expect(medicalConditionResolve?.parameters).toHaveLength(2);
+        const resolveBody = medicalConditionResolve?.requestBody as {
+            required: boolean;
+            content: { 'application/json': { schema: SchemaObject } };
+        };
+
+        expect(resolveBody.required).toBe(true);
+        expect(resolveBody.content['application/json'].schema).toMatchObject({
+            type: 'object',
+            additionalProperties: false,
+            required: ['resolvedDate'],
+            properties: { resolvedDate: { type: 'string', format: 'date', nullable: true } },
+        });
+        expect(
+            Object.keys(resolveBody.content['application/json'].schema.properties ?? {}),
+        ).toEqual(['resolvedDate']);
+        expect(responseSchema(medicalConditionResolve, '200')?.required).toEqual(
+            medicalConditionResponse?.required,
+        );
+        expect(responseSchema(medicalConditionResolve, '200')?.properties?.status).toMatchObject({
+            enum: ['RESOLVED'],
+        });
+        expect(medicalConditionResolve?.description).toContain(
+            'never modifies the existing resolution date',
+        );
+        expect(JSON.stringify(responseSchema(medicalConditionResolve, '400'))).toContain(
+            'INVALID_MEDICAL_CONDITION_RESOLVED_DATE',
+        );
+        expect(JSON.stringify(responseSchema(medicalConditionResolve, '404'))).toContain(
+            'PET_MEDICAL_CONDITION_NOT_FOUND',
+        );
 
         const medicalConditionList: OperationObject | undefined =
             document.paths['/pets/{petId}/health/medical-conditions']?.get;
@@ -344,6 +389,7 @@ describe('OpenAPI documentation (e2e)', () => {
             'name',
             'status',
             'diagnosedDate',
+            'resolvedDate',
             'notes',
             'recordedByAccountId',
         ]);
@@ -353,6 +399,7 @@ describe('OpenAPI documentation (e2e)', () => {
             'name',
             'notes',
             'recordedByAccountId',
+            'resolvedDate',
             'status',
         ]);
         expect(medicalConditionListItem.properties?.status).toMatchObject({

@@ -27,6 +27,7 @@ export interface RecordedPetMedicalCondition {
     name: string;
     status: typeof MedicalConditionStatus.ACTIVE;
     diagnosedDate: string | null;
+    resolvedDate: string | null;
     notes: string | null;
     recordedByAccountId: string;
 }
@@ -120,6 +121,7 @@ export class RecordPetMedicalCondition {
             name: condition.name.value,
             status: MedicalConditionStatus.ACTIVE,
             diagnosedDate: condition.diagnosedDate?.value ?? null,
+            resolvedDate: condition.resolvedDate?.value ?? null,
             notes: condition.notes,
             recordedByAccountId: condition.recordedByAccountId.value,
         };

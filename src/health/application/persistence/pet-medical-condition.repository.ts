@@ -20,7 +20,23 @@ export type UpdatePetMedicalConditionOutcome =
     | { status: 'PET_NOT_FOUND' }
     | { status: 'PET_MEDICAL_CONDITION_NOT_FOUND' };
 
+export interface PetMedicalConditionResolution {
+    petId: string;
+    conditionId: string;
+    authenticatedAccountId: string;
+    resolvedDate: string | null;
+    getToday: () => string;
+}
+
+export type ResolvePetMedicalConditionOutcome =
+    | { status: 'RESOLVED' | 'UNCHANGED'; condition: PetMedicalCondition }
+    | { status: 'PET_NOT_FOUND' }
+    | { status: 'PET_MEDICAL_CONDITION_NOT_FOUND' };
+
 export interface PetMedicalConditionRepository {
+    resolveIfPetWritable(
+        resolution: PetMedicalConditionResolution,
+    ): Promise<ResolvePetMedicalConditionOutcome>;
     correctIfPetWritable(
         correction: PetMedicalConditionCorrection,
     ): Promise<UpdatePetMedicalConditionOutcome>;

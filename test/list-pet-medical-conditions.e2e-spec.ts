@@ -128,6 +128,7 @@ describe('GET /pets/:petId/health/medical-conditions (e2e)', () => {
             name: 'Epilepsy',
             status: 'ACTIVE',
             diagnosedDate: '2026-03-14',
+            resolvedDate: null,
             notes: 'Reported seizures.',
             recordedByAccountId: author.id,
         };
@@ -189,6 +190,7 @@ describe('GET /pets/:petId/health/medical-conditions (e2e)', () => {
             name: 'Diabetes',
             status: 'ACTIVE',
             diagnosedDate: '2025-01-01',
+            resolvedDate: null,
             notes: null,
             recordedByAccountId: owner.id,
         };
@@ -207,6 +209,7 @@ describe('GET /pets/:petId/health/medical-conditions (e2e)', () => {
             name: 'Epilepsy',
             status: 'RESOLVED',
             diagnosedDate: '2026-03-14',
+            resolvedDate: null,
             notes: 'Reported seizures.',
             recordedByAccountId: collaborator.id,
         };
@@ -262,6 +265,7 @@ describe('GET /pets/:petId/health/medical-conditions (e2e)', () => {
                 name: 'Diabetes',
                 status: 'ACTIVE',
                 diagnosedDate: null,
+                resolvedDate: null,
                 notes: null,
                 recordedByAccountId: owner.id,
             }),

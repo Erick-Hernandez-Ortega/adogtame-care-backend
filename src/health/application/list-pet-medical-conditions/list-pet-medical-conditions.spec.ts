@@ -12,6 +12,7 @@ const first: PetMedicalConditionListItem = {
     name: 'Epilepsy',
     status: 'ACTIVE',
     diagnosedDate: '2026-03-14',
+    resolvedDate: null,
     notes: 'Reported seizures.',
     recordedByAccountId: ACCOUNT_ID,
 };

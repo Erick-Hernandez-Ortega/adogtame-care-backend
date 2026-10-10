@@ -22,6 +22,7 @@ export const healthPetMedicalConditions = pgTable(
             .references(() => pets.id, { onDelete: 'restrict' }),
         name: varchar('name', { length: 255 }).notNull(),
         status: text('status').notNull().default('ACTIVE'),
+        resolvedDate: date('resolved_date', { mode: 'string' }),
         diagnosedDate: date('diagnosed_date', { mode: 'string' }),
         notes: varchar('notes', { length: 2000 }),
         recordedByAccountId: uuid('recorded_by_account_id')
@@ -35,6 +36,10 @@ export const healthPetMedicalConditions = pgTable(
             .defaultNow(),
     },
     (table) => [
+        check(
+            'health_pet_medical_conditions_active_resolved_date_null',
+            sql`${table.status} <> 'ACTIVE' OR ${table.resolvedDate} IS NULL`,
+        ),
         index('health_pet_medical_conditions_pet_idx').on(table.petId),
         check('health_pet_medical_conditions_name_not_empty', sql`btrim(${table.name}) <> ''`),
         check(

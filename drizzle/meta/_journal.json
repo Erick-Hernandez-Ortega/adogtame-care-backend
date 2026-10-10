@@ -99,6 +99,13 @@
       "when": 1791654088938,
       "tag": "0013_classy_veda",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1791657495745,
+      "tag": "0014_first_spirit",
+      "breakpoints": true
     }
   ]
 }

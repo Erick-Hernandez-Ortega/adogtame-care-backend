@@ -164,6 +164,7 @@ describe('PATCH /pets/:petId/health/medical-conditions/:conditionId (e2e)', () =
             name: 'Arthritis',
             status: 'ACTIVE',
             diagnosedDate: '2026-02-10',
+            resolvedDate: null,
             notes: 'Monitored periodically.',
             recordedByAccountId: owner.id,
         };
@@ -195,6 +196,7 @@ describe('PATCH /pets/:petId/health/medical-conditions/:conditionId (e2e)', () =
                         name: 'Osteoarthritis',
                         status: 'ACTIVE',
                         diagnosedDate: '2026-03-14',
+                        resolvedDate: null,
                         notes: null,
                         recordedByAccountId: owner.id,
                     },

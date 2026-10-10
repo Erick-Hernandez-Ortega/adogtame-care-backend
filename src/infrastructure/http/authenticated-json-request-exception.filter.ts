@@ -34,7 +34,9 @@ export class AuthenticatedJsonRequestExceptionFilter extends BaseExceptionFilter
             (request.method === 'PATCH' &&
                 /^\/pets\/[^/]+\/health\/medical-conditions\/[^/]+\/?$/i.test(request.path)) ||
             (request.method === 'POST' &&
-                /^\/pets\/[^/]+\/health\/medical-conditions\/?$/i.test(request.path)) ||
+                /^\/pets\/[^/]+\/health\/medical-conditions(?:\/[^/]+\/resolve)?\/?$/i.test(
+                    request.path,
+                )) ||
             (request.method === 'POST' && /^\/pets\/[^/]+\/restore\/?$/i.test(request.path)) ||
             ((request.method === 'PATCH' || request.method === 'DELETE') &&
                 /^\/pets\/[^/]+\/health\/allergies\/[^/]+\/?$/i.test(request.path))

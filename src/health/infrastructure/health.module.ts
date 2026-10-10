@@ -1,3 +1,4 @@
+import { ResolvePetMedicalCondition } from '../application/resolve-pet-medical-condition/resolve-pet-medical-condition';
 import { Module } from '@nestjs/common';
 import { UpdatePetMedicalCondition } from '../application/update-pet-medical-condition/update-pet-medical-condition';
 import { ListPetMedicalConditions } from '../application/list-pet-medical-conditions/list-pet-medical-conditions';
@@ -71,6 +72,14 @@ import { DrizzleVaccinationHistoryReader } from './persistence/drizzle/drizzle-v
         PetAllergiesController,
     ],
     providers: [
+        {
+            provide: ResolvePetMedicalCondition,
+            inject: [PET_MEDICAL_CONDITION_REPOSITORY, HEALTH_CLOCK],
+            useFactory: (
+                repository: PetMedicalConditionRepository,
+                clock: Clock,
+            ): ResolvePetMedicalCondition => new ResolvePetMedicalCondition(repository, clock),
+        },
         {
             provide: UpdatePetMedicalCondition,
             inject: [PET_MEDICAL_CONDITION_REPOSITORY, HEALTH_CLOCK],

@@ -1,3 +1,4 @@
+import { ResolvedDate } from '../resolved-date/resolved-date';
 import { randomUUID } from 'node:crypto';
 import { DiagnosedDate } from '../diagnosed-date/diagnosed-date';
 import { MedicalConditionName } from '../medical-condition-name/medical-condition-name';
@@ -68,6 +69,7 @@ interface CreatePetMedicalConditionInput {
 interface ReconstitutePetMedicalConditionInput extends CreatePetMedicalConditionInput {
     id: PetMedicalConditionId;
     status: string;
+    resolvedDate?: ResolvedDate | null;
 }
 
 interface CorrectPetMedicalConditionInput {
@@ -88,6 +90,16 @@ export class InvalidMedicalConditionDiagnosedDateValueError extends TypeError {
     }
 }
 
+export class InvalidMedicalConditionResolvedDateValueError extends TypeError {
+    constructor(cause: TypeError | RangeError) {
+        super(cause.message, { cause });
+    }
+}
+
+interface ResolvePetMedicalConditionInput {
+    resolvedDate: string | null;
+}
+
 export class PetMedicalCondition {
     private constructor(
         readonly id: PetMedicalConditionId,
@@ -97,6 +109,7 @@ export class PetMedicalCondition {
         readonly notes: string | null,
         readonly recordedByAccountId: RecordedByAccountId,
         readonly status: MedicalConditionStatus,
+        readonly resolvedDate: ResolvedDate | null,
     ) {}
 
     static create(input: CreatePetMedicalConditionInput): PetMedicalCondition {
@@ -104,6 +117,7 @@ export class PetMedicalCondition {
             ...input,
             id: PetMedicalConditionId.generate(),
             status: MedicalConditionStatus.ACTIVE,
+            resolvedDate: null,
         });
     }
 
@@ -127,6 +141,18 @@ export class PetMedicalCondition {
             throw new TypeError('Medical condition status must be ACTIVE or RESOLVED');
         }
 
+        if (
+            input.resolvedDate !== undefined &&
+            input.resolvedDate !== null &&
+            !(input.resolvedDate instanceof ResolvedDate)
+        ) {
+            throw new TypeError('Resolved date data is invalid');
+        }
+
+        if (input.status === MedicalConditionStatus.ACTIVE && input.resolvedDate != null) {
+            throw new TypeError('Active medical conditions cannot have a resolved date');
+        }
+
         const notes: string | null = PetMedicalCondition.normalizeNotes(input.notes);
 
         return new PetMedicalCondition(
@@ -137,6 +163,7 @@ export class PetMedicalCondition {
             notes,
             input.recordedByAccountId,
             input.status,
+            input.resolvedDate ?? null,
         );
     }
 
@@ -188,6 +215,7 @@ export class PetMedicalCondition {
             notes: input.notes === undefined ? this.notes : input.notes,
             recordedByAccountId: this.recordedByAccountId,
             status: this.status,
+            resolvedDate: this.resolvedDate,
         });
 
         if (
@@ -199,6 +227,36 @@ export class PetMedicalCondition {
         }
 
         return candidate;
+    }
+
+    resolve(input: ResolvePetMedicalConditionInput, today: string): PetMedicalCondition {
+        if (this.status === MedicalConditionStatus.RESOLVED) {
+            return this;
+        }
+
+        let resolvedDate: ResolvedDate | null;
+
+        try {
+            resolvedDate =
+                input.resolvedDate === null ? null : ResolvedDate.from(input.resolvedDate, today);
+        } catch (error: unknown) {
+            if (error instanceof TypeError || error instanceof RangeError) {
+                throw new InvalidMedicalConditionResolvedDateValueError(error);
+            }
+
+            throw error;
+        }
+
+        return PetMedicalCondition.reconstitute({
+            id: this.id,
+            petId: this.petId,
+            name: this.name,
+            diagnosedDate: this.diagnosedDate,
+            notes: this.notes,
+            recordedByAccountId: this.recordedByAccountId,
+            status: MedicalConditionStatus.RESOLVED,
+            resolvedDate,
+        });
     }
 
     private static normalizeNotes(value: string | null | undefined): string | null {

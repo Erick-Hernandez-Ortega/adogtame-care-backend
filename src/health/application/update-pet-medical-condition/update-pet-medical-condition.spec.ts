@@ -53,6 +53,7 @@ function setup(status: string = 'ACTIVE') {
         );
     const repository: PetMedicalConditionRepository = {
         createIfPetWritable: jest.fn(),
+        resolveIfPetWritable: jest.fn(),
         correctIfPetWritable,
     };
     const now = jest.fn((): Date => new Date('2026-03-13T18:30:00-06:00'));
@@ -77,6 +78,7 @@ describe('UpdatePetMedicalCondition', () => {
                 name: 'Osteoarthritis',
                 status,
                 diagnosedDate: null,
+                resolvedDate: null,
                 notes: null,
                 recordedByAccountId: condition.recordedByAccountId.value,
             });

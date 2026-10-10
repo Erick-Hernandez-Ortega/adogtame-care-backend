@@ -31,6 +31,7 @@ function setup() {
         .mockResolvedValue('CREATED');
     const repository: PetMedicalConditionRepository = {
         createIfPetWritable,
+        resolveIfPetWritable: jest.fn(),
         correctIfPetWritable: jest.fn(),
     };
     const now = jest.fn((): Date => new Date('2026-03-13T18:30:00-06:00'));
@@ -55,6 +56,7 @@ describe('RecordPetMedicalCondition', () => {
             name: 'Epilepsy',
             status: 'ACTIVE',
             diagnosedDate: '2026-03-14',
+            resolvedDate: null,
             notes: 'Recurring seizures.',
             recordedByAccountId: command().authenticatedAccountId,
         });

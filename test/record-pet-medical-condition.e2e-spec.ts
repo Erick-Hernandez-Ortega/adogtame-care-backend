@@ -152,6 +152,7 @@ describe('POST /pets/:petId/health/medical-conditions (e2e)', () => {
                 name: 'Epilepsy',
                 status: 'ACTIVE',
                 diagnosedDate: '2026-03-14',
+                resolvedDate: null,
                 notes: 'Recurring seizures monitored by veterinarian.',
                 recordedByAccountId: account.id,
             });
@@ -175,6 +176,7 @@ describe('POST /pets/:petId/health/medical-conditions (e2e)', () => {
                 ...payload,
                 status: 'ACTIVE',
                 diagnosedDate: null,
+                resolvedDate: null,
                 notes: 'notes' in payload ? payload.notes : null,
                 recordedByAccountId: owner.id,
             });

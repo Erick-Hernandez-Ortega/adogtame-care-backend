@@ -1,4 +1,9 @@
 import {
+    ResolvePetMedicalCondition,
+    InvalidMedicalConditionResolvedDateError,
+} from '../../../application/resolve-pet-medical-condition/resolve-pet-medical-condition';
+import { resolvePetMedicalConditionSchema } from '../schemas/resolve-pet-medical-condition.schema';
+import {
     UpdatePetMedicalCondition,
     PetMedicalConditionNotFoundError,
     type UpdatedPetMedicalCondition,
@@ -12,6 +17,7 @@ import {
     Body,
     Controller,
     Get,
+    HttpCode,
     NotFoundException,
     Param,
     Post,
@@ -50,6 +56,8 @@ import {
     recordPetMedicalConditionQuerySchema,
 } from '../schemas/record-pet-medical-condition.schema';
 import {
+    resolvePetMedicalConditionRequestSchema,
+    resolvedPetMedicalConditionResponseSchema,
     recordPetMedicalConditionRequestSchema,
     updatePetMedicalConditionRequestSchema,
     updatedPetMedicalConditionResponseSchema,
@@ -62,17 +70,140 @@ import {
 @ApiBearerAuth()
 export class PetMedicalConditionsController {
     constructor(
+        private readonly resolvePetMedicalCondition: ResolvePetMedicalCondition,
         private readonly updatePetMedicalCondition: UpdatePetMedicalCondition,
         private readonly recordPetMedicalCondition: RecordPetMedicalCondition,
         private readonly listPetMedicalConditions: ListPetMedicalConditions,
     ) {}
+
+    @Post(':conditionId/resolve')
+    @HttpCode(200)
+    @UseGuards(AuthenticationGuard)
+    @ApiOperation({
+        summary: 'Resolve a registered pet medical condition',
+        description:
+            'Active owners and collaborators of ACTIVE pets may resolve conditions regardless of authorship. resolvedDate is required: an exact civil date no later than today UTC, or null when unknown. No implicit date or ordering relative to diagnosis is imposed. An authorized retry on RESOLVED returns the current condition without UPDATE or timestamp change and never modifies the existing resolution date, even when the newly supplied string is semantically invalid. No query parameters are accepted. Authorization and target lookup precede domain validation.',
+    })
+    @ApiParam({
+        name: 'petId',
+        description: 'Non-nil pet UUID',
+        schema: { type: 'string', format: 'uuid' },
+    })
+    @ApiParam({
+        name: 'conditionId',
+        description: 'Non-nil medical condition UUID',
+        schema: { type: 'string', format: 'uuid' },
+    })
+    @ApiBody({ schema: resolvePetMedicalConditionRequestSchema })
+    @ApiResponse({
+        status: 200,
+        description: 'Complete resolved condition; retries preserve the existing resolution date',
+        schema: resolvedPetMedicalConditionResponseSchema,
+    })
+    @ApiResponse({
+        status: 400,
+        description: 'Invalid request structure or clinical values',
+        schema: {
+            oneOf: [
+                errorSchema(['INVALID_REQUEST'], 'Request body is invalid'),
+                errorSchema(
+                    ['INVALID_MEDICAL_CONDITION_RESOLVED_DATE'],
+                    'Resolved date cannot be in the future',
+                ),
+            ],
+        },
+    })
+    @ApiResponse({
+        status: 401,
+        description: 'Missing or invalid Bearer token',
+        schema: errorSchema(['UNAUTHENTICATED'], 'Authentication is required'),
+    })
+    @ApiResponse({
+        status: 404,
+        description:
+            'Pet missing, archived or inaccessible; condition missing or belongs to another pet',
+        schema: {
+            oneOf: [
+                errorSchema(['PET_NOT_FOUND'], 'Pet was not found'),
+                errorSchema(
+                    ['PET_MEDICAL_CONDITION_NOT_FOUND'],
+                    'Pet medical condition was not found',
+                ),
+            ],
+        },
+    })
+    async resolve(
+        @CurrentAccountId() authenticatedAccountId: string,
+        @Param('petId') petId: string,
+        @Param('conditionId') conditionId: string,
+        @Body() body: unknown,
+        @Query() query: unknown,
+    ): Promise<UpdatedPetMedicalCondition> {
+        const parsedPetId = medicalConditionPetIdSchema.safeParse(petId);
+        const parsedConditionId = medicalConditionIdSchema.safeParse(conditionId);
+
+        if (!parsedPetId.success || !parsedConditionId.success) {
+            throw new BadRequestException({
+                code: 'INVALID_REQUEST',
+                message: 'Request path is invalid',
+            });
+        }
+
+        const parsedBody = resolvePetMedicalConditionSchema.safeParse(body);
+
+        if (!parsedBody.success) {
+            throw new BadRequestException({
+                code: 'INVALID_REQUEST',
+                message: 'Request body is invalid',
+            });
+        }
+
+        if (!recordPetMedicalConditionQuerySchema.safeParse(query).success) {
+            throw new BadRequestException({
+                code: 'INVALID_REQUEST',
+                message: 'Request query is invalid',
+            });
+        }
+
+        try {
+            return await this.resolvePetMedicalCondition.execute({
+                ...parsedBody.data,
+                petId: parsedPetId.data,
+                conditionId: parsedConditionId.data,
+                authenticatedAccountId,
+            });
+        } catch (error: unknown) {
+            if (error instanceof PetNotFoundError) {
+                throw new NotFoundException({
+                    code: 'PET_NOT_FOUND',
+                    message: error.message,
+                });
+            }
+
+            if (error instanceof PetMedicalConditionNotFoundError) {
+                throw new NotFoundException({
+                    code: 'PET_MEDICAL_CONDITION_NOT_FOUND',
+                    message: error.message,
+                });
+            }
+
+            if (error instanceof InvalidMedicalConditionResolvedDateError) {
+                throw new BadRequestException({
+                    code: 'INVALID_MEDICAL_CONDITION_RESOLVED_DATE',
+                    message: error.message,
+                });
+            }
+
+            throw error;
+        }
+    }
 
     @Patch(':conditionId')
     @UseGuards(AuthenticationGuard)
     @ApiOperation({
         summary: 'Correct a registered pet medical condition',
         description:
-            'Active owners and collaborators of an ACTIVE pet may correct ACTIVE or RESOLVED conditions, regardless of original authorship. Identity, original author and status are preserved: Update does not Resolve or Reopen. Include at least one of name, diagnosedDate or notes. Omitted fields are preserved; null clears date or notes. Diagnosed date is the exact known date of the reported diagnosis, not symptom onset, record creation, owner awareness or proof of professional diagnosis. Explicit dates must be valid calendar dates no later than today UTC sampled after locks. A normalized no-op returns the current representation without an UPDATE or timestamp change. No query parameters are accepted. Authorization and target resolution precede semantic validation.',
+            'Active owners and collaborators of an ACTIVE pet may correct ACTIVE or RESOLVED conditions, regardless of original authorship. Identity, original author, status and resolvedDate are preserved: Update does not Resolve or Reopen. Include at least one of name, diagnosedDate or notes. Omitted fields are preserved; null clears date or notes. Diagnosed date is the exact known date of the reported diagnosis, not symptom onset, record creation, owner awareness or proof of professional diagnosis. Explicit dates must be valid calendar dates no later than today UTC sampled after locks. A normalized no-op returns the current representation without an UPDATE or timestamp change. No query parameters are accepted. Authorization and target resolution precede semantic validation.',
     })
     @ApiParam({
         name: 'petId',

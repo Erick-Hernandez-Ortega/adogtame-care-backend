@@ -6,6 +6,7 @@ export interface PetMedicalConditionListItem {
     readonly id: string;
     readonly name: string;
     readonly status: MedicalConditionStatus;
+    readonly resolvedDate: string | null;
     readonly diagnosedDate: string | null;
     readonly notes: string | null;
     readonly recordedByAccountId: string;
