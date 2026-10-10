@@ -1,0 +1,926 @@
+{
+  "id": "323b7a45-973b-4391-9fbd-7fed5aa9349d",
+  "prevId": "6fc3fd32-f5a2-4038-9edb-efff06ea4297",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.health_pet_allergies": {
+      "name": "health_pet_allergies",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "pet_id": {
+          "name": "pet_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "allergen": {
+          "name": "allergen",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "category": {
+          "name": "category",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "severity": {
+          "name": "severity",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "notes": {
+          "name": "notes",
+          "type": "varchar(2000)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "recorded_by_account_id": {
+          "name": "recorded_by_account_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "health_pet_allergies_pet_idx": {
+          "name": "health_pet_allergies_pet_idx",
+          "columns": [
+            {
+              "expression": "pet_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "health_pet_allergies_pet_id_pets_id_fk": {
+          "name": "health_pet_allergies_pet_id_pets_id_fk",
+          "tableFrom": "health_pet_allergies",
+          "tableTo": "pets",
+          "columnsFrom": [
+            "pet_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "health_pet_allergies_recorded_by_account_id_accounts_id_fk": {
+          "name": "health_pet_allergies_recorded_by_account_id_accounts_id_fk",
+          "tableFrom": "health_pet_allergies",
+          "tableTo": "accounts",
+          "columnsFrom": [
+            "recorded_by_account_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "health_pet_allergies_allergen_not_empty": {
+          "name": "health_pet_allergies_allergen_not_empty",
+          "value": "btrim(\"health_pet_allergies\".\"allergen\") <> ''"
+        },
+        "health_pet_allergies_category_supported": {
+          "name": "health_pet_allergies_category_supported",
+          "value": "\"health_pet_allergies\".\"category\" in ('FOOD', 'MEDICATION', 'ENVIRONMENTAL', 'OTHER')"
+        },
+        "health_pet_allergies_severity_supported": {
+          "name": "health_pet_allergies_severity_supported",
+          "value": "\"health_pet_allergies\".\"severity\" in ('MILD', 'MODERATE', 'SEVERE', 'UNKNOWN')"
+        },
+        "health_pet_allergies_notes_not_empty": {
+          "name": "health_pet_allergies_notes_not_empty",
+          "value": "\"health_pet_allergies\".\"notes\" is null or btrim(\"health_pet_allergies\".\"notes\") <> ''"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.health_pet_medical_conditions": {
+      "name": "health_pet_medical_conditions",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "pet_id": {
+          "name": "pet_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'ACTIVE'"
+        },
+        "diagnosed_date": {
+          "name": "diagnosed_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "notes": {
+          "name": "notes",
+          "type": "varchar(2000)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "recorded_by_account_id": {
+          "name": "recorded_by_account_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "health_pet_medical_conditions_pet_idx": {
+          "name": "health_pet_medical_conditions_pet_idx",
+          "columns": [
+            {
+              "expression": "pet_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "health_pet_medical_conditions_pet_id_pets_id_fk": {
+          "name": "health_pet_medical_conditions_pet_id_pets_id_fk",
+          "tableFrom": "health_pet_medical_conditions",
+          "tableTo": "pets",
+          "columnsFrom": [
+            "pet_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "health_pet_medical_conditions_recorded_by_account_id_accounts_id_fk": {
+          "name": "health_pet_medical_conditions_recorded_by_account_id_accounts_id_fk",
+          "tableFrom": "health_pet_medical_conditions",
+          "tableTo": "accounts",
+          "columnsFrom": [
+            "recorded_by_account_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "health_pet_medical_conditions_name_not_empty": {
+          "name": "health_pet_medical_conditions_name_not_empty",
+          "value": "btrim(\"health_pet_medical_conditions\".\"name\") <> ''"
+        },
+        "health_pet_medical_conditions_status_supported": {
+          "name": "health_pet_medical_conditions_status_supported",
+          "value": "\"health_pet_medical_conditions\".\"status\" in ('ACTIVE', 'RESOLVED')"
+        },
+        "health_pet_medical_conditions_notes_not_empty": {
+          "name": "health_pet_medical_conditions_notes_not_empty",
+          "value": "\"health_pet_medical_conditions\".\"notes\" is null or btrim(\"health_pet_medical_conditions\".\"notes\") <> ''"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.health_vaccination_records": {
+      "name": "health_vaccination_records",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "pet_id": {
+          "name": "pet_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "vaccine_name": {
+          "name": "vaccine_name",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "applied_date": {
+          "name": "applied_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "next_due_date": {
+          "name": "next_due_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "recorded_by_account_id": {
+          "name": "recorded_by_account_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "health_vaccination_records_pet_history_idx": {
+          "name": "health_vaccination_records_pet_history_idx",
+          "columns": [
+            {
+              "expression": "pet_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "applied_date",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "health_vaccination_records_pet_id_pets_id_fk": {
+          "name": "health_vaccination_records_pet_id_pets_id_fk",
+          "tableFrom": "health_vaccination_records",
+          "tableTo": "pets",
+          "columnsFrom": [
+            "pet_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "health_vaccination_records_recorded_by_account_id_accounts_id_fk": {
+          "name": "health_vaccination_records_recorded_by_account_id_accounts_id_fk",
+          "tableFrom": "health_vaccination_records",
+          "tableTo": "accounts",
+          "columnsFrom": [
+            "recorded_by_account_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "health_vaccination_records_vaccine_name_not_empty": {
+          "name": "health_vaccination_records_vaccine_name_not_empty",
+          "value": "btrim(\"health_vaccination_records\".\"vaccine_name\") <> ''"
+        },
+        "health_vaccination_records_next_due_date_after_applied_date": {
+          "name": "health_vaccination_records_next_due_date_after_applied_date",
+          "value": "\"health_vaccination_records\".\"next_due_date\" is null or \"health_vaccination_records\".\"next_due_date\" > \"health_vaccination_records\".\"applied_date\""
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.health_weight_records": {
+      "name": "health_weight_records",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "pet_id": {
+          "name": "pet_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "weight_kg": {
+          "name": "weight_kg",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "measured_date": {
+          "name": "measured_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "recorded_by_account_id": {
+          "name": "recorded_by_account_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "health_weight_records_pet_history_idx": {
+          "name": "health_weight_records_pet_history_idx",
+          "columns": [
+            {
+              "expression": "pet_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "measured_date",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "health_weight_records_pet_id_pets_id_fk": {
+          "name": "health_weight_records_pet_id_pets_id_fk",
+          "tableFrom": "health_weight_records",
+          "tableTo": "pets",
+          "columnsFrom": [
+            "pet_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "health_weight_records_recorded_by_account_id_accounts_id_fk": {
+          "name": "health_weight_records_recorded_by_account_id_accounts_id_fk",
+          "tableFrom": "health_weight_records",
+          "tableTo": "accounts",
+          "columnsFrom": [
+            "recorded_by_account_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "health_weight_records_weight_kg_valid": {
+          "name": "health_weight_records_weight_kg_valid",
+          "value": "\"health_weight_records\".\"weight_kg\" > 0 and \"health_weight_records\".\"weight_kg\" < 'Infinity'::numeric and scale(\"health_weight_records\".\"weight_kg\") <= 4"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.accounts": {
+      "name": "accounts",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "password_hash": {
+          "name": "password_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "accounts_email_unique": {
+          "name": "accounts_email_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "email"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "accounts_email_not_empty": {
+          "name": "accounts_email_not_empty",
+          "value": "btrim(\"accounts\".\"email\") <> ''"
+        },
+        "accounts_password_hash_not_empty": {
+          "name": "accounts_password_hash_not_empty",
+          "value": "btrim(\"accounts\".\"password_hash\") <> ''"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.pet_invitations": {
+      "name": "pet_invitations",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "pet_id": {
+          "name": "pet_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "invited_email": {
+          "name": "invited_email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "invited_by_account_id": {
+          "name": "invited_by_account_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "pet_invitations_one_pending_per_email": {
+          "name": "pet_invitations_one_pending_per_email",
+          "columns": [
+            {
+              "expression": "pet_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "invited_email",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"pet_invitations\".\"status\" = 'PENDING'",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "pet_invitations_pet_id_pets_id_fk": {
+          "name": "pet_invitations_pet_id_pets_id_fk",
+          "tableFrom": "pet_invitations",
+          "tableTo": "pets",
+          "columnsFrom": [
+            "pet_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "pet_invitations_email_normalized": {
+          "name": "pet_invitations_email_normalized",
+          "value": "\"pet_invitations\".\"invited_email\" <> '' and \"pet_invitations\".\"invited_email\" = lower(btrim(\"pet_invitations\".\"invited_email\"))"
+        },
+        "pet_invitations_status_supported": {
+          "name": "pet_invitations_status_supported",
+          "value": "\"pet_invitations\".\"status\" in ('PENDING', 'ACCEPTED', 'REJECTED', 'CANCELLED', 'EXPIRED')"
+        },
+        "pet_invitations_expires_after_created": {
+          "name": "pet_invitations_expires_after_created",
+          "value": "\"pet_invitations\".\"expires_at\" > \"pet_invitations\".\"created_at\""
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.pet_memberships": {
+      "name": "pet_memberships",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "pet_id": {
+          "name": "pet_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "account_id": {
+          "name": "account_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "role": {
+          "name": "role",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "pet_memberships_pet_id_pets_id_fk": {
+          "name": "pet_memberships_pet_id_pets_id_fk",
+          "tableFrom": "pet_memberships",
+          "tableTo": "pets",
+          "columnsFrom": [
+            "pet_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "pet_memberships_pet_id_account_id_unique": {
+          "name": "pet_memberships_pet_id_account_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "pet_id",
+            "account_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "pet_memberships_role_supported": {
+          "name": "pet_memberships_role_supported",
+          "value": "\"pet_memberships\".\"role\" in ('OWNER', 'COLLABORATOR')"
+        },
+        "pet_memberships_status_supported": {
+          "name": "pet_memberships_status_supported",
+          "value": "\"pet_memberships\".\"status\" in ('ACTIVE', 'INACTIVE')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.pets": {
+      "name": "pets",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "species": {
+          "name": "species",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "breed_name": {
+          "name": "breed_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "breed_kind": {
+          "name": "breed_kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sex": {
+          "name": "sex",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "birth_date": {
+          "name": "birth_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "birth_date_accuracy": {
+          "name": "birth_date_accuracy",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "color": {
+          "name": "color",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "distinctive_marks": {
+          "name": "distinctive_marks",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "microchip": {
+          "name": "microchip",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "pets_name_not_empty": {
+          "name": "pets_name_not_empty",
+          "value": "btrim(\"pets\".\"name\") <> ''"
+        },
+        "pets_species_supported": {
+          "name": "pets_species_supported",
+          "value": "\"pets\".\"species\" in ('DOG', 'CAT')"
+        },
+        "pets_breed_name_not_empty": {
+          "name": "pets_breed_name_not_empty",
+          "value": "btrim(\"pets\".\"breed_name\") <> ''"
+        },
+        "pets_breed_kind_supported": {
+          "name": "pets_breed_kind_supported",
+          "value": "\"pets\".\"breed_kind\" in ('KNOWN', 'CUSTOM')"
+        },
+        "pets_sex_supported": {
+          "name": "pets_sex_supported",
+          "value": "\"pets\".\"sex\" in ('MALE', 'FEMALE', 'UNKNOWN')"
+        },
+        "pets_birth_date_accuracy_supported": {
+          "name": "pets_birth_date_accuracy_supported",
+          "value": "\"pets\".\"birth_date_accuracy\" in ('EXACT', 'APPROXIMATE')"
+        },
+        "pets_color_not_empty": {
+          "name": "pets_color_not_empty",
+          "value": "\"pets\".\"color\" is null or btrim(\"pets\".\"color\") <> ''"
+        },
+        "pets_distinctive_marks_not_empty": {
+          "name": "pets_distinctive_marks_not_empty",
+          "value": "\"pets\".\"distinctive_marks\" is null or btrim(\"pets\".\"distinctive_marks\") <> ''"
+        },
+        "pets_microchip_not_empty": {
+          "name": "pets_microchip_not_empty",
+          "value": "\"pets\".\"microchip\" is null or btrim(\"pets\".\"microchip\") <> ''"
+        },
+        "pets_status_supported": {
+          "name": "pets_status_supported",
+          "value": "\"pets\".\"status\" in ('ACTIVE', 'ARCHIVED')"
+        }
+      },
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {},
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}

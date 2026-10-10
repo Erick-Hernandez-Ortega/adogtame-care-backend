@@ -82,6 +82,48 @@ export const recordedPetMedicalConditionResponseSchema: SchemaObject = {
   },
 };
 
+export const petMedicalConditionsResponseSchema: SchemaObject = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['items'],
+  properties: {
+    items: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: [
+          'id',
+          'name',
+          'status',
+          'diagnosedDate',
+          'notes',
+          'recordedByAccountId',
+        ],
+        properties: {
+          id: { type: 'string', format: 'uuid' },
+          name: { type: 'string', minLength: 1, maxLength: 255 },
+          status: { type: 'string', enum: ['ACTIVE', 'RESOLVED'] },
+          diagnosedDate: {
+            type: 'string',
+            format: 'date',
+            nullable: true,
+            description:
+              'Exact known date of the reported diagnosis; null when unknown or only approximate.',
+          },
+          notes: {
+            type: 'string',
+            nullable: true,
+            minLength: 1,
+            maxLength: 2000,
+          },
+          recordedByAccountId: { type: 'string', format: 'uuid' },
+        },
+      },
+    },
+  },
+};
+
 export const recordVaccinationRequestSchema: SchemaObject = {
   ...(z.toJSONSchema(recordVaccinationSchema, {
     target: 'openapi-3.0',

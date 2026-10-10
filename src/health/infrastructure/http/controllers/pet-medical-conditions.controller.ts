@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Get,
   NotFoundException,
   Param,
   Post,
@@ -16,6 +17,12 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import {
+  ListPetMedicalConditions,
+  PetNotFoundError as ListPetMedicalConditionsPetNotFoundError,
+  type PetMedicalConditions,
+} from '../../../application/list-pet-medical-conditions/list-pet-medical-conditions';
+import { listPetMedicalConditionsQuerySchema } from '../schemas/list-pet-medical-conditions.schema';
 import { AuthenticationGuard } from '../../../../identity/infrastructure/http/authentication/authentication.guard';
 import { CurrentAccountId } from '../../../../identity/infrastructure/http/decorators/current-account-id.decorator';
 import { errorSchema } from '../../../../infrastructure/http/openapi-error.schema';
@@ -35,6 +42,7 @@ import {
 import {
   recordPetMedicalConditionRequestSchema,
   recordedPetMedicalConditionResponseSchema,
+  petMedicalConditionsResponseSchema,
 } from '../schemas/openapi.schemas';
 
 @Controller('pets/:petId/health/medical-conditions')
@@ -43,7 +51,71 @@ import {
 export class PetMedicalConditionsController {
   constructor(
     private readonly recordPetMedicalCondition: RecordPetMedicalCondition,
+    private readonly listPetMedicalConditions: ListPetMedicalConditions,
   ) {}
+
+  @Get()
+  @UseGuards(AuthenticationGuard)
+  @ApiOperation({
+    summary: 'List registered pet medical conditions',
+    description:
+      'Active owners and collaborators may read all ACTIVE and RESOLVED conditions of active or archived pets. Known diagnosis dates appear newest first, unknown dates last; ties use technical creation timestamp and condition ID descending. Technical timestamps are not clinical dates. An accessible pet without conditions returns an empty items array. No query parameters are accepted.',
+  })
+  @ApiParam({
+    name: 'petId',
+    description: 'Non-nil pet UUID',
+    schema: { type: 'string', format: 'uuid' },
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'All registered pet medical conditions',
+    schema: petMedicalConditionsResponseSchema,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid pet UUID or unexpected query parameters',
+    schema: errorSchema(['INVALID_REQUEST'], 'Request query is invalid'),
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Missing or invalid Bearer token',
+    schema: errorSchema(['UNAUTHENTICATED'], 'Authentication is required'),
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Pet is missing or inaccessible',
+    schema: errorSchema(['PET_NOT_FOUND'], 'Pet was not found'),
+  })
+  async list(
+    @CurrentAccountId() authenticatedAccountId: string,
+    @Param('petId') petId: string,
+    @Query() query: unknown,
+  ): Promise<PetMedicalConditions> {
+    const parsedPetId = medicalConditionPetIdSchema.safeParse(petId);
+    if (!parsedPetId.success)
+      throw new BadRequestException({
+        code: 'INVALID_REQUEST',
+        message: 'Pet id is invalid',
+      });
+    if (!listPetMedicalConditionsQuerySchema.safeParse(query).success)
+      throw new BadRequestException({
+        code: 'INVALID_REQUEST',
+        message: 'Request query is invalid',
+      });
+    try {
+      return await this.listPetMedicalConditions.execute({
+        petId: parsedPetId.data,
+        authenticatedAccountId,
+      });
+    } catch (error: unknown) {
+      if (error instanceof ListPetMedicalConditionsPetNotFoundError)
+        throw new NotFoundException({
+          code: 'PET_NOT_FOUND',
+          message: error.message,
+        });
+      throw error;
+    }
+  }
 
   @Post()
   @UseGuards(AuthenticationGuard)

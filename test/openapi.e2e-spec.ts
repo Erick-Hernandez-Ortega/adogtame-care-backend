@@ -38,7 +38,7 @@ describe('OpenAPI documentation (e2e)', () => {
     await application.close();
   });
 
-  it('serves Swagger UI and documents all thirty operations and their contracts', async () => {
+  it('serves Swagger UI and documents all thirty-one operations and their contracts', async () => {
     const htmlResponse = await request(application.getHttpServer())
       .get('/docs')
       .expect(200);
@@ -69,6 +69,7 @@ describe('OpenAPI documentation (e2e)', () => {
       ['/pets/{petId}/archive', 'post'],
       ['/pets/{petId}/restore', 'post'],
       ['/pets/{petId}/health/medical-conditions', 'post'],
+      ['/pets/{petId}/health/medical-conditions', 'get'],
       ['/pets/{petId}/health/allergies', 'post'],
       ['/pets/{petId}/health/allergies', 'get'],
       ['/pets/{petId}/health/allergies/{allergyId}', 'patch'],
@@ -107,7 +108,7 @@ describe('OpenAPI documentation (e2e)', () => {
           Number(Boolean(path?.delete)),
         0,
       ),
-    ).toBe(30);
+    ).toBe(31);
 
     const medicalCondition: OperationObject | undefined =
       document.paths['/pets/{petId}/health/medical-conditions']?.post;
@@ -212,10 +213,88 @@ describe('OpenAPI documentation (e2e)', () => {
     expect(JSON.stringify(responseSchema(medicalCondition, '404'))).toContain(
       'PET_NOT_FOUND',
     );
-    for (const method of ['get', 'patch', 'delete'] as const)
+    for (const method of ['patch', 'delete'] as const)
       expect(
         document.paths['/pets/{petId}/health/medical-conditions']?.[method],
       ).toBeUndefined();
+
+    const medicalConditionList: OperationObject | undefined =
+      document.paths['/pets/{petId}/health/medical-conditions']?.get;
+    expect(medicalConditionList?.security).toEqual([{ bearer: [] }]);
+    expect(Object.keys(medicalConditionList?.responses ?? {}).sort()).toEqual([
+      '200',
+      '400',
+      '401',
+      '404',
+    ]);
+    expect(medicalConditionList?.requestBody).toBeUndefined();
+    expect(medicalConditionList?.parameters).toEqual([
+      expect.objectContaining({
+        name: 'petId',
+        in: 'path',
+        required: true,
+        schema: { type: 'string', format: 'uuid' },
+      }),
+    ]);
+    const medicalConditionListResponse: SchemaObject | undefined =
+      responseSchema(medicalConditionList, '200');
+    expect(medicalConditionListResponse?.required).toEqual(['items']);
+    expect(medicalConditionListResponse?.additionalProperties).toBe(false);
+    expect(Object.keys(medicalConditionListResponse?.properties ?? {})).toEqual(
+      ['items'],
+    );
+    const medicalConditionListItems: SchemaObject = medicalConditionListResponse
+      ?.properties?.items as SchemaObject;
+    expect(medicalConditionListItems.type).toBe('array');
+    const medicalConditionListItem: SchemaObject =
+      medicalConditionListItems.items as SchemaObject;
+    expect(medicalConditionListItem.additionalProperties).toBe(false);
+    expect(medicalConditionListItem.required).toEqual([
+      'id',
+      'name',
+      'status',
+      'diagnosedDate',
+      'notes',
+      'recordedByAccountId',
+    ]);
+    expect(
+      Object.keys(medicalConditionListItem.properties ?? {}).sort(),
+    ).toEqual([
+      'diagnosedDate',
+      'id',
+      'name',
+      'notes',
+      'recordedByAccountId',
+      'status',
+    ]);
+    expect(medicalConditionListItem.properties?.status).toMatchObject({
+      type: 'string',
+      enum: ['ACTIVE', 'RESOLVED'],
+    });
+    expect(medicalConditionListItem.properties?.diagnosedDate).toMatchObject({
+      type: 'string',
+      format: 'date',
+      nullable: true,
+    });
+    expect(medicalConditionListItem.properties?.notes).toMatchObject({
+      type: 'string',
+      nullable: true,
+      maxLength: 2000,
+    });
+    for (const field of ['id', 'recordedByAccountId'])
+      expect(medicalConditionListItem.properties?.[field]).toMatchObject({
+        type: 'string',
+        format: 'uuid',
+      });
+    for (const [status, code] of [
+      ['400', 'INVALID_REQUEST'],
+      ['401', 'UNAUTHENTICATED'],
+      ['404', 'PET_NOT_FOUND'],
+    ]) {
+      expect(
+        JSON.stringify(responseSchema(medicalConditionList, status)),
+      ).toContain(code);
+    }
 
     const allergyUpdate: OperationObject | undefined =
       document.paths['/pets/{petId}/health/allergies/{allergyId}']?.patch;

@@ -35,6 +35,7 @@ export const healthPetMedicalConditions = pgTable(
       .defaultNow(),
   },
   (table) => [
+    index('health_pet_medical_conditions_pet_idx').on(table.petId),
     check(
       'health_pet_medical_conditions_name_not_empty',
       sql`btrim(${table.name}) <> ''`,

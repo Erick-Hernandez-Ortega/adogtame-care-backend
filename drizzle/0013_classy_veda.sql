@@ -1,0 +1,1 @@
+CREATE INDEX "health_pet_medical_conditions_pet_idx" ON "health_pet_medical_conditions" USING btree ("pet_id");
