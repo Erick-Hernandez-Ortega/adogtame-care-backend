@@ -7,86 +7,86 @@ import type { PetRepository } from '../persistence/pet.repository';
 import type { RegisteredPet, RegisterPetCommand } from './register-pet.types';
 
 export class InvalidPetRegistrationError extends Error {
-  constructor(cause: TypeError | RangeError) {
-    super(cause.message, { cause });
-    this.name = 'InvalidPetRegistrationError';
-  }
+    constructor(cause: TypeError | RangeError) {
+        super(cause.message, { cause });
+        this.name = 'InvalidPetRegistrationError';
+    }
 }
 
 export class RegisterPet {
-  constructor(private readonly petRepository: PetRepository) {}
+    constructor(private readonly petRepository: PetRepository) {}
 
-  async execute(command: RegisterPetCommand): Promise<RegisteredPet> {
-    let pet: Pet;
+    async execute(command: RegisterPetCommand): Promise<RegisteredPet> {
+        let pet: Pet;
 
-    try {
-      const breed: Breed = this.createBreed(command.breed);
-      const birthInformation: BirthInformation = this.createBirthInformation(
-        command.birthInformation,
-      );
+        try {
+            const breed: Breed = this.createBreed(command.breed);
+            const birthInformation: BirthInformation = this.createBirthInformation(
+                command.birthInformation,
+            );
 
-      pet = Pet.register({
-        name: command.name,
-        species: command.species,
-        breed,
-        sex: command.sex,
-        birthInformation,
-        ownerAccountId: command.ownerAccountId,
-        color: command.color,
-        distinctiveMarks: command.distinctiveMarks,
-        microchip: command.microchip,
-      });
-    } catch (error: unknown) {
-      if (error instanceof TypeError || error instanceof RangeError) {
-        throw new InvalidPetRegistrationError(error);
-      }
+            pet = Pet.register({
+                name: command.name,
+                species: command.species,
+                breed,
+                sex: command.sex,
+                birthInformation,
+                ownerAccountId: command.ownerAccountId,
+                color: command.color,
+                distinctiveMarks: command.distinctiveMarks,
+                microchip: command.microchip,
+            });
+        } catch (error: unknown) {
+            if (error instanceof TypeError || error instanceof RangeError) {
+                throw new InvalidPetRegistrationError(error);
+            }
 
-      throw error;
+            throw error;
+        }
+
+        await this.petRepository.save(pet);
+
+        return {
+            id: pet.id.value,
+            name: pet.name,
+            species: pet.species,
+            breed: {
+                name: pet.breed.name,
+                kind: pet.breed.kind,
+            },
+            sex: pet.sex,
+            birthInformation: {
+                date: pet.birthInformation.date,
+                accuracy: pet.birthInformation.accuracy,
+            },
+            color: pet.color ?? null,
+            distinctiveMarks: pet.distinctiveMarks ?? null,
+            microchip: pet.microchip ?? null,
+            status: pet.status,
+            memberships: pet.memberships.map((membership) => ({
+                id: membership.id.value,
+                accountId: membership.accountId.value,
+                role: membership.role,
+            })),
+        };
     }
 
-    await this.petRepository.save(pet);
+    private createBreed(input: { name: string; kind: BreedKind }): Breed {
+        if (input.kind === 'KNOWN') {
+            return Breed.known(input.name);
+        }
 
-    return {
-      id: pet.id.value,
-      name: pet.name,
-      species: pet.species,
-      breed: {
-        name: pet.breed.name,
-        kind: pet.breed.kind,
-      },
-      sex: pet.sex,
-      birthInformation: {
-        date: pet.birthInformation.date,
-        accuracy: pet.birthInformation.accuracy,
-      },
-      color: pet.color ?? null,
-      distinctiveMarks: pet.distinctiveMarks ?? null,
-      microchip: pet.microchip ?? null,
-      status: pet.status,
-      memberships: pet.memberships.map((membership) => ({
-        id: membership.id.value,
-        accountId: membership.accountId.value,
-        role: membership.role,
-      })),
-    };
-  }
-
-  private createBreed(input: { name: string; kind: BreedKind }): Breed {
-    if (input.kind === 'KNOWN') {
-      return Breed.known(input.name);
+        return Breed.custom(input.name);
     }
 
-    return Breed.custom(input.name);
-  }
+    private createBirthInformation(input: {
+        date: string;
+        accuracy: BirthDateAccuracy;
+    }): BirthInformation {
+        if (input.accuracy === 'EXACT') {
+            return BirthInformation.exact(input.date);
+        }
 
-  private createBirthInformation(input: {
-    date: string;
-    accuracy: BirthDateAccuracy;
-  }): BirthInformation {
-    if (input.accuracy === 'EXACT') {
-      return BirthInformation.exact(input.date);
+        return BirthInformation.approximate(input.date);
     }
-
-    return BirthInformation.approximate(input.date);
-  }
 }

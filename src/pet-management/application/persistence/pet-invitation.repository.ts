@@ -1,47 +1,42 @@
 import type { PetInvitation } from '../../domain/pet-invitation/pet-invitation';
 
-export const PET_INVITATION_REPOSITORY: unique symbol = Symbol(
-  'PET_INVITATION_REPOSITORY',
-);
+export const PET_INVITATION_REPOSITORY: unique symbol = Symbol('PET_INVITATION_REPOSITORY');
 
 export const CreatePendingInvitationOutcome = {
-  CREATED: 'CREATED',
-  PET_NOT_FOUND: 'PET_NOT_FOUND',
-  ALREADY_PENDING: 'ALREADY_PENDING',
+    CREATED: 'CREATED',
+    PET_NOT_FOUND: 'PET_NOT_FOUND',
+    ALREADY_PENDING: 'ALREADY_PENDING',
 } as const;
 
 export type CreatePendingInvitationOutcome =
-  (typeof CreatePendingInvitationOutcome)[keyof typeof CreatePendingInvitationOutcome];
+    (typeof CreatePendingInvitationOutcome)[keyof typeof CreatePendingInvitationOutcome];
 
 export type AcceptInvitationPersistenceResult =
-  | { outcome: 'NOT_FOUND' | 'EXPIRED' | 'NOT_PENDING' | 'NOT_ACCEPTABLE' }
-  | { outcome: 'ACCEPTED'; id: string; petId: string };
+    | { outcome: 'NOT_FOUND' | 'EXPIRED' | 'NOT_PENDING' | 'NOT_ACCEPTABLE' }
+    | { outcome: 'ACCEPTED'; id: string; petId: string };
 
 export type RejectInvitationPersistenceResult =
-  | { outcome: 'NOT_FOUND' | 'EXPIRED' | 'NOT_PENDING' }
-  | { outcome: 'REJECTED'; id: string; petId: string };
+    | { outcome: 'NOT_FOUND' | 'EXPIRED' | 'NOT_PENDING' }
+    | { outcome: 'REJECTED'; id: string; petId: string };
 
 export type CancelInvitationPersistenceResult =
-  | { outcome: 'NOT_FOUND' | 'PET_NOT_FOUND' | 'EXPIRED' | 'NOT_PENDING' }
-  | { outcome: 'CANCELLED'; id: string; petId: string };
+    | { outcome: 'NOT_FOUND' | 'PET_NOT_FOUND' | 'EXPIRED' | 'NOT_PENDING' }
+    | { outcome: 'CANCELLED'; id: string; petId: string };
 
 export interface PetInvitationRepository {
-  findPending(petId: string, email: string): Promise<PetInvitation | null>;
-  createPending(
-    invitation: PetInvitation,
-    expiredInvitation: PetInvitation | null,
-  ): Promise<CreatePendingInvitationOutcome>;
-  accept(
-    invitationId: string,
-    invitedEmail: string,
-    accountId: string,
-  ): Promise<AcceptInvitationPersistenceResult>;
-  reject(
-    invitationId: string,
-    invitedEmail: string,
-  ): Promise<RejectInvitationPersistenceResult>;
-  cancel(
-    invitationId: string,
-    authenticatedAccountId: string,
-  ): Promise<CancelInvitationPersistenceResult>;
+    findPending(petId: string, email: string): Promise<PetInvitation | null>;
+    createPending(
+        invitation: PetInvitation,
+        expiredInvitation: PetInvitation | null,
+    ): Promise<CreatePendingInvitationOutcome>;
+    accept(
+        invitationId: string,
+        invitedEmail: string,
+        accountId: string,
+    ): Promise<AcceptInvitationPersistenceResult>;
+    reject(invitationId: string, invitedEmail: string): Promise<RejectInvitationPersistenceResult>;
+    cancel(
+        invitationId: string,
+        authenticatedAccountId: string,
+    ): Promise<CancelInvitationPersistenceResult>;
 }

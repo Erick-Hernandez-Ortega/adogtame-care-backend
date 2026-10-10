@@ -6,19 +6,20 @@ import { EnvironmentVariables } from '../config/environment.validation';
 
 @Injectable()
 export class DatabaseService implements OnApplicationShutdown {
-  private readonly client: Sql;
-  readonly connection: PostgresJsDatabase;
+    private readonly client: Sql;
 
-  constructor(configService: ConfigService<EnvironmentVariables, true>) {
-    const databaseUrl: string = configService.getOrThrow('DATABASE_URL', {
-      infer: true,
-    });
+    readonly connection: PostgresJsDatabase;
 
-    this.client = postgres(databaseUrl);
-    this.connection = drizzle(this.client);
-  }
+    constructor(configService: ConfigService<EnvironmentVariables, true>) {
+        const databaseUrl: string = configService.getOrThrow('DATABASE_URL', {
+            infer: true,
+        });
 
-  async onApplicationShutdown(): Promise<void> {
-    await this.client.end();
-  }
+        this.client = postgres(databaseUrl);
+        this.connection = drizzle(this.client);
+    }
+
+    async onApplicationShutdown(): Promise<void> {
+        await this.client.end();
+    }
 }

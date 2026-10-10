@@ -10,38 +10,38 @@ export type PetSex = 'MALE' | 'FEMALE' | 'UNKNOWN';
 export type PetStatus = 'ACTIVE' | 'ARCHIVED';
 
 export interface RegisterPetInput {
-  name: string;
-  species: PetSpecies;
-  breed: Breed;
-  sex: PetSex;
-  birthInformation: BirthInformation;
-  ownerAccountId: string;
-  color?: string;
-  distinctiveMarks?: string;
-  microchip?: string;
+    name: string;
+    species: PetSpecies;
+    breed: Breed;
+    sex: PetSex;
+    birthInformation: BirthInformation;
+    ownerAccountId: string;
+    color?: string;
+    distinctiveMarks?: string;
+    microchip?: string;
 }
 
 export interface CorrectPetProfileInput {
-  name?: string;
-  species?: PetSpecies;
-  breed?: Breed;
-  sex?: PetSex;
-  birthInformation?: BirthInformation;
-  color?: string | null;
-  distinctiveMarks?: string | null;
-  microchip?: string | null;
+    name?: string;
+    species?: PetSpecies;
+    breed?: Breed;
+    sex?: PetSex;
+    birthInformation?: BirthInformation;
+    color?: string | null;
+    distinctiveMarks?: string | null;
+    microchip?: string | null;
 }
 
 export interface PetProperties {
-  readonly id: PetId;
-  readonly name: string;
-  readonly species: PetSpecies;
-  readonly breed: Breed;
-  readonly sex: PetSex;
-  readonly birthInformation: BirthInformation;
-  readonly color?: string;
-  readonly distinctiveMarks?: string;
-  readonly microchip?: string;
-  readonly status: PetStatus;
-  readonly memberships: readonly PetMembership[];
+    readonly id: PetId;
+    readonly name: string;
+    readonly species: PetSpecies;
+    readonly breed: Breed;
+    readonly sex: PetSex;
+    readonly birthInformation: BirthInformation;
+    readonly color?: string;
+    readonly distinctiveMarks?: string;
+    readonly microchip?: string;
+    readonly status: PetStatus;
+    readonly memberships: readonly PetMembership[];
 }

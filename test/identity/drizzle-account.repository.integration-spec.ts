@@ -4,8 +4,8 @@ import { eq } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
 import { AppModule } from '../../src/app.module';
 import {
-  SaveAccountOutcome,
-  type SaveAccountOutcome as SaveAccountOutcomeType,
+    SaveAccountOutcome,
+    type SaveAccountOutcome as SaveAccountOutcomeType,
 } from '../../src/identity/application/persistence/account.repository';
 import { Account, AccountId } from '../../src/identity/domain/account/account';
 import { Email } from '../../src/identity/domain/email/email';
@@ -15,142 +15,135 @@ import { accounts } from '../../src/identity/infrastructure/persistence/drizzle/
 import { DatabaseService } from '../../src/infrastructure/database/database.service';
 
 function createAccount(email: string): Account {
-  return Account.register({
-    email: Email.from(email),
-    passwordHash: PasswordHash.from('$argon2id$encoded-hash'),
-  });
+    return Account.register({
+        email: Email.from(email),
+        passwordHash: PasswordHash.from('$argon2id$encoded-hash'),
+    });
 }
 
 describe('DrizzleAccountRepository (integration)', () => {
-  let application: INestApplicationContext;
-  let databaseService: DatabaseService;
-  let repository: DrizzleAccountRepository;
+    let application: INestApplicationContext;
+    let databaseService: DatabaseService;
+    let repository: DrizzleAccountRepository;
 
-  beforeAll(async () => {
-    const moduleFixture: TestingModule = await Test.createTestingModule({
-      imports: [AppModule],
-    }).compile();
+    beforeAll(async () => {
+        const moduleFixture: TestingModule = await Test.createTestingModule({
+            imports: [AppModule],
+        }).compile();
 
-    application = moduleFixture;
-    databaseService = application.get(DatabaseService);
-    repository = new DrizzleAccountRepository(databaseService);
-  });
+        application = moduleFixture;
+        databaseService = application.get(DatabaseService);
+        repository = new DrizzleAccountRepository(databaseService);
+    });
 
-  afterAll(async () => {
-    await application.close();
-  });
+    afterAll(async () => {
+        await application.close();
+    });
 
-  it('maps and saves an account', async () => {
-    const email: string = 'repository-mapping@example.com';
-    const account: Account = createAccount(email);
+    it('maps and saves an account', async () => {
+        const email: string = 'repository-mapping@example.com';
+        const account: Account = createAccount(email);
 
-    try {
-      await expect(repository.save(account)).resolves.toBe(
-        SaveAccountOutcome.SAVED,
-      );
+        try {
+            await expect(repository.save(account)).resolves.toBe(SaveAccountOutcome.SAVED);
 
-      const savedAccounts = await databaseService.connection
-        .select()
-        .from(accounts)
-        .where(eq(accounts.id, account.id.value));
+            const savedAccounts = await databaseService.connection
+                .select()
+                .from(accounts)
+                .where(eq(accounts.id, account.id.value));
 
-      expect(savedAccounts).toHaveLength(1);
-      expect(savedAccounts[0]).toMatchObject({
-        id: account.id.value,
-        email,
-        passwordHash: '$argon2id$encoded-hash',
-      });
-      expect(savedAccounts[0].createdAt).toBeInstanceOf(Date);
-      expect(savedAccounts[0].updatedAt).toBeInstanceOf(Date);
+            expect(savedAccounts).toHaveLength(1);
+            expect(savedAccounts[0]).toMatchObject({
+                id: account.id.value,
+                email,
+                passwordHash: '$argon2id$encoded-hash',
+            });
+            expect(savedAccounts[0].createdAt).toBeInstanceOf(Date);
+            expect(savedAccounts[0].updatedAt).toBeInstanceOf(Date);
 
-      const foundAccount: Account | null = await repository.findByEmail(
-        Email.from(` ${email.toUpperCase()} `),
-      );
+            const foundAccount: Account | null = await repository.findByEmail(
+                Email.from(` ${email.toUpperCase()} `),
+            );
 
-      expect(foundAccount).not.toBeNull();
-      expect(foundAccount?.id.value).toBe(account.id.value);
-      expect(foundAccount?.email.value).toBe(email);
-      expect(foundAccount?.passwordHash.value).toBe('$argon2id$encoded-hash');
+            expect(foundAccount).not.toBeNull();
+            expect(foundAccount?.id.value).toBe(account.id.value);
+            expect(foundAccount?.email.value).toBe(email);
+            expect(foundAccount?.passwordHash.value).toBe('$argon2id$encoded-hash');
 
-      const foundById: Account | null = await repository.findById(account.id);
+            const foundById: Account | null = await repository.findById(account.id);
 
-      expect(foundById).not.toBeNull();
-      expect(foundById?.id.value).toBe(account.id.value);
-      expect(foundById?.email.value).toBe(email);
-      expect(foundById?.passwordHash.value).toBe('$argon2id$encoded-hash');
-    } finally {
-      await databaseService.connection
-        .delete(accounts)
-        .where(eq(accounts.id, account.id.value));
-    }
-  });
+            expect(foundById).not.toBeNull();
+            expect(foundById?.id.value).toBe(account.id.value);
+            expect(foundById?.email.value).toBe(email);
+            expect(foundById?.passwordHash.value).toBe('$argon2id$encoded-hash');
+        } finally {
+            await databaseService.connection
+                .delete(accounts)
+                .where(eq(accounts.id, account.id.value));
+        }
+    });
 
-  it('updates the persistence timestamp on a direct SQL update', async () => {
-    const account: Account = createAccount('timestamp-account@example.com');
-    const originalCreatedAt: Date = new Date('2020-01-01T00:00:00.000Z');
-    const originalUpdatedAt: Date = new Date('2020-01-02T00:00:00.000Z');
+    it('updates the persistence timestamp on a direct SQL update', async () => {
+        const account: Account = createAccount('timestamp-account@example.com');
+        const originalCreatedAt: Date = new Date('2020-01-01T00:00:00.000Z');
+        const originalUpdatedAt: Date = new Date('2020-01-02T00:00:00.000Z');
 
-    try {
-      await databaseService.connection.insert(accounts).values({
-        id: account.id.value,
-        email: account.email.value,
-        passwordHash: account.passwordHash.value,
-        createdAt: originalCreatedAt,
-        updatedAt: originalUpdatedAt,
-      });
+        try {
+            await databaseService.connection.insert(accounts).values({
+                id: account.id.value,
+                email: account.email.value,
+                passwordHash: account.passwordHash.value,
+                createdAt: originalCreatedAt,
+                updatedAt: originalUpdatedAt,
+            });
 
-      const [updatedAccount] = await databaseService.connection
-        .update(accounts)
-        .set({ email: account.email.value })
-        .where(eq(accounts.id, account.id.value))
-        .returning();
+            const [updatedAccount] = await databaseService.connection
+                .update(accounts)
+                .set({ email: account.email.value })
+                .where(eq(accounts.id, account.id.value))
+                .returning();
 
-      expect(updatedAccount.createdAt).toEqual(originalCreatedAt);
-      expect(updatedAccount.updatedAt.getTime()).toBeGreaterThan(
-        originalUpdatedAt.getTime(),
-      );
-    } finally {
-      await databaseService.connection
-        .delete(accounts)
-        .where(eq(accounts.id, account.id.value));
-    }
-  });
+            expect(updatedAccount.createdAt).toEqual(originalCreatedAt);
+            expect(updatedAccount.updatedAt.getTime()).toBeGreaterThan(originalUpdatedAt.getTime());
+        } finally {
+            await databaseService.connection
+                .delete(accounts)
+                .where(eq(accounts.id, account.id.value));
+        }
+    });
 
-  it('returns null when an account does not exist', async () => {
-    await expect(
-      repository.findByEmail(Email.from('missing-repository@example.com')),
-    ).resolves.toBeNull();
-    await expect(
-      repository.findById(AccountId.from(randomUUID())),
-    ).resolves.toBeNull();
-  });
+    it('returns null when an account does not exist', async () => {
+        await expect(
+            repository.findByEmail(Email.from('missing-repository@example.com')),
+        ).resolves.toBeNull();
+        await expect(repository.findById(AccountId.from(randomUUID()))).resolves.toBeNull();
+    });
 
-  it('lets PostgreSQL resolve concurrent registrations of the same email', async () => {
-    const email: string = 'repository-concurrent@example.com';
-    const firstAccount: Account = createAccount(email);
-    const secondAccount: Account = createAccount(` ${email.toUpperCase()} `);
+    it('lets PostgreSQL resolve concurrent registrations of the same email', async () => {
+        const email: string = 'repository-concurrent@example.com';
+        const firstAccount: Account = createAccount(email);
+        const secondAccount: Account = createAccount(` ${email.toUpperCase()} `);
 
-    try {
-      const outcomes: SaveAccountOutcomeType[] = await Promise.all([
-        repository.save(firstAccount),
-        repository.save(secondAccount),
-      ]);
+        try {
+            const outcomes: SaveAccountOutcomeType[] = await Promise.all([
+                repository.save(firstAccount),
+                repository.save(secondAccount),
+            ]);
 
-      expect(outcomes).toEqual(
-        expect.arrayContaining([
-          SaveAccountOutcome.SAVED,
-          SaveAccountOutcome.EMAIL_ALREADY_REGISTERED,
-        ]),
-      );
-      const savedAccounts = await databaseService.connection
-        .select({ id: accounts.id })
-        .from(accounts)
-        .where(eq(accounts.email, email));
-      expect(savedAccounts).toHaveLength(1);
-    } finally {
-      await databaseService.connection
-        .delete(accounts)
-        .where(eq(accounts.email, email));
-    }
-  });
+            expect(outcomes).toEqual(
+                expect.arrayContaining([
+                    SaveAccountOutcome.SAVED,
+                    SaveAccountOutcome.EMAIL_ALREADY_REGISTERED,
+                ]),
+            );
+            const savedAccounts = await databaseService.connection
+                .select({ id: accounts.id })
+                .from(accounts)
+                .where(eq(accounts.email, email));
+
+            expect(savedAccounts).toHaveLength(1);
+        } finally {
+            await databaseService.connection.delete(accounts).where(eq(accounts.email, email));
+        }
+    });
 });

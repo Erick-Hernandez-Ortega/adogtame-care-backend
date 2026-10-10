@@ -5,18 +5,15 @@ import { PasswordHash } from '../../domain/password-hash/password-hash';
 
 @Injectable()
 export class Argon2idPasswordHasher implements PasswordHasher {
-  async hash(plaintextPassword: string): Promise<PasswordHash> {
-    const encodedHash: string = await hash(plaintextPassword, {
-      type: argon2id,
-    });
+    async hash(plaintextPassword: string): Promise<PasswordHash> {
+        const encodedHash: string = await hash(plaintextPassword, {
+            type: argon2id,
+        });
 
-    return PasswordHash.from(encodedHash);
-  }
+        return PasswordHash.from(encodedHash);
+    }
 
-  verify(
-    plaintextPassword: string,
-    passwordHash: PasswordHash,
-  ): Promise<boolean> {
-    return verify(passwordHash.value, plaintextPassword);
-  }
+    verify(plaintextPassword: string, passwordHash: PasswordHash): Promise<boolean> {
+        return verify(passwordHash.value, plaintextPassword);
+    }
 }

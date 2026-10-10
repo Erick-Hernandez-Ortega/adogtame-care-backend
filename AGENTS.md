@@ -353,6 +353,11 @@ Schema design, migrations, transaction boundaries, and repository implementation
 
 * Follow the repository's ESLint and Prettier configuration.
 * Use single quotes and trailing commas as configured by Prettier.
+* Use four spaces for indentation and a 100-character print width.
+* Separate declarations, validation blocks, control flow, and returns with blank lines as enforced by ESLint. Consecutive declarations may stay together.
+* Always use braces for control flow and separate class members with blank lines.
+* Use object rest/spread when it simplifies a known projection without exposing internal fields. Keep explicit mappings when converting domain values into public responses.
+* Run `pnpm format` to apply ESLint style fixes and Prettier formatting together.
 * Run the relevant pnpm lint and build commands after code changes.
 - Run the relevant pnpm lint, build, and test commands after code changes.
 

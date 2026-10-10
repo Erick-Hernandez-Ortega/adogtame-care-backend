@@ -170,6 +170,8 @@ See [Pet member reads](docs/pet-members-read.md) for the email lookup boundary,
 read consistency, and the separate technical debt concerning the missing
 membership-to-account foreign key.
 
+Run `pnpm format` to apply the project style with ESLint and Prettier: four-space indentation, a 100-character print width, braces around control flow, and blank lines between logical blocks and class members. Rest/spread is used for simple projections; domain-to-response conversions remain explicit.
+
 ## Verification
 
 ```bash

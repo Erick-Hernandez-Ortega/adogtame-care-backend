@@ -1,186 +1,176 @@
 import { generateUuid, isValidUuid } from '../shared/uuid';
 import type {
-  PetMembershipRole as PetMembershipRoleType,
-  PetMembershipStatus as PetMembershipStatusType,
+    PetMembershipRole as PetMembershipRoleType,
+    PetMembershipStatus as PetMembershipStatusType,
 } from './pet-membership.types';
 
 export const PetMembershipRole = {
-  OWNER: 'OWNER',
-  COLLABORATOR: 'COLLABORATOR',
+    OWNER: 'OWNER',
+    COLLABORATOR: 'COLLABORATOR',
 } as const satisfies Record<string, PetMembershipRoleType>;
 
 export const PetMembershipStatus = {
-  ACTIVE: 'ACTIVE',
-  INACTIVE: 'INACTIVE',
+    ACTIVE: 'ACTIVE',
+    INACTIVE: 'INACTIVE',
 } as const satisfies Record<string, PetMembershipStatusType>;
 
 export class MembershipId {
-  private constructor(readonly value: string) {}
+    private constructor(readonly value: string) {}
 
-  static generate(): MembershipId {
-    return new MembershipId(generateUuid());
-  }
-
-  static from(value: string): MembershipId {
-    if (!isValidUuid(value)) {
-      throw new TypeError('Membership ID must be a valid non-nil UUID');
+    static generate(): MembershipId {
+        return new MembershipId(generateUuid());
     }
 
-    return new MembershipId(value.toLowerCase());
-  }
+    static from(value: string): MembershipId {
+        if (!isValidUuid(value)) {
+            throw new TypeError('Membership ID must be a valid non-nil UUID');
+        }
+
+        return new MembershipId(value.toLowerCase());
+    }
 }
 
 export class AccountId {
-  private constructor(readonly value: string) {}
+    private constructor(readonly value: string) {}
 
-  static from(value: string): AccountId {
-    const normalizedValue: string = value.toLowerCase();
+    static from(value: string): AccountId {
+        const normalizedValue: string = value.toLowerCase();
 
-    if (!isValidUuid(normalizedValue)) {
-      throw new TypeError('Account ID must be a valid non-nil UUID');
+        if (!isValidUuid(normalizedValue)) {
+            throw new TypeError('Account ID must be a valid non-nil UUID');
+        }
+
+        return new AccountId(normalizedValue);
     }
-
-    return new AccountId(normalizedValue);
-  }
 }
 
 export class InactivePetMembershipError extends Error {
-  constructor() {
-    super('Pet member is inactive');
-  }
+    constructor() {
+        super('Pet member is inactive');
+    }
 }
 
 export class PetMembership {
-  private constructor(
-    readonly id: MembershipId,
-    readonly accountId: AccountId,
-    readonly role: PetMembershipRoleType,
-    readonly status: PetMembershipStatusType,
-  ) {}
+    private constructor(
+        readonly id: MembershipId,
+        readonly accountId: AccountId,
+        readonly role: PetMembershipRoleType,
+        readonly status: PetMembershipStatusType,
+    ) {}
 
-  static createInitialOwner(accountId: AccountId): PetMembership {
-    return new PetMembership(
-      MembershipId.generate(),
-      accountId,
-      PetMembershipRole.OWNER,
-      PetMembershipStatus.ACTIVE,
-    );
-  }
-
-  static createCollaborator(accountId: AccountId): PetMembership {
-    return new PetMembership(
-      MembershipId.generate(),
-      accountId,
-      PetMembershipRole.COLLABORATOR,
-      PetMembershipStatus.ACTIVE,
-    );
-  }
-
-  static reconstitute(input: {
-    id: MembershipId;
-    accountId: AccountId;
-    role: PetMembershipRoleType;
-    status: PetMembershipStatusType;
-  }): PetMembership {
-    if (
-      !(input.id instanceof MembershipId) ||
-      !(input.accountId instanceof AccountId) ||
-      !Object.values(PetMembershipRole).includes(input.role) ||
-      !Object.values(PetMembershipStatus).includes(input.status)
-    ) {
-      throw new TypeError('Membership state is invalid');
+    static createInitialOwner(accountId: AccountId): PetMembership {
+        return new PetMembership(
+            MembershipId.generate(),
+            accountId,
+            PetMembershipRole.OWNER,
+            PetMembershipStatus.ACTIVE,
+        );
     }
 
-    return new PetMembership(
-      input.id,
-      input.accountId,
-      input.role,
-      input.status,
-    );
-  }
-
-  reactivateAsCollaborator(): PetMembership {
-    if (this.status !== PetMembershipStatus.INACTIVE) {
-      throw new TypeError('Only an inactive membership can be reactivated');
+    static createCollaborator(accountId: AccountId): PetMembership {
+        return new PetMembership(
+            MembershipId.generate(),
+            accountId,
+            PetMembershipRole.COLLABORATOR,
+            PetMembershipStatus.ACTIVE,
+        );
     }
 
-    return new PetMembership(
-      this.id,
-      this.accountId,
-      PetMembershipRole.COLLABORATOR,
-      PetMembershipStatus.ACTIVE,
-    );
-  }
+    static reconstitute(input: {
+        id: MembershipId;
+        accountId: AccountId;
+        role: PetMembershipRoleType;
+        status: PetMembershipStatusType;
+    }): PetMembership {
+        if (
+            !(input.id instanceof MembershipId) ||
+            !(input.accountId instanceof AccountId) ||
+            !Object.values(PetMembershipRole).includes(input.role) ||
+            !Object.values(PetMembershipStatus).includes(input.status)
+        ) {
+            throw new TypeError('Membership state is invalid');
+        }
 
-  promoteToOwner(): PetMembership {
-    if (this.status !== PetMembershipStatus.ACTIVE) {
-      throw new InactivePetMembershipError();
-    }
-    if (this.role === PetMembershipRole.OWNER) {
-      return this;
-    }
-    return new PetMembership(
-      this.id,
-      this.accountId,
-      PetMembershipRole.OWNER,
-      PetMembershipStatus.ACTIVE,
-    );
-  }
-
-  removeAsOwner(): PetMembership {
-    if (this.role !== PetMembershipRole.OWNER) {
-      throw new TypeError('Only an owner can be removed as an owner');
-    }
-    if (this.status === PetMembershipStatus.INACTIVE) return this;
-    return new PetMembership(
-      this.id,
-      this.accountId,
-      this.role,
-      PetMembershipStatus.INACTIVE,
-    );
-  }
-
-  leaveAsOwner(): PetMembership {
-    if (this.role !== PetMembershipRole.OWNER) {
-      throw new TypeError('Only an owner can leave as an owner');
-    }
-    if (this.status === PetMembershipStatus.INACTIVE) return this;
-    return new PetMembership(
-      this.id,
-      this.accountId,
-      this.role,
-      PetMembershipStatus.INACTIVE,
-    );
-  }
-
-  leaveAsCollaborator(): PetMembership {
-    if (
-      this.role !== PetMembershipRole.COLLABORATOR ||
-      this.status !== PetMembershipStatus.ACTIVE
-    ) {
-      throw new TypeError('Only an active collaborator can leave a pet');
+        return new PetMembership(input.id, input.accountId, input.role, input.status);
     }
 
-    return this.inactivateCollaborator();
-  }
+    reactivateAsCollaborator(): PetMembership {
+        if (this.status !== PetMembershipStatus.INACTIVE) {
+            throw new TypeError('Only an inactive membership can be reactivated');
+        }
 
-  removeAsCollaborator(): PetMembership {
-    if (
-      this.role !== PetMembershipRole.COLLABORATOR ||
-      this.status !== PetMembershipStatus.ACTIVE
-    ) {
-      throw new TypeError('Only an active collaborator can be removed');
+        return new PetMembership(
+            this.id,
+            this.accountId,
+            PetMembershipRole.COLLABORATOR,
+            PetMembershipStatus.ACTIVE,
+        );
     }
 
-    return this.inactivateCollaborator();
-  }
+    promoteToOwner(): PetMembership {
+        if (this.status !== PetMembershipStatus.ACTIVE) {
+            throw new InactivePetMembershipError();
+        }
 
-  private inactivateCollaborator(): PetMembership {
-    return new PetMembership(
-      this.id,
-      this.accountId,
-      this.role,
-      PetMembershipStatus.INACTIVE,
-    );
-  }
+        if (this.role === PetMembershipRole.OWNER) {
+            return this;
+        }
+
+        return new PetMembership(
+            this.id,
+            this.accountId,
+            PetMembershipRole.OWNER,
+            PetMembershipStatus.ACTIVE,
+        );
+    }
+
+    removeAsOwner(): PetMembership {
+        if (this.role !== PetMembershipRole.OWNER) {
+            throw new TypeError('Only an owner can be removed as an owner');
+        }
+
+        if (this.status === PetMembershipStatus.INACTIVE) {
+            return this;
+        }
+
+        return new PetMembership(this.id, this.accountId, this.role, PetMembershipStatus.INACTIVE);
+    }
+
+    leaveAsOwner(): PetMembership {
+        if (this.role !== PetMembershipRole.OWNER) {
+            throw new TypeError('Only an owner can leave as an owner');
+        }
+
+        if (this.status === PetMembershipStatus.INACTIVE) {
+            return this;
+        }
+
+        return new PetMembership(this.id, this.accountId, this.role, PetMembershipStatus.INACTIVE);
+    }
+
+    leaveAsCollaborator(): PetMembership {
+        if (
+            this.role !== PetMembershipRole.COLLABORATOR ||
+            this.status !== PetMembershipStatus.ACTIVE
+        ) {
+            throw new TypeError('Only an active collaborator can leave a pet');
+        }
+
+        return this.inactivateCollaborator();
+    }
+
+    removeAsCollaborator(): PetMembership {
+        if (
+            this.role !== PetMembershipRole.COLLABORATOR ||
+            this.status !== PetMembershipStatus.ACTIVE
+        ) {
+            throw new TypeError('Only an active collaborator can be removed');
+        }
+
+        return this.inactivateCollaborator();
+    }
+
+    private inactivateCollaborator(): PetMembership {
+        return new PetMembership(this.id, this.accountId, this.role, PetMembershipStatus.INACTIVE);
+    }
 }

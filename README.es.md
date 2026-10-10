@@ -170,6 +170,8 @@ Consulta [Lecturas de miembros de mascotas](docs/pet-members-read.md) para conoc
 la frontera de consulta de email, la consistencia de lectura y la deuda técnica
 separada sobre la FK ausente entre memberships y accounts.
 
+Ejecuta `pnpm format` para aplicar el estilo del proyecto con ESLint y Prettier: indentación de cuatro espacios, ancho de 100 caracteres, llaves en control de flujo y líneas en blanco entre bloques lógicos y miembros de clases. Se utiliza rest/spread para proyecciones simples; las conversiones de dominio a respuestas se mantienen explícitas.
+
 ## Verificación
 
 ```bash

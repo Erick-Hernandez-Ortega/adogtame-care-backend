@@ -4,45 +4,45 @@ import type { PetMembershipRole } from '../../domain/pet-membership/pet-membersh
 import type { PetSex, PetSpecies, PetStatus } from '../../domain/pet/pet.types';
 
 export interface RegisterPetCommand {
-  name: string;
-  species: PetSpecies;
-  breed: {
     name: string;
-    kind: BreedKind;
-  };
-  sex: PetSex;
-  birthInformation: {
-    date: string;
-    accuracy: BirthDateAccuracy;
-  };
-  ownerAccountId: string;
-  color?: string;
-  distinctiveMarks?: string;
-  microchip?: string;
+    species: PetSpecies;
+    breed: {
+        name: string;
+        kind: BreedKind;
+    };
+    sex: PetSex;
+    birthInformation: {
+        date: string;
+        accuracy: BirthDateAccuracy;
+    };
+    ownerAccountId: string;
+    color?: string;
+    distinctiveMarks?: string;
+    microchip?: string;
 }
 
 export interface RegisteredPetMembership {
-  id: string;
-  accountId: string;
-  role: PetMembershipRole;
+    id: string;
+    accountId: string;
+    role: PetMembershipRole;
 }
 
 export interface RegisteredPet {
-  id: string;
-  name: string;
-  species: PetSpecies;
-  breed: {
+    id: string;
     name: string;
-    kind: BreedKind;
-  };
-  sex: PetSex;
-  birthInformation: {
-    date: string;
-    accuracy: BirthDateAccuracy;
-  };
-  color: string | null;
-  distinctiveMarks: string | null;
-  microchip: string | null;
-  status: PetStatus;
-  memberships: RegisteredPetMembership[];
+    species: PetSpecies;
+    breed: {
+        name: string;
+        kind: BreedKind;
+    };
+    sex: PetSex;
+    birthInformation: {
+        date: string;
+        accuracy: BirthDateAccuracy;
+    };
+    color: string | null;
+    distinctiveMarks: string | null;
+    microchip: string | null;
+    status: PetStatus;
+    memberships: RegisteredPetMembership[];
 }

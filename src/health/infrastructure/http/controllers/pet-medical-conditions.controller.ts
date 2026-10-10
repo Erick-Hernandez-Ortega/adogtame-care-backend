@@ -1,361 +1,401 @@
 import {
-  UpdatePetMedicalCondition,
-  PetMedicalConditionNotFoundError,
-  type UpdatedPetMedicalCondition,
+    UpdatePetMedicalCondition,
+    PetMedicalConditionNotFoundError,
+    type UpdatedPetMedicalCondition,
 } from '../../../application/update-pet-medical-condition/update-pet-medical-condition';
 import {
-  medicalConditionIdSchema,
-  updatePetMedicalConditionSchema,
+    medicalConditionIdSchema,
+    updatePetMedicalConditionSchema,
 } from '../schemas/update-pet-medical-condition.schema';
 import {
-  BadRequestException,
-  Body,
-  Controller,
-  Get,
-  NotFoundException,
-  Param,
-  Post,
-  Patch,
-  Query,
-  UseGuards,
+    BadRequestException,
+    Body,
+    Controller,
+    Get,
+    NotFoundException,
+    Param,
+    Post,
+    Patch,
+    Query,
+    UseGuards,
 } from '@nestjs/common';
 import {
-  ApiBearerAuth,
-  ApiBody,
-  ApiOperation,
-  ApiParam,
-  ApiResponse,
-  ApiTags,
+    ApiBearerAuth,
+    ApiBody,
+    ApiOperation,
+    ApiParam,
+    ApiResponse,
+    ApiTags,
 } from '@nestjs/swagger';
 import {
-  ListPetMedicalConditions,
-  PetNotFoundError as ListPetMedicalConditionsPetNotFoundError,
-  type PetMedicalConditions,
+    ListPetMedicalConditions,
+    PetNotFoundError as ListPetMedicalConditionsPetNotFoundError,
+    type PetMedicalConditions,
 } from '../../../application/list-pet-medical-conditions/list-pet-medical-conditions';
 import { listPetMedicalConditionsQuerySchema } from '../schemas/list-pet-medical-conditions.schema';
 import { AuthenticationGuard } from '../../../../identity/infrastructure/http/authentication/authentication.guard';
 import { CurrentAccountId } from '../../../../identity/infrastructure/http/decorators/current-account-id.decorator';
 import { errorSchema } from '../../../../infrastructure/http/openapi-error.schema';
 import {
-  InvalidMedicalConditionNameError,
-  InvalidMedicalConditionDiagnosedDateError,
-  InvalidMedicalConditionNotesError,
-  PetNotFoundError,
-  RecordPetMedicalCondition,
-  type RecordedPetMedicalCondition,
+    InvalidMedicalConditionNameError,
+    InvalidMedicalConditionDiagnosedDateError,
+    InvalidMedicalConditionNotesError,
+    PetNotFoundError,
+    RecordPetMedicalCondition,
+    type RecordedPetMedicalCondition,
 } from '../../../application/record-pet-medical-condition/record-pet-medical-condition';
 import {
-  medicalConditionPetIdSchema,
-  recordPetMedicalConditionSchema,
-  recordPetMedicalConditionQuerySchema,
+    medicalConditionPetIdSchema,
+    recordPetMedicalConditionSchema,
+    recordPetMedicalConditionQuerySchema,
 } from '../schemas/record-pet-medical-condition.schema';
 import {
-  recordPetMedicalConditionRequestSchema,
-  updatePetMedicalConditionRequestSchema,
-  updatedPetMedicalConditionResponseSchema,
-  recordedPetMedicalConditionResponseSchema,
-  petMedicalConditionsResponseSchema,
+    recordPetMedicalConditionRequestSchema,
+    updatePetMedicalConditionRequestSchema,
+    updatedPetMedicalConditionResponseSchema,
+    recordedPetMedicalConditionResponseSchema,
+    petMedicalConditionsResponseSchema,
 } from '../schemas/openapi.schemas';
 
 @Controller('pets/:petId/health/medical-conditions')
 @ApiTags('Health')
 @ApiBearerAuth()
 export class PetMedicalConditionsController {
-  constructor(
-    private readonly updatePetMedicalCondition: UpdatePetMedicalCondition,
-    private readonly recordPetMedicalCondition: RecordPetMedicalCondition,
-    private readonly listPetMedicalConditions: ListPetMedicalConditions,
-  ) {}
+    constructor(
+        private readonly updatePetMedicalCondition: UpdatePetMedicalCondition,
+        private readonly recordPetMedicalCondition: RecordPetMedicalCondition,
+        private readonly listPetMedicalConditions: ListPetMedicalConditions,
+    ) {}
 
-  @Patch(':conditionId')
-  @UseGuards(AuthenticationGuard)
-  @ApiOperation({
-    summary: 'Correct a registered pet medical condition',
-    description:
-      'Active owners and collaborators of an ACTIVE pet may correct ACTIVE or RESOLVED conditions, regardless of original authorship. Identity, original author and status are preserved: Update does not Resolve or Reopen. Include at least one of name, diagnosedDate or notes. Omitted fields are preserved; null clears date or notes. Diagnosed date is the exact known date of the reported diagnosis, not symptom onset, record creation, owner awareness or proof of professional diagnosis. Explicit dates must be valid calendar dates no later than today UTC sampled after locks. A normalized no-op returns the current representation without an UPDATE or timestamp change. No query parameters are accepted. Authorization and target resolution precede semantic validation.',
-  })
-  @ApiParam({
-    name: 'petId',
-    description: 'Non-nil pet UUID',
-    schema: { type: 'string', format: 'uuid' },
-  })
-  @ApiParam({
-    name: 'conditionId',
-    description: 'Non-nil medical condition UUID',
-    schema: { type: 'string', format: 'uuid' },
-  })
-  @ApiBody({ schema: updatePetMedicalConditionRequestSchema })
-  @ApiResponse({
-    status: 200,
-    description:
-      'Complete corrected or unchanged condition; status is preserved',
-    schema: updatedPetMedicalConditionResponseSchema,
-  })
-  @ApiResponse({
-    status: 400,
-    description: 'Invalid request structure or clinical values',
-    schema: {
-      oneOf: [
-        errorSchema(['INVALID_REQUEST'], 'Request body is invalid'),
-        errorSchema(
-          ['INVALID_MEDICAL_CONDITION_NAME'],
-          'Medical condition name cannot be empty',
-        ),
-        errorSchema(
-          ['INVALID_MEDICAL_CONDITION_DIAGNOSED_DATE'],
-          'Diagnosed date cannot be in the future',
-        ),
-        errorSchema(
-          ['INVALID_MEDICAL_CONDITION_NOTES'],
-          'Medical condition notes cannot be empty',
-        ),
-      ],
-    },
-  })
-  @ApiResponse({
-    status: 401,
-    description: 'Missing or invalid Bearer token',
-    schema: errorSchema(['UNAUTHENTICATED'], 'Authentication is required'),
-  })
-  @ApiResponse({
-    status: 404,
-    description:
-      'Pet missing, archived or inaccessible; condition missing or belongs to another pet',
-    schema: {
-      oneOf: [
-        errorSchema(['PET_NOT_FOUND'], 'Pet was not found'),
-        errorSchema(
-          ['PET_MEDICAL_CONDITION_NOT_FOUND'],
-          'Pet medical condition was not found',
-        ),
-      ],
-    },
-  })
-  async update(
-    @CurrentAccountId() authenticatedAccountId: string,
-    @Param('petId') petId: string,
-    @Param('conditionId') conditionId: string,
-    @Body() body: unknown,
-    @Query() query: unknown,
-  ): Promise<UpdatedPetMedicalCondition> {
-    const parsedPetId = medicalConditionPetIdSchema.safeParse(petId);
-    const parsedConditionId = medicalConditionIdSchema.safeParse(conditionId);
-    if (!parsedPetId.success || !parsedConditionId.success)
-      throw new BadRequestException({
-        code: 'INVALID_REQUEST',
-        message: 'Request path is invalid',
-      });
-    const parsedBody = updatePetMedicalConditionSchema.safeParse(body);
-    if (!parsedBody.success)
-      throw new BadRequestException({
-        code: 'INVALID_REQUEST',
-        message: 'Request body is invalid',
-      });
-    if (!recordPetMedicalConditionQuerySchema.safeParse(query).success)
-      throw new BadRequestException({
-        code: 'INVALID_REQUEST',
-        message: 'Request query is invalid',
-      });
-    try {
-      return await this.updatePetMedicalCondition.execute({
-        ...parsedBody.data,
-        petId: parsedPetId.data,
-        conditionId: parsedConditionId.data,
-        authenticatedAccountId,
-      });
-    } catch (error: unknown) {
-      if (error instanceof PetNotFoundError)
-        throw new NotFoundException({
-          code: 'PET_NOT_FOUND',
-          message: error.message,
-        });
-      if (error instanceof PetMedicalConditionNotFoundError)
-        throw new NotFoundException({
-          code: 'PET_MEDICAL_CONDITION_NOT_FOUND',
-          message: error.message,
-        });
-      if (error instanceof InvalidMedicalConditionNameError)
-        throw new BadRequestException({
-          code: 'INVALID_MEDICAL_CONDITION_NAME',
-          message: error.message,
-        });
-      if (error instanceof InvalidMedicalConditionDiagnosedDateError)
-        throw new BadRequestException({
-          code: 'INVALID_MEDICAL_CONDITION_DIAGNOSED_DATE',
-          message: error.message,
-        });
-      if (error instanceof InvalidMedicalConditionNotesError)
-        throw new BadRequestException({
-          code: 'INVALID_MEDICAL_CONDITION_NOTES',
-          message: error.message,
-        });
-      throw error;
-    }
-  }
+    @Patch(':conditionId')
+    @UseGuards(AuthenticationGuard)
+    @ApiOperation({
+        summary: 'Correct a registered pet medical condition',
+        description:
+            'Active owners and collaborators of an ACTIVE pet may correct ACTIVE or RESOLVED conditions, regardless of original authorship. Identity, original author and status are preserved: Update does not Resolve or Reopen. Include at least one of name, diagnosedDate or notes. Omitted fields are preserved; null clears date or notes. Diagnosed date is the exact known date of the reported diagnosis, not symptom onset, record creation, owner awareness or proof of professional diagnosis. Explicit dates must be valid calendar dates no later than today UTC sampled after locks. A normalized no-op returns the current representation without an UPDATE or timestamp change. No query parameters are accepted. Authorization and target resolution precede semantic validation.',
+    })
+    @ApiParam({
+        name: 'petId',
+        description: 'Non-nil pet UUID',
+        schema: { type: 'string', format: 'uuid' },
+    })
+    @ApiParam({
+        name: 'conditionId',
+        description: 'Non-nil medical condition UUID',
+        schema: { type: 'string', format: 'uuid' },
+    })
+    @ApiBody({ schema: updatePetMedicalConditionRequestSchema })
+    @ApiResponse({
+        status: 200,
+        description: 'Complete corrected or unchanged condition; status is preserved',
+        schema: updatedPetMedicalConditionResponseSchema,
+    })
+    @ApiResponse({
+        status: 400,
+        description: 'Invalid request structure or clinical values',
+        schema: {
+            oneOf: [
+                errorSchema(['INVALID_REQUEST'], 'Request body is invalid'),
+                errorSchema(
+                    ['INVALID_MEDICAL_CONDITION_NAME'],
+                    'Medical condition name cannot be empty',
+                ),
+                errorSchema(
+                    ['INVALID_MEDICAL_CONDITION_DIAGNOSED_DATE'],
+                    'Diagnosed date cannot be in the future',
+                ),
+                errorSchema(
+                    ['INVALID_MEDICAL_CONDITION_NOTES'],
+                    'Medical condition notes cannot be empty',
+                ),
+            ],
+        },
+    })
+    @ApiResponse({
+        status: 401,
+        description: 'Missing or invalid Bearer token',
+        schema: errorSchema(['UNAUTHENTICATED'], 'Authentication is required'),
+    })
+    @ApiResponse({
+        status: 404,
+        description:
+            'Pet missing, archived or inaccessible; condition missing or belongs to another pet',
+        schema: {
+            oneOf: [
+                errorSchema(['PET_NOT_FOUND'], 'Pet was not found'),
+                errorSchema(
+                    ['PET_MEDICAL_CONDITION_NOT_FOUND'],
+                    'Pet medical condition was not found',
+                ),
+            ],
+        },
+    })
+    async update(
+        @CurrentAccountId() authenticatedAccountId: string,
+        @Param('petId') petId: string,
+        @Param('conditionId') conditionId: string,
+        @Body() body: unknown,
+        @Query() query: unknown,
+    ): Promise<UpdatedPetMedicalCondition> {
+        const parsedPetId = medicalConditionPetIdSchema.safeParse(petId);
+        const parsedConditionId = medicalConditionIdSchema.safeParse(conditionId);
 
-  @Get()
-  @UseGuards(AuthenticationGuard)
-  @ApiOperation({
-    summary: 'List registered pet medical conditions',
-    description:
-      'Active owners and collaborators may read all ACTIVE and RESOLVED conditions of active or archived pets. Known diagnosis dates appear newest first, unknown dates last; ties use technical creation timestamp and condition ID descending. Technical timestamps are not clinical dates. An accessible pet without conditions returns an empty items array. No query parameters are accepted.',
-  })
-  @ApiParam({
-    name: 'petId',
-    description: 'Non-nil pet UUID',
-    schema: { type: 'string', format: 'uuid' },
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'All registered pet medical conditions',
-    schema: petMedicalConditionsResponseSchema,
-  })
-  @ApiResponse({
-    status: 400,
-    description: 'Invalid pet UUID or unexpected query parameters',
-    schema: errorSchema(['INVALID_REQUEST'], 'Request query is invalid'),
-  })
-  @ApiResponse({
-    status: 401,
-    description: 'Missing or invalid Bearer token',
-    schema: errorSchema(['UNAUTHENTICATED'], 'Authentication is required'),
-  })
-  @ApiResponse({
-    status: 404,
-    description: 'Pet is missing or inaccessible',
-    schema: errorSchema(['PET_NOT_FOUND'], 'Pet was not found'),
-  })
-  async list(
-    @CurrentAccountId() authenticatedAccountId: string,
-    @Param('petId') petId: string,
-    @Query() query: unknown,
-  ): Promise<PetMedicalConditions> {
-    const parsedPetId = medicalConditionPetIdSchema.safeParse(petId);
-    if (!parsedPetId.success)
-      throw new BadRequestException({
-        code: 'INVALID_REQUEST',
-        message: 'Pet id is invalid',
-      });
-    if (!listPetMedicalConditionsQuerySchema.safeParse(query).success)
-      throw new BadRequestException({
-        code: 'INVALID_REQUEST',
-        message: 'Request query is invalid',
-      });
-    try {
-      return await this.listPetMedicalConditions.execute({
-        petId: parsedPetId.data,
-        authenticatedAccountId,
-      });
-    } catch (error: unknown) {
-      if (error instanceof ListPetMedicalConditionsPetNotFoundError)
-        throw new NotFoundException({
-          code: 'PET_NOT_FOUND',
-          message: error.message,
-        });
-      throw error;
-    }
-  }
+        if (!parsedPetId.success || !parsedConditionId.success) {
+            throw new BadRequestException({
+                code: 'INVALID_REQUEST',
+                message: 'Request path is invalid',
+            });
+        }
 
-  @Post()
-  @UseGuards(AuthenticationGuard)
-  @ApiOperation({
-    summary: 'Record a known pet medical condition',
-    description:
-      'Active owners and collaborators may record a current condition for an active pet. Records always start ACTIVE; status cannot be supplied. Duplicate entries are allowed. Diagnosed date is the exact known date of the reported diagnosis, not symptom onset or proof of a professional diagnosis. Omit it or send null when unknown or only approximate. Dates cannot be later than today in UTC. Notes are optional. Authorship identifies the authenticated account. No query parameters are accepted. Clinical values are validated before transactional Pet access.',
-  })
-  @ApiParam({
-    name: 'petId',
-    description: 'Non-nil pet UUID',
-    schema: { type: 'string', format: 'uuid' },
-  })
-  @ApiBody({ schema: recordPetMedicalConditionRequestSchema })
-  @ApiResponse({
-    status: 201,
-    description: 'Recorded active pet medical condition',
-    schema: recordedPetMedicalConditionResponseSchema,
-  })
-  @ApiResponse({
-    status: 400,
-    description: 'Invalid path, body, query, name, diagnosed date, or notes',
-    schema: {
-      oneOf: [
-        errorSchema(['INVALID_REQUEST'], 'Request body is invalid'),
-        errorSchema(
-          ['INVALID_MEDICAL_CONDITION_NAME'],
-          'Medical condition name cannot be empty',
-        ),
-        errorSchema(
-          ['INVALID_MEDICAL_CONDITION_DIAGNOSED_DATE'],
-          'Diagnosed date cannot be in the future',
-        ),
-        errorSchema(
-          ['INVALID_MEDICAL_CONDITION_NOTES'],
-          'Medical condition notes cannot be empty',
-        ),
-      ],
-    },
-  })
-  @ApiResponse({
-    status: 401,
-    description: 'Missing or invalid Bearer token',
-    schema: errorSchema(['UNAUTHENTICATED'], 'Authentication is required'),
-  })
-  @ApiResponse({
-    status: 404,
-    description: 'Pet missing, archived, or inaccessible',
-    schema: errorSchema(['PET_NOT_FOUND'], 'Pet was not found'),
-  })
-  async create(
-    @CurrentAccountId() authenticatedAccountId: string,
-    @Param('petId') petId: string,
-    @Body() body: unknown,
-    @Query() query: unknown,
-  ): Promise<RecordedPetMedicalCondition> {
-    const parsedPetId = medicalConditionPetIdSchema.safeParse(petId);
-    if (!parsedPetId.success)
-      throw new BadRequestException({
-        code: 'INVALID_REQUEST',
-        message: 'Pet id is invalid',
-      });
-    const parsedBody = recordPetMedicalConditionSchema.safeParse(body);
-    if (!parsedBody.success)
-      throw new BadRequestException({
-        code: 'INVALID_REQUEST',
-        message: 'Request body is invalid',
-      });
-    if (!recordPetMedicalConditionQuerySchema.safeParse(query).success)
-      throw new BadRequestException({
-        code: 'INVALID_REQUEST',
-        message: 'Request query is invalid',
-      });
-    try {
-      return await this.recordPetMedicalCondition.execute({
-        ...parsedBody.data,
-        petId: parsedPetId.data,
-        authenticatedAccountId,
-      });
-    } catch (error: unknown) {
-      if (error instanceof PetNotFoundError)
-        throw new NotFoundException({
-          code: 'PET_NOT_FOUND',
-          message: error.message,
-        });
-      if (error instanceof InvalidMedicalConditionNameError)
-        throw new BadRequestException({
-          code: 'INVALID_MEDICAL_CONDITION_NAME',
-          message: error.message,
-        });
-      if (error instanceof InvalidMedicalConditionDiagnosedDateError)
-        throw new BadRequestException({
-          code: 'INVALID_MEDICAL_CONDITION_DIAGNOSED_DATE',
-          message: error.message,
-        });
-      if (error instanceof InvalidMedicalConditionNotesError)
-        throw new BadRequestException({
-          code: 'INVALID_MEDICAL_CONDITION_NOTES',
-          message: error.message,
-        });
-      throw error;
+        const parsedBody = updatePetMedicalConditionSchema.safeParse(body);
+
+        if (!parsedBody.success) {
+            throw new BadRequestException({
+                code: 'INVALID_REQUEST',
+                message: 'Request body is invalid',
+            });
+        }
+
+        if (!recordPetMedicalConditionQuerySchema.safeParse(query).success) {
+            throw new BadRequestException({
+                code: 'INVALID_REQUEST',
+                message: 'Request query is invalid',
+            });
+        }
+
+        try {
+            return await this.updatePetMedicalCondition.execute({
+                ...parsedBody.data,
+                petId: parsedPetId.data,
+                conditionId: parsedConditionId.data,
+                authenticatedAccountId,
+            });
+        } catch (error: unknown) {
+            if (error instanceof PetNotFoundError) {
+                throw new NotFoundException({
+                    code: 'PET_NOT_FOUND',
+                    message: error.message,
+                });
+            }
+
+            if (error instanceof PetMedicalConditionNotFoundError) {
+                throw new NotFoundException({
+                    code: 'PET_MEDICAL_CONDITION_NOT_FOUND',
+                    message: error.message,
+                });
+            }
+
+            if (error instanceof InvalidMedicalConditionNameError) {
+                throw new BadRequestException({
+                    code: 'INVALID_MEDICAL_CONDITION_NAME',
+                    message: error.message,
+                });
+            }
+
+            if (error instanceof InvalidMedicalConditionDiagnosedDateError) {
+                throw new BadRequestException({
+                    code: 'INVALID_MEDICAL_CONDITION_DIAGNOSED_DATE',
+                    message: error.message,
+                });
+            }
+
+            if (error instanceof InvalidMedicalConditionNotesError) {
+                throw new BadRequestException({
+                    code: 'INVALID_MEDICAL_CONDITION_NOTES',
+                    message: error.message,
+                });
+            }
+
+            throw error;
+        }
     }
-  }
+
+    @Get()
+    @UseGuards(AuthenticationGuard)
+    @ApiOperation({
+        summary: 'List registered pet medical conditions',
+        description:
+            'Active owners and collaborators may read all ACTIVE and RESOLVED conditions of active or archived pets. Known diagnosis dates appear newest first, unknown dates last; ties use technical creation timestamp and condition ID descending. Technical timestamps are not clinical dates. An accessible pet without conditions returns an empty items array. No query parameters are accepted.',
+    })
+    @ApiParam({
+        name: 'petId',
+        description: 'Non-nil pet UUID',
+        schema: { type: 'string', format: 'uuid' },
+    })
+    @ApiResponse({
+        status: 200,
+        description: 'All registered pet medical conditions',
+        schema: petMedicalConditionsResponseSchema,
+    })
+    @ApiResponse({
+        status: 400,
+        description: 'Invalid pet UUID or unexpected query parameters',
+        schema: errorSchema(['INVALID_REQUEST'], 'Request query is invalid'),
+    })
+    @ApiResponse({
+        status: 401,
+        description: 'Missing or invalid Bearer token',
+        schema: errorSchema(['UNAUTHENTICATED'], 'Authentication is required'),
+    })
+    @ApiResponse({
+        status: 404,
+        description: 'Pet is missing or inaccessible',
+        schema: errorSchema(['PET_NOT_FOUND'], 'Pet was not found'),
+    })
+    async list(
+        @CurrentAccountId() authenticatedAccountId: string,
+        @Param('petId') petId: string,
+        @Query() query: unknown,
+    ): Promise<PetMedicalConditions> {
+        const parsedPetId = medicalConditionPetIdSchema.safeParse(petId);
+
+        if (!parsedPetId.success) {
+            throw new BadRequestException({
+                code: 'INVALID_REQUEST',
+                message: 'Pet id is invalid',
+            });
+        }
+
+        if (!listPetMedicalConditionsQuerySchema.safeParse(query).success) {
+            throw new BadRequestException({
+                code: 'INVALID_REQUEST',
+                message: 'Request query is invalid',
+            });
+        }
+
+        try {
+            return await this.listPetMedicalConditions.execute({
+                petId: parsedPetId.data,
+                authenticatedAccountId,
+            });
+        } catch (error: unknown) {
+            if (error instanceof ListPetMedicalConditionsPetNotFoundError) {
+                throw new NotFoundException({
+                    code: 'PET_NOT_FOUND',
+                    message: error.message,
+                });
+            }
+
+            throw error;
+        }
+    }
+
+    @Post()
+    @UseGuards(AuthenticationGuard)
+    @ApiOperation({
+        summary: 'Record a known pet medical condition',
+        description:
+            'Active owners and collaborators may record a current condition for an active pet. Records always start ACTIVE; status cannot be supplied. Duplicate entries are allowed. Diagnosed date is the exact known date of the reported diagnosis, not symptom onset or proof of a professional diagnosis. Omit it or send null when unknown or only approximate. Dates cannot be later than today in UTC. Notes are optional. Authorship identifies the authenticated account. No query parameters are accepted. Clinical values are validated before transactional Pet access.',
+    })
+    @ApiParam({
+        name: 'petId',
+        description: 'Non-nil pet UUID',
+        schema: { type: 'string', format: 'uuid' },
+    })
+    @ApiBody({ schema: recordPetMedicalConditionRequestSchema })
+    @ApiResponse({
+        status: 201,
+        description: 'Recorded active pet medical condition',
+        schema: recordedPetMedicalConditionResponseSchema,
+    })
+    @ApiResponse({
+        status: 400,
+        description: 'Invalid path, body, query, name, diagnosed date, or notes',
+        schema: {
+            oneOf: [
+                errorSchema(['INVALID_REQUEST'], 'Request body is invalid'),
+                errorSchema(
+                    ['INVALID_MEDICAL_CONDITION_NAME'],
+                    'Medical condition name cannot be empty',
+                ),
+                errorSchema(
+                    ['INVALID_MEDICAL_CONDITION_DIAGNOSED_DATE'],
+                    'Diagnosed date cannot be in the future',
+                ),
+                errorSchema(
+                    ['INVALID_MEDICAL_CONDITION_NOTES'],
+                    'Medical condition notes cannot be empty',
+                ),
+            ],
+        },
+    })
+    @ApiResponse({
+        status: 401,
+        description: 'Missing or invalid Bearer token',
+        schema: errorSchema(['UNAUTHENTICATED'], 'Authentication is required'),
+    })
+    @ApiResponse({
+        status: 404,
+        description: 'Pet missing, archived, or inaccessible',
+        schema: errorSchema(['PET_NOT_FOUND'], 'Pet was not found'),
+    })
+    async create(
+        @CurrentAccountId() authenticatedAccountId: string,
+        @Param('petId') petId: string,
+        @Body() body: unknown,
+        @Query() query: unknown,
+    ): Promise<RecordedPetMedicalCondition> {
+        const parsedPetId = medicalConditionPetIdSchema.safeParse(petId);
+
+        if (!parsedPetId.success) {
+            throw new BadRequestException({
+                code: 'INVALID_REQUEST',
+                message: 'Pet id is invalid',
+            });
+        }
+
+        const parsedBody = recordPetMedicalConditionSchema.safeParse(body);
+
+        if (!parsedBody.success) {
+            throw new BadRequestException({
+                code: 'INVALID_REQUEST',
+                message: 'Request body is invalid',
+            });
+        }
+
+        if (!recordPetMedicalConditionQuerySchema.safeParse(query).success) {
+            throw new BadRequestException({
+                code: 'INVALID_REQUEST',
+                message: 'Request query is invalid',
+            });
+        }
+
+        try {
+            return await this.recordPetMedicalCondition.execute({
+                ...parsedBody.data,
+                petId: parsedPetId.data,
+                authenticatedAccountId,
+            });
+        } catch (error: unknown) {
+            if (error instanceof PetNotFoundError) {
+                throw new NotFoundException({
+                    code: 'PET_NOT_FOUND',
+                    message: error.message,
+                });
+            }
+
+            if (error instanceof InvalidMedicalConditionNameError) {
+                throw new BadRequestException({
+                    code: 'INVALID_MEDICAL_CONDITION_NAME',
+                    message: error.message,
+                });
+            }
+
+            if (error instanceof InvalidMedicalConditionDiagnosedDateError) {
+                throw new BadRequestException({
+                    code: 'INVALID_MEDICAL_CONDITION_DIAGNOSED_DATE',
+                    message: error.message,
+                });
+            }
+
+            if (error instanceof InvalidMedicalConditionNotesError) {
+                throw new BadRequestException({
+                    code: 'INVALID_MEDICAL_CONDITION_NOTES',
+                    message: error.message,
+                });
+            }
+
+            throw error;
+        }
+    }
 }

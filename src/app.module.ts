@@ -11,21 +11,21 @@ import { IdentityModule } from './identity/infrastructure/identity.module';
 import { PetManagementModule } from './pet-management/infrastructure/pet-management.module';
 
 @Module({
-  imports: [
-    ConfigModule.forRoot({
-      isGlobal: true,
-      envFilePath: '.env',
-      validate: validateEnvironment,
-    }),
-    DatabaseModule,
-    IdentityModule,
-    PetManagementModule,
-    HealthModule,
-  ],
-  controllers: [AppController],
-  providers: [
-    AppService,
-    { provide: APP_FILTER, useClass: AuthenticatedJsonRequestExceptionFilter },
-  ],
+    imports: [
+        ConfigModule.forRoot({
+            isGlobal: true,
+            envFilePath: '.env',
+            validate: validateEnvironment,
+        }),
+        DatabaseModule,
+        IdentityModule,
+        PetManagementModule,
+        HealthModule,
+    ],
+    controllers: [AppController],
+    providers: [
+        AppService,
+        { provide: APP_FILTER, useClass: AuthenticatedJsonRequestExceptionFilter },
+    ],
 })
 export class AppModule {}

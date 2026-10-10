@@ -6,145 +6,140 @@ import type { RegisteredPet, RegisterPetCommand } from './register-pet.types';
 const OWNER_ACCOUNT_ID: string = '550e8400-e29b-41d4-a716-446655440000';
 
 class InMemoryPetRepository implements PetRepository {
-  archiveIfOwned: PetRepository['archiveIfOwned'] = (): Promise<{
-    outcome: 'PET_NOT_FOUND';
-  }> => Promise.resolve({ outcome: 'PET_NOT_FOUND' });
-  readonly savedPets: Pet[] = [];
+    archiveIfOwned: PetRepository['archiveIfOwned'] = (): Promise<{
+        outcome: 'PET_NOT_FOUND';
+    }> => Promise.resolve({ outcome: 'PET_NOT_FOUND' });
 
-  correctProfileIfOwned(): Promise<null> {
-    return Promise.resolve(null);
-  }
+    readonly savedPets: Pet[] = [];
 
-  leave(): Promise<{ outcome: 'PET_NOT_FOUND' }> {
-    return Promise.resolve({ outcome: 'PET_NOT_FOUND' });
-  }
+    correctProfileIfOwned(): Promise<null> {
+        return Promise.resolve(null);
+    }
 
-  promoteCollaboratorIfOwned(): Promise<{ outcome: 'PET_NOT_FOUND' }> {
-    return Promise.resolve({ outcome: 'PET_NOT_FOUND' });
-  }
+    leave(): Promise<{ outcome: 'PET_NOT_FOUND' }> {
+        return Promise.resolve({ outcome: 'PET_NOT_FOUND' });
+    }
 
-  removeMemberIfOwned(): Promise<{ outcome: 'PET_NOT_FOUND' }> {
-    return Promise.resolve({ outcome: 'PET_NOT_FOUND' });
-  }
+    promoteCollaboratorIfOwned(): Promise<{ outcome: 'PET_NOT_FOUND' }> {
+        return Promise.resolve({ outcome: 'PET_NOT_FOUND' });
+    }
 
-  save(pet: Pet): Promise<void> {
-    this.savedPets.push(pet);
+    removeMemberIfOwned(): Promise<{ outcome: 'PET_NOT_FOUND' }> {
+        return Promise.resolve({ outcome: 'PET_NOT_FOUND' });
+    }
 
-    return Promise.resolve();
-  }
+    save(pet: Pet): Promise<void> {
+        this.savedPets.push(pet);
+
+        return Promise.resolve();
+    }
 }
 
-function validCommand(
-  overrides: Partial<RegisterPetCommand> = {},
-): RegisterPetCommand {
-  return {
-    name: 'Luna',
-    species: 'DOG',
-    breed: {
-      name: 'Labrador Retriever',
-      kind: 'KNOWN',
-    },
-    sex: 'FEMALE',
-    birthInformation: {
-      date: '2021-06-14',
-      accuracy: 'EXACT',
-    },
-    ownerAccountId: OWNER_ACCOUNT_ID,
-    ...overrides,
-  };
+function validCommand(overrides: Partial<RegisterPetCommand> = {}): RegisterPetCommand {
+    return {
+        name: 'Luna',
+        species: 'DOG',
+        breed: {
+            name: 'Labrador Retriever',
+            kind: 'KNOWN',
+        },
+        sex: 'FEMALE',
+        birthInformation: {
+            date: '2021-06-14',
+            accuracy: 'EXACT',
+        },
+        ownerAccountId: OWNER_ACCOUNT_ID,
+        ...overrides,
+    };
 }
 
 describe('RegisterPet', () => {
-  it.each([
-    [
-      { name: 'Labrador Retriever', kind: 'KNOWN' as const },
-      { date: '2021-06-14', accuracy: 'EXACT' as const },
-    ],
-    [
-      { name: 'Local mixed breed', kind: 'CUSTOM' as const },
-      { date: '2020-01-01', accuracy: 'APPROXIMATE' as const },
-    ],
-  ])(
-    'creates and persists a pet for breed %# and birth information %#',
-    async (breed, birthInformation) => {
-      const repository = new InMemoryPetRepository();
-      const registerPet = new RegisterPet(repository);
-
-      const result: RegisteredPet = await registerPet.execute(
-        validCommand({ breed, birthInformation }),
-      );
-
-      expect(repository.savedPets).toHaveLength(1);
-      expect(repository.savedPets[0].id.value).toBe(result.id);
-      expect(result).toEqual({
-        id: expect.any(String) as string,
-        name: 'Luna',
-        species: 'DOG',
-        breed,
-        sex: 'FEMALE',
-        birthInformation,
-        color: null,
-        distinctiveMarks: null,
-        microchip: null,
-        status: 'ACTIVE',
-        memberships: [
-          {
-            id: expect.any(String) as string,
-            accountId: OWNER_ACCOUNT_ID,
-            role: 'OWNER',
-          },
+    it.each([
+        [
+            { name: 'Labrador Retriever', kind: 'KNOWN' as const },
+            { date: '2021-06-14', accuracy: 'EXACT' as const },
         ],
-      });
-    },
-  );
+        [
+            { name: 'Local mixed breed', kind: 'CUSTOM' as const },
+            { date: '2020-01-01', accuracy: 'APPROXIMATE' as const },
+        ],
+    ])(
+        'creates and persists a pet for breed %# and birth information %#',
+        async (breed, birthInformation) => {
+            const repository = new InMemoryPetRepository();
+            const registerPet = new RegisterPet(repository);
 
-  it('returns normalized optional profile values', async () => {
-    const registerPet = new RegisterPet(new InMemoryPetRepository());
+            const result: RegisteredPet = await registerPet.execute(
+                validCommand({ breed, birthInformation }),
+            );
 
-    const result: RegisteredPet = await registerPet.execute(
-      validCommand({
-        name: ' Luna ',
-        color: ' Golden ',
-        distinctiveMarks: ' White spot ',
-        microchip: ' 981020000123456 ',
-      }),
+            expect(repository.savedPets).toHaveLength(1);
+            expect(repository.savedPets[0].id.value).toBe(result.id);
+            expect(result).toEqual({
+                id: expect.any(String) as string,
+                name: 'Luna',
+                species: 'DOG',
+                breed,
+                sex: 'FEMALE',
+                birthInformation,
+                color: null,
+                distinctiveMarks: null,
+                microchip: null,
+                status: 'ACTIVE',
+                memberships: [
+                    {
+                        id: expect.any(String) as string,
+                        accountId: OWNER_ACCOUNT_ID,
+                        role: 'OWNER',
+                    },
+                ],
+            });
+        },
     );
 
-    expect(result).toMatchObject({
-      name: 'Luna',
-      color: 'Golden',
-      distinctiveMarks: 'White spot',
-      microchip: '981020000123456',
+    it('returns normalized optional profile values', async () => {
+        const registerPet = new RegisterPet(new InMemoryPetRepository());
+
+        const result: RegisteredPet = await registerPet.execute(
+            validCommand({
+                name: ' Luna ',
+                color: ' Golden ',
+                distinctiveMarks: ' White spot ',
+                microchip: ' 981020000123456 ',
+            }),
+        );
+
+        expect(result).toMatchObject({
+            name: 'Luna',
+            color: 'Golden',
+            distinctiveMarks: 'White spot',
+            microchip: '981020000123456',
+        });
     });
-  });
 
-  it('does not persist when the domain rejects registration', async () => {
-    const repository = new InMemoryPetRepository();
-    const registerPet = new RegisterPet(repository);
+    it('does not persist when the domain rejects registration', async () => {
+        const repository = new InMemoryPetRepository();
+        const registerPet = new RegisterPet(repository);
 
-    await expect(
-      registerPet.execute(validCommand({ name: '   ' })),
-    ).rejects.toThrow(InvalidPetRegistrationError);
-    expect(repository.savedPets).toHaveLength(0);
-  });
+        await expect(registerPet.execute(validCommand({ name: '   ' }))).rejects.toThrow(
+            InvalidPetRegistrationError,
+        );
+        expect(repository.savedPets).toHaveLength(0);
+    });
 
-  it('propagates repository errors unchanged', async () => {
-    const persistenceError = new Error('Database unavailable');
-    const repository: PetRepository = {
-      restoreIfOwned: jest.fn(),
-      archiveIfOwned: jest.fn() as PetRepository['archiveIfOwned'],
-      promoteCollaboratorIfOwned:
-        jest.fn() as PetRepository['promoteCollaboratorIfOwned'],
-      removeMemberIfOwned: jest.fn() as PetRepository['removeMemberIfOwned'],
-      save: jest.fn<Promise<void>, [Pet]>().mockRejectedValue(persistenceError),
-      correctProfileIfOwned:
-        jest.fn() as PetRepository['correctProfileIfOwned'],
-      leave: jest.fn() as PetRepository['leave'],
-    };
-    const registerPet = new RegisterPet(repository);
+    it('propagates repository errors unchanged', async () => {
+        const persistenceError = new Error('Database unavailable');
+        const repository: PetRepository = {
+            restoreIfOwned: jest.fn(),
+            archiveIfOwned: jest.fn() as PetRepository['archiveIfOwned'],
+            promoteCollaboratorIfOwned: jest.fn() as PetRepository['promoteCollaboratorIfOwned'],
+            removeMemberIfOwned: jest.fn() as PetRepository['removeMemberIfOwned'],
+            save: jest.fn<Promise<void>, [Pet]>().mockRejectedValue(persistenceError),
+            correctProfileIfOwned: jest.fn() as PetRepository['correctProfileIfOwned'],
+            leave: jest.fn() as PetRepository['leave'],
+        };
+        const registerPet = new RegisterPet(repository);
 
-    await expect(registerPet.execute(validCommand())).rejects.toBe(
-      persistenceError,
-    );
-  });
+        await expect(registerPet.execute(validCommand())).rejects.toBe(persistenceError);
+    });
 });

@@ -1,8 +1,8 @@
 export interface AuthenticateAccountCommand {
-  email: string;
-  password: string;
+    email: string;
+    password: string;
 }
 
 export interface AuthenticatedAccount {
-  accessToken: string;
+    accessToken: string;
 }
