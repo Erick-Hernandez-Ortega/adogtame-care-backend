@@ -39,3 +39,18 @@ describe('DiagnosedDate', () => {
     },
   );
 });
+
+describe('DiagnosedDate persisted reconstruction', () => {
+  it('accepts historical dates independently of the current day', () => {
+    expect(DiagnosedDate.reconstitute('2027-01-01').value).toBe('2027-01-01');
+    expect(() => DiagnosedDate.from('2027-01-01', '2026-03-14')).toThrow(
+      RangeError,
+    );
+  });
+  it.each(['2026', '2026-02-29', '0000-01-01', '2026-13-01'])(
+    'rejects structurally invalid stored date %s',
+    (value: string) => {
+      expect(() => DiagnosedDate.reconstitute(value)).toThrow();
+    },
+  );
+});

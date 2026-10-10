@@ -2,6 +2,8 @@ import { DiagnosedDate } from '../diagnosed-date/diagnosed-date';
 import { MedicalConditionName } from '../medical-condition-name/medical-condition-name';
 import {
   InvalidMedicalConditionNotesValueError,
+  InvalidMedicalConditionNameValueError,
+  InvalidMedicalConditionDiagnosedDateValueError,
   MedicalConditionStatus,
   PetMedicalCondition,
   PetMedicalConditionId,
@@ -109,5 +111,130 @@ describe('PetMedicalCondition', () => {
     expect(RecordedByAccountId.from(accountId.toUpperCase()).value).toBe(
       accountId,
     );
+  });
+});
+
+describe('PetMedicalCondition correction', () => {
+  function restored(
+    status: string = 'ACTIVE',
+    diagnosedDate: string | null = '2026-03-14',
+  ): PetMedicalCondition {
+    return PetMedicalCondition.reconstitute({
+      ...input(),
+      id: PetMedicalConditionId.from('550e8400-e29b-41d4-a716-446655440001'),
+      status,
+      diagnosedDate:
+        diagnosedDate === null
+          ? null
+          : DiagnosedDate.reconstitute(diagnosedDate),
+      notes: 'Original notes',
+    });
+  }
+  it.each(['ACTIVE', 'RESOLVED'])(
+    'reconstitutes and corrects %s without changing identity or lifecycle',
+    (status: string) => {
+      const original: PetMedicalCondition = restored(status);
+      const corrected: PetMedicalCondition = original.correct(
+        {
+          name: '  Osteoarthritis  ',
+          diagnosedDate: '2026-02-10',
+          notes: '  Corrected notes  ',
+        },
+        '2026-03-14',
+      );
+      expect(corrected).not.toBe(original);
+      expect(corrected).toMatchObject({
+        id: original.id,
+        petId: original.petId,
+        recordedByAccountId: original.recordedByAccountId,
+        status,
+        notes: 'Corrected notes',
+      });
+      expect(corrected.name.value).toBe('Osteoarthritis');
+      expect(corrected.diagnosedDate?.value).toBe('2026-02-10');
+      expect(original.name.value).toBe('Epilepsy');
+      expect(original.notes).toBe('Original notes');
+      expect(original.diagnosedDate?.value).toBe('2026-03-14');
+    },
+  );
+  it.each(['ACTIVE', 'RESOLVED'])(
+    'returns the same %s instance for normalized no-ops',
+    (status: string) => {
+      const original: PetMedicalCondition = restored(status);
+      for (const patch of [
+        { name: ' Epilepsy ' },
+        { diagnosedDate: '2026-03-14' },
+        { notes: ' Original notes ' },
+      ])
+        expect(original.correct(patch, '2026-03-14')).toBe(original);
+      const unknown: PetMedicalCondition = restored(status, null).correct(
+        { notes: null },
+        '2026-03-14',
+      );
+      expect(
+        unknown.correct({ diagnosedDate: null, notes: null }, '2026-03-14'),
+      ).toBe(unknown);
+    },
+  );
+  it('preserves omitted fields and clears nullable fields independently', () => {
+    const original: PetMedicalCondition = restored();
+    expect(original.correct({ name: 'Arthritis' }, '2026-03-14')).toMatchObject(
+      { diagnosedDate: original.diagnosedDate, notes: original.notes },
+    );
+    expect(
+      original.correct({ diagnosedDate: null }, '2026-03-14'),
+    ).toMatchObject({
+      name: original.name,
+      diagnosedDate: null,
+      notes: original.notes,
+    });
+    expect(original.correct({ notes: null }, '2026-03-14')).toMatchObject({
+      diagnosedDate: original.diagnosedDate,
+      notes: null,
+    });
+    expect(
+      restored('ACTIVE', null).correct(
+        { diagnosedDate: '2026-03-14' },
+        '2026-03-14',
+      ).diagnosedDate?.value,
+    ).toBe('2026-03-14');
+  });
+  it('preserves a structurally valid historical date beyond the current Clock when omitted', () => {
+    const original: PetMedicalCondition = restored('RESOLVED', '2027-01-01');
+    expect(
+      original.correct({ notes: 'Corrected history' }, '2026-03-14')
+        .diagnosedDate?.value,
+    ).toBe('2027-01-01');
+    expect(original.correct({ name: ' Epilepsy ' }, '2026-03-14')).toBe(
+      original,
+    );
+    expect(() =>
+      original.correct({ diagnosedDate: '2027-01-01' }, '2026-03-14'),
+    ).toThrow(InvalidMedicalConditionDiagnosedDateValueError);
+  });
+  it.each([
+    [{ name: '' }, InvalidMedicalConditionNameValueError],
+    [{ name: '  ' }, InvalidMedicalConditionNameValueError],
+    [{ name: '🐕'.repeat(256) }, InvalidMedicalConditionNameValueError],
+    [
+      { diagnosedDate: '2026-02-29' },
+      InvalidMedicalConditionDiagnosedDateValueError,
+    ],
+    [
+      { diagnosedDate: '2026-03-15' },
+      InvalidMedicalConditionDiagnosedDateValueError,
+    ],
+    [{ diagnosedDate: '2026' }, InvalidMedicalConditionDiagnosedDateValueError],
+    [{ notes: '' }, InvalidMedicalConditionNotesValueError],
+    [{ name: 'Changed', notes: '  ' }, InvalidMedicalConditionNotesValueError],
+    [{ notes: '🐕'.repeat(2001) }, InvalidMedicalConditionNotesValueError],
+  ])('rejects correction %j without partial mutation', (patch, errorClass) => {
+    const original: PetMedicalCondition = restored();
+    expect(() => original.correct(patch, '2026-03-14')).toThrow(errorClass);
+    expect(original).toEqual(restored());
+  });
+  it('rejects empty corrections and unsupported persisted status', () => {
+    expect(() => restored().correct({}, '2026-03-14')).toThrow(TypeError);
+    expect(() => restored('UNKNOWN')).toThrow(TypeError);
   });
 });

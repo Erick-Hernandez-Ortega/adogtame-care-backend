@@ -65,10 +65,30 @@ interface CreatePetMedicalConditionInput {
   recordedByAccountId: RecordedByAccountId;
 }
 
-export class PetMedicalCondition {
-  readonly status: typeof MedicalConditionStatus.ACTIVE =
-    MedicalConditionStatus.ACTIVE;
+interface ReconstitutePetMedicalConditionInput extends CreatePetMedicalConditionInput {
+  id: PetMedicalConditionId;
+  status: string;
+}
 
+interface CorrectPetMedicalConditionInput {
+  name?: string;
+  diagnosedDate?: string | null;
+  notes?: string | null;
+}
+
+export class InvalidMedicalConditionNameValueError extends TypeError {
+  constructor(cause: TypeError | RangeError) {
+    super(cause.message, { cause });
+  }
+}
+
+export class InvalidMedicalConditionDiagnosedDateValueError extends TypeError {
+  constructor(cause: TypeError | RangeError) {
+    super(cause.message, { cause });
+  }
+}
+
+export class PetMedicalCondition {
   private constructor(
     readonly id: PetMedicalConditionId,
     readonly petId: PetId,
@@ -76,10 +96,22 @@ export class PetMedicalCondition {
     readonly diagnosedDate: DiagnosedDate | null,
     readonly notes: string | null,
     readonly recordedByAccountId: RecordedByAccountId,
+    readonly status: MedicalConditionStatus,
   ) {}
 
   static create(input: CreatePetMedicalConditionInput): PetMedicalCondition {
+    return PetMedicalCondition.reconstitute({
+      ...input,
+      id: PetMedicalConditionId.generate(),
+      status: MedicalConditionStatus.ACTIVE,
+    });
+  }
+
+  static reconstitute(
+    input: ReconstitutePetMedicalConditionInput,
+  ): PetMedicalCondition {
     if (
+      !(input.id instanceof PetMedicalConditionId) ||
       !(input.petId instanceof PetId) ||
       !(input.name instanceof MedicalConditionName) ||
       !(input.recordedByAccountId instanceof RecordedByAccountId) ||
@@ -89,17 +121,78 @@ export class PetMedicalCondition {
     ) {
       throw new TypeError('Pet medical condition data is invalid');
     }
+    if (
+      input.status !== MedicalConditionStatus.ACTIVE &&
+      input.status !== MedicalConditionStatus.RESOLVED
+    ) {
+      throw new TypeError(
+        'Medical condition status must be ACTIVE or RESOLVED',
+      );
+    }
     const notes: string | null = PetMedicalCondition.normalizeNotes(
       input.notes,
     );
     return new PetMedicalCondition(
-      PetMedicalConditionId.generate(),
+      input.id,
       input.petId,
       input.name,
       input.diagnosedDate ?? null,
       notes,
       input.recordedByAccountId,
+      input.status,
     );
+  }
+
+  correct(
+    input: CorrectPetMedicalConditionInput,
+    today: string,
+  ): PetMedicalCondition {
+    if (
+      input.name === undefined &&
+      input.diagnosedDate === undefined &&
+      input.notes === undefined
+    ) {
+      throw new TypeError('Pet medical condition correction is invalid');
+    }
+    let name: MedicalConditionName = this.name;
+    if (input.name !== undefined) {
+      try {
+        name = MedicalConditionName.from(input.name);
+      } catch (error: unknown) {
+        if (error instanceof TypeError || error instanceof RangeError)
+          throw new InvalidMedicalConditionNameValueError(error);
+        throw error;
+      }
+    }
+    let diagnosedDate: DiagnosedDate | null = this.diagnosedDate;
+    if (input.diagnosedDate !== undefined) {
+      try {
+        diagnosedDate =
+          input.diagnosedDate === null
+            ? null
+            : DiagnosedDate.from(input.diagnosedDate, today);
+      } catch (error: unknown) {
+        if (error instanceof TypeError || error instanceof RangeError)
+          throw new InvalidMedicalConditionDiagnosedDateValueError(error);
+        throw error;
+      }
+    }
+    const candidate: PetMedicalCondition = PetMedicalCondition.reconstitute({
+      id: this.id,
+      petId: this.petId,
+      name,
+      diagnosedDate,
+      notes: input.notes === undefined ? this.notes : input.notes,
+      recordedByAccountId: this.recordedByAccountId,
+      status: this.status,
+    });
+    if (
+      candidate.name.value === this.name.value &&
+      candidate.diagnosedDate?.value === this.diagnosedDate?.value &&
+      candidate.notes === this.notes
+    )
+      return this;
+    return candidate;
   }
 
   private static normalizeNotes(

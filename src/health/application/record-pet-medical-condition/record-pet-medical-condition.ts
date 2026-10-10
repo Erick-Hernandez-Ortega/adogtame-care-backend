@@ -106,7 +106,7 @@ export class RecordPetMedicalCondition {
       id: condition.id.value,
       petId: condition.petId.value,
       name: condition.name.value,
-      status: condition.status,
+      status: MedicalConditionStatus.ACTIVE,
       diagnosedDate: condition.diagnosedDate?.value ?? null,
       notes: condition.notes,
       recordedByAccountId: condition.recordedByAccountId.value,

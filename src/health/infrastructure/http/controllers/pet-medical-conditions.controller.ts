@@ -1,4 +1,13 @@
 import {
+  UpdatePetMedicalCondition,
+  PetMedicalConditionNotFoundError,
+  type UpdatedPetMedicalCondition,
+} from '../../../application/update-pet-medical-condition/update-pet-medical-condition';
+import {
+  medicalConditionIdSchema,
+  updatePetMedicalConditionSchema,
+} from '../schemas/update-pet-medical-condition.schema';
+import {
   BadRequestException,
   Body,
   Controller,
@@ -6,6 +15,7 @@ import {
   NotFoundException,
   Param,
   Post,
+  Patch,
   Query,
   UseGuards,
 } from '@nestjs/common';
@@ -41,6 +51,8 @@ import {
 } from '../schemas/record-pet-medical-condition.schema';
 import {
   recordPetMedicalConditionRequestSchema,
+  updatePetMedicalConditionRequestSchema,
+  updatedPetMedicalConditionResponseSchema,
   recordedPetMedicalConditionResponseSchema,
   petMedicalConditionsResponseSchema,
 } from '../schemas/openapi.schemas';
@@ -50,9 +62,136 @@ import {
 @ApiBearerAuth()
 export class PetMedicalConditionsController {
   constructor(
+    private readonly updatePetMedicalCondition: UpdatePetMedicalCondition,
     private readonly recordPetMedicalCondition: RecordPetMedicalCondition,
     private readonly listPetMedicalConditions: ListPetMedicalConditions,
   ) {}
+
+  @Patch(':conditionId')
+  @UseGuards(AuthenticationGuard)
+  @ApiOperation({
+    summary: 'Correct a registered pet medical condition',
+    description:
+      'Active owners and collaborators of an ACTIVE pet may correct ACTIVE or RESOLVED conditions, regardless of original authorship. Identity, original author and status are preserved: Update does not Resolve or Reopen. Include at least one of name, diagnosedDate or notes. Omitted fields are preserved; null clears date or notes. Diagnosed date is the exact known date of the reported diagnosis, not symptom onset, record creation, owner awareness or proof of professional diagnosis. Explicit dates must be valid calendar dates no later than today UTC sampled after locks. A normalized no-op returns the current representation without an UPDATE or timestamp change. No query parameters are accepted. Authorization and target resolution precede semantic validation.',
+  })
+  @ApiParam({
+    name: 'petId',
+    description: 'Non-nil pet UUID',
+    schema: { type: 'string', format: 'uuid' },
+  })
+  @ApiParam({
+    name: 'conditionId',
+    description: 'Non-nil medical condition UUID',
+    schema: { type: 'string', format: 'uuid' },
+  })
+  @ApiBody({ schema: updatePetMedicalConditionRequestSchema })
+  @ApiResponse({
+    status: 200,
+    description:
+      'Complete corrected or unchanged condition; status is preserved',
+    schema: updatedPetMedicalConditionResponseSchema,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid request structure or clinical values',
+    schema: {
+      oneOf: [
+        errorSchema(['INVALID_REQUEST'], 'Request body is invalid'),
+        errorSchema(
+          ['INVALID_MEDICAL_CONDITION_NAME'],
+          'Medical condition name cannot be empty',
+        ),
+        errorSchema(
+          ['INVALID_MEDICAL_CONDITION_DIAGNOSED_DATE'],
+          'Diagnosed date cannot be in the future',
+        ),
+        errorSchema(
+          ['INVALID_MEDICAL_CONDITION_NOTES'],
+          'Medical condition notes cannot be empty',
+        ),
+      ],
+    },
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Missing or invalid Bearer token',
+    schema: errorSchema(['UNAUTHENTICATED'], 'Authentication is required'),
+  })
+  @ApiResponse({
+    status: 404,
+    description:
+      'Pet missing, archived or inaccessible; condition missing or belongs to another pet',
+    schema: {
+      oneOf: [
+        errorSchema(['PET_NOT_FOUND'], 'Pet was not found'),
+        errorSchema(
+          ['PET_MEDICAL_CONDITION_NOT_FOUND'],
+          'Pet medical condition was not found',
+        ),
+      ],
+    },
+  })
+  async update(
+    @CurrentAccountId() authenticatedAccountId: string,
+    @Param('petId') petId: string,
+    @Param('conditionId') conditionId: string,
+    @Body() body: unknown,
+    @Query() query: unknown,
+  ): Promise<UpdatedPetMedicalCondition> {
+    const parsedPetId = medicalConditionPetIdSchema.safeParse(petId);
+    const parsedConditionId = medicalConditionIdSchema.safeParse(conditionId);
+    if (!parsedPetId.success || !parsedConditionId.success)
+      throw new BadRequestException({
+        code: 'INVALID_REQUEST',
+        message: 'Request path is invalid',
+      });
+    const parsedBody = updatePetMedicalConditionSchema.safeParse(body);
+    if (!parsedBody.success)
+      throw new BadRequestException({
+        code: 'INVALID_REQUEST',
+        message: 'Request body is invalid',
+      });
+    if (!recordPetMedicalConditionQuerySchema.safeParse(query).success)
+      throw new BadRequestException({
+        code: 'INVALID_REQUEST',
+        message: 'Request query is invalid',
+      });
+    try {
+      return await this.updatePetMedicalCondition.execute({
+        ...parsedBody.data,
+        petId: parsedPetId.data,
+        conditionId: parsedConditionId.data,
+        authenticatedAccountId,
+      });
+    } catch (error: unknown) {
+      if (error instanceof PetNotFoundError)
+        throw new NotFoundException({
+          code: 'PET_NOT_FOUND',
+          message: error.message,
+        });
+      if (error instanceof PetMedicalConditionNotFoundError)
+        throw new NotFoundException({
+          code: 'PET_MEDICAL_CONDITION_NOT_FOUND',
+          message: error.message,
+        });
+      if (error instanceof InvalidMedicalConditionNameError)
+        throw new BadRequestException({
+          code: 'INVALID_MEDICAL_CONDITION_NAME',
+          message: error.message,
+        });
+      if (error instanceof InvalidMedicalConditionDiagnosedDateError)
+        throw new BadRequestException({
+          code: 'INVALID_MEDICAL_CONDITION_DIAGNOSED_DATE',
+          message: error.message,
+        });
+      if (error instanceof InvalidMedicalConditionNotesError)
+        throw new BadRequestException({
+          code: 'INVALID_MEDICAL_CONDITION_NOTES',
+          message: error.message,
+        });
+      throw error;
+    }
+  }
 
   @Get()
   @UseGuards(AuthenticationGuard)

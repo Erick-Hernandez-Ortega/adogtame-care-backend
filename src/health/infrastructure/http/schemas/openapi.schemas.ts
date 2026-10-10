@@ -82,6 +82,49 @@ export const recordedPetMedicalConditionResponseSchema: SchemaObject = {
   },
 };
 
+export const updatePetMedicalConditionRequestSchema: SchemaObject = {
+  type: 'object',
+  additionalProperties: false,
+  minProperties: 1,
+  properties: {
+    ...recordPetMedicalConditionRequestSchema.properties,
+    diagnosedDate: {
+      type: 'string',
+      format: 'date',
+      nullable: true,
+      description:
+        'Exact known reported diagnosis date, no later than today UTC. Omission preserves the stored date; null clears it.',
+    },
+    notes: {
+      type: 'string',
+      nullable: true,
+      minLength: 1,
+      maxLength: 2000,
+      description:
+        'Omission preserves notes; null clears them. Present text must be nonempty after trimming; limits count Unicode code points.',
+    },
+  },
+  description:
+    'At least one field is required. Status, identity, author and technical timestamps cannot be modified. Update does not Resolve or Reopen.',
+  example: {
+    name: 'Osteoarthritis',
+    diagnosedDate: '2026-02-10',
+    notes: 'Confirmed during veterinary examination.',
+  },
+};
+
+export const updatedPetMedicalConditionResponseSchema: SchemaObject = {
+  ...recordedPetMedicalConditionResponseSchema,
+  properties: {
+    ...recordedPetMedicalConditionResponseSchema.properties,
+    status: {
+      type: 'string',
+      enum: ['ACTIVE', 'RESOLVED'],
+      description: 'Original clinical status is preserved.',
+    },
+  },
+};
+
 export const petMedicalConditionsResponseSchema: SchemaObject = {
   type: 'object',
   additionalProperties: false,

@@ -28,7 +28,10 @@ function setup() {
       Parameters<PetMedicalConditionRepository['createIfPetWritable']>
     >()
     .mockResolvedValue('CREATED');
-  const repository: PetMedicalConditionRepository = { createIfPetWritable };
+  const repository: PetMedicalConditionRepository = {
+    createIfPetWritable,
+    correctIfPetWritable: jest.fn(),
+  };
   const now = jest.fn((): Date => new Date('2026-03-13T18:30:00-06:00'));
   const clock: Clock = { now };
   return {

@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { UpdatePetMedicalCondition } from '../application/update-pet-medical-condition/update-pet-medical-condition';
 import { ListPetMedicalConditions } from '../application/list-pet-medical-conditions/list-pet-medical-conditions';
 import {
   PET_MEDICAL_CONDITION_READER,
@@ -70,6 +71,15 @@ import { DrizzleVaccinationHistoryReader } from './persistence/drizzle/drizzle-v
     PetAllergiesController,
   ],
   providers: [
+    {
+      provide: UpdatePetMedicalCondition,
+      inject: [PET_MEDICAL_CONDITION_REPOSITORY, HEALTH_CLOCK],
+      useFactory: (
+        repository: PetMedicalConditionRepository,
+        clock: Clock,
+      ): UpdatePetMedicalCondition =>
+        new UpdatePetMedicalCondition(repository, clock),
+    },
     DrizzlePetMedicalConditionReader,
     {
       provide: PET_MEDICAL_CONDITION_READER,
