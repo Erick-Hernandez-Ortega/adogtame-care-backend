@@ -67,6 +67,42 @@ export class InvalidMedicationNotesValueError extends TypeError {
     }
 }
 
+export const MedicationStatus = {
+    OPEN: 'OPEN',
+    COMPLETED: 'COMPLETED',
+    DISCONTINUED: 'DISCONTINUED',
+} as const;
+export type MedicationStatus = (typeof MedicationStatus)[keyof typeof MedicationStatus];
+
+export class InvalidMedicationEndedDateValueError extends TypeError {
+    constructor(cause: TypeError | RangeError) {
+        super(cause.message, { cause });
+    }
+}
+
+export class InvalidMedicationDiscontinuationReasonValueError extends TypeError {
+    constructor(cause: TypeError | RangeError) {
+        super(cause.message, { cause });
+    }
+}
+
+export class MedicationLifecycleConflictError extends Error {
+    constructor() {
+        super('Medication lifecycle action conflicts with the current report');
+    }
+}
+
+interface MedicationClosureInput {
+    endedDate: string | null;
+    discontinuationReason?: string | null;
+}
+
+interface MedicationLifecycle {
+    status: MedicationStatus;
+    endedDate: string | null;
+    discontinuationReason: string | null;
+}
+
 interface CreatePetMedicationInput {
     petId: PetId;
     recordedByAccountId: RecordedByAccountId;
@@ -79,6 +115,9 @@ interface CreatePetMedicationInput {
 }
 
 interface ReconstitutePetMedicationInput {
+    status: string;
+    endedDate: string | null;
+    discontinuationReason: string | null;
     id: PetMedicationId;
     petId: PetId;
     recordedByAccountId: RecordedByAccountId;
@@ -91,6 +130,8 @@ interface ReconstitutePetMedicationInput {
 }
 
 interface CorrectPetMedicationInput {
+    endedDate?: string | null;
+    discontinuationReason?: string | null;
     name?: string;
     dosage?: string | null;
     frequency?: string | null;
@@ -110,6 +151,9 @@ export class PetMedication {
         readonly plannedEndDate: MedicationDate | null,
         readonly notes: string | null,
         readonly recordedByAccountId: RecordedByAccountId,
+        readonly status: MedicationStatus,
+        readonly endedDate: MedicationDate | null,
+        readonly discontinuationReason: string | null,
     ) {}
 
     static create(input: CreatePetMedicationInput): PetMedication {
@@ -129,20 +173,36 @@ export class PetMedication {
                 throw new TypeError('Persisted pet medication data is invalid');
             }
 
-            const medication: PetMedication = PetMedication.build(input, input.id);
+            if (
+                input.status !== MedicationStatus.OPEN &&
+                input.status !== MedicationStatus.COMPLETED &&
+                input.status !== MedicationStatus.DISCONTINUED
+            ) {
+                throw new TypeError('Persisted medication status is invalid');
+            }
+
+            const medication: PetMedication = PetMedication.build(input, input.id, {
+                ...input,
+                status: input.status,
+            });
 
             if (
                 medication.name.value !== input.name ||
                 medication.dosage !== input.dosage ||
                 medication.frequency !== input.frequency ||
-                medication.notes !== input.notes
+                medication.notes !== input.notes ||
+                medication.discontinuationReason !== input.discontinuationReason
             ) {
                 throw new TypeError('Persisted pet medication text must be normalized');
             }
 
             return medication;
         } catch (error: unknown) {
-            if (error instanceof TypeError || error instanceof RangeError) {
+            if (
+                error instanceof TypeError ||
+                error instanceof RangeError ||
+                error instanceof MedicationLifecycleConflictError
+            ) {
                 throw new TypeError('Persisted pet medication data is invalid', { cause: error });
             }
 
@@ -150,17 +210,32 @@ export class PetMedication {
         }
     }
 
-    correct(input: CorrectPetMedicationInput): PetMedication {
+    correct(input: CorrectPetMedicationInput, getToday?: () => string): PetMedication {
         if (
             input.name === undefined &&
             input.dosage === undefined &&
             input.frequency === undefined &&
             input.startDate === undefined &&
             input.plannedEndDate === undefined &&
-            input.notes === undefined
+            input.notes === undefined &&
+            input.endedDate === undefined &&
+            input.discontinuationReason === undefined
         ) {
             throw new TypeError('Pet medication correction is invalid');
         }
+
+        if (
+            (input.endedDate !== undefined && this.status === MedicationStatus.OPEN) ||
+            (input.discontinuationReason !== undefined &&
+                this.status !== MedicationStatus.DISCONTINUED)
+        ) {
+            throw new MedicationLifecycleConflictError();
+        }
+
+        const endedDate: string | null =
+            input.endedDate === undefined
+                ? (this.endedDate?.value ?? null)
+                : PetMedication.reportedEndedDate(input.endedDate, getToday);
 
         const candidate: PetMedication = PetMedication.build(
             {
@@ -180,6 +255,14 @@ export class PetMedication {
                 notes: input.notes === undefined ? this.notes : input.notes,
             },
             this.id,
+            {
+                status: this.status,
+                endedDate,
+                discontinuationReason:
+                    input.discontinuationReason === undefined
+                        ? this.discontinuationReason
+                        : input.discontinuationReason,
+            },
         );
 
         if (
@@ -188,7 +271,9 @@ export class PetMedication {
             candidate.frequency === this.frequency &&
             candidate.startDate?.value === this.startDate?.value &&
             candidate.plannedEndDate?.value === this.plannedEndDate?.value &&
-            candidate.notes === this.notes
+            candidate.notes === this.notes &&
+            candidate.endedDate?.value === this.endedDate?.value &&
+            candidate.discontinuationReason === this.discontinuationReason
         ) {
             return this;
         }
@@ -196,7 +281,107 @@ export class PetMedication {
         return candidate;
     }
 
-    private static build(input: CreatePetMedicationInput, id?: PetMedicationId): PetMedication {
+    complete(input: MedicationClosureInput, getToday: () => string): PetMedication {
+        return this.close(MedicationStatus.COMPLETED, input, getToday);
+    }
+
+    discontinue(input: MedicationClosureInput, getToday: () => string): PetMedication {
+        return this.close(MedicationStatus.DISCONTINUED, input, getToday);
+    }
+
+    reopen(): PetMedication {
+        if (this.status === MedicationStatus.OPEN) {
+            return this;
+        }
+
+        return PetMedication.build(this.values(), this.id, {
+            status: MedicationStatus.OPEN,
+            endedDate: null,
+            discontinuationReason: null,
+        });
+    }
+
+    private close(
+        status: MedicationStatus,
+        input: MedicationClosureInput,
+        getToday: () => string,
+    ): PetMedication {
+        if (this.status !== MedicationStatus.OPEN && this.status !== status) {
+            throw new MedicationLifecycleConflictError();
+        }
+
+        const endedDate: string | null = PetMedication.reportedEndedDate(input.endedDate, getToday);
+        const candidate: PetMedication = PetMedication.build(this.values(), this.id, {
+            status,
+            endedDate,
+            discontinuationReason: input.discontinuationReason ?? null,
+        });
+
+        if (this.status === status) {
+            if (
+                candidate.endedDate?.value !== this.endedDate?.value ||
+                candidate.discontinuationReason !== this.discontinuationReason
+            ) {
+                throw new MedicationLifecycleConflictError();
+            }
+
+            return this;
+        }
+
+        return candidate;
+    }
+
+    private values(): CreatePetMedicationInput {
+        return {
+            petId: this.petId,
+            recordedByAccountId: this.recordedByAccountId,
+            name: this.name.value,
+            dosage: this.dosage,
+            frequency: this.frequency,
+            startDate: this.startDate?.value ?? null,
+            plannedEndDate: this.plannedEndDate?.value ?? null,
+            notes: this.notes,
+        };
+    }
+
+    private static reportedEndedDate(value: string | null, getToday?: () => string): string | null {
+        if (value === null) {
+            return null;
+        }
+
+        const date: MedicationDate | null = PetMedication.optionalDate(
+            value,
+            InvalidMedicationEndedDateValueError,
+        );
+
+        if (date === null) {
+            throw new InvalidMedicationEndedDateValueError(
+                new TypeError('Ended date must be explicit'),
+            );
+        }
+
+        if (getToday === undefined) {
+            throw new TypeError('Today is required to validate a reported ended date');
+        }
+
+        if (date.value > getToday()) {
+            throw new InvalidMedicationEndedDateValueError(
+                new RangeError('Ended date cannot be in the future'),
+            );
+        }
+
+        return date.value;
+    }
+
+    private static build(
+        input: CreatePetMedicationInput,
+        id?: PetMedicationId,
+        lifecycle: MedicationLifecycle = {
+            status: MedicationStatus.OPEN,
+            endedDate: null,
+            discontinuationReason: null,
+        },
+    ): PetMedication {
         if (
             !(input.petId instanceof PetId) ||
             !(input.recordedByAccountId instanceof RecordedByAccountId)
@@ -251,6 +436,43 @@ export class PetMedication {
             InvalidMedicationNotesValueError,
         );
 
+        if (!Object.values(MedicationStatus).includes(lifecycle.status)) {
+            throw new TypeError('Medication status must be OPEN, COMPLETED or DISCONTINUED');
+        }
+
+        if (lifecycle.endedDate === undefined || lifecycle.discontinuationReason === undefined) {
+            throw new TypeError('Persisted medication lifecycle data is invalid');
+        }
+
+        if (
+            (lifecycle.status === MedicationStatus.OPEN && lifecycle.endedDate !== null) ||
+            (lifecycle.status !== MedicationStatus.DISCONTINUED &&
+                lifecycle.discontinuationReason !== null)
+        ) {
+            throw new MedicationLifecycleConflictError();
+        }
+
+        const endedDate: MedicationDate | null = PetMedication.optionalDate(
+            lifecycle.endedDate,
+            InvalidMedicationEndedDateValueError,
+        );
+        const discontinuationReason: string | null = PetMedication.optionalText(
+            lifecycle.discontinuationReason,
+            'discontinuation reason',
+            InvalidMedicationDiscontinuationReasonValueError,
+        );
+
+        if (
+            lifecycle.status === MedicationStatus.COMPLETED &&
+            startDate !== null &&
+            endedDate !== null &&
+            endedDate.value < startDate.value
+        ) {
+            throw new InvalidMedicationEndedDateValueError(
+                new RangeError('Completed ended date cannot be before start date'),
+            );
+        }
+
         return new PetMedication(
             id ?? PetMedicationId.generate(),
             input.petId,
@@ -261,6 +483,9 @@ export class PetMedication {
             plannedEndDate,
             notes,
             input.recordedByAccountId,
+            lifecycle.status,
+            endedDate,
+            discontinuationReason,
         );
     }
 

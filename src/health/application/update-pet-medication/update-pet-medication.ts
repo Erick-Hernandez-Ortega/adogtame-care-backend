@@ -1,3 +1,5 @@
+import type { Clock } from '../time/clock';
+import { mapMedicationLifecycleError } from '../complete-pet-medication/complete-pet-medication';
 import {
     InvalidMedicationNameValueError,
     InvalidMedicationDosageValueError,
@@ -6,7 +8,10 @@ import {
     InvalidMedicationPlannedEndDateValueError,
     InvalidMedicationNotesValueError,
 } from '../../domain/pet-medication/pet-medication';
-import type { PetMedicationRepository } from '../persistence/pet-medication.repository';
+import {
+    PetMedicationNotFoundError,
+    type PetMedicationRepository,
+} from '../persistence/pet-medication.repository';
 import {
     PetNotFoundError,
     InvalidMedicationNameError,
@@ -28,21 +33,27 @@ export interface UpdatePetMedicationCommand {
     startDate?: string | null;
     plannedEndDate?: string | null;
     notes?: string | null;
+    endedDate?: string | null;
+    discontinuationReason?: string | null;
 }
 export type { UpdatedPetMedication };
 
-export class PetMedicationNotFoundError extends Error {
-    constructor() {
-        super('Pet medication was not found');
-    }
-}
+export { PetMedicationNotFoundError };
 
 export class UpdatePetMedication {
-    constructor(private readonly repository: PetMedicationRepository) {}
+    constructor(
+        private readonly repository: PetMedicationRepository,
+        private readonly clock: Clock,
+    ) {}
 
     async execute(command: UpdatePetMedicationCommand): Promise<UpdatedPetMedication> {
         try {
-            const outcome = await this.repository.correctIfPetWritable({ ...command });
+            const outcome = await this.repository.correctIfPetWritable({
+                ...command,
+                ...(command.endedDate != null
+                    ? { getToday: (): string => this.clock.now().toISOString().slice(0, 10) }
+                    : {}),
+            });
 
             if (outcome.status === 'PET_NOT_FOUND') {
                 throw new PetNotFoundError();
@@ -63,6 +74,9 @@ export class UpdatePetMedication {
                 startDate: medication.startDate?.value ?? null,
                 plannedEndDate: medication.plannedEndDate?.value ?? null,
                 notes: medication.notes,
+                status: medication.status,
+                endedDate: medication.endedDate?.value ?? null,
+                discontinuationReason: medication.discontinuationReason,
                 recordedByAccountId: medication.recordedByAccountId.value,
             };
         } catch (error: unknown) {
@@ -90,7 +104,7 @@ export class UpdatePetMedication {
                 throw new InvalidMedicationNotesError(error);
             }
 
-            throw error;
+            throw mapMedicationLifecycleError(error);
         }
     }
 }

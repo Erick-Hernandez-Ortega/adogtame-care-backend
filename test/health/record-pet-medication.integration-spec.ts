@@ -403,6 +403,9 @@ describe('RecordPetMedication with PostgreSQL (integration)', () => {
             dosage: '🐕'.repeat(2000),
             frequency: '🐕'.repeat(2000),
             notes: '🐕'.repeat(2000),
+            status: 'OPEN',
+            endedDate: null,
+            discontinuationReason: null,
             recordedByAccountId: outsiderId,
         });
         await expect(

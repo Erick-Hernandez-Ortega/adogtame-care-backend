@@ -483,12 +483,61 @@ export const recordPetMedicationRequestSchema: SchemaObject = {
     },
 };
 
+const medicationLifecycleProperties: Record<string, SchemaObject> = {
+    status: {
+        type: 'string',
+        enum: ['OPEN', 'COMPLETED', 'DISCONTINUED'],
+        description:
+            'OPEN means no closure recorded. Closed states are reported facts, not clinical confirmation or evidence of administered doses.',
+    },
+    endedDate: {
+        type: 'string',
+        format: 'date',
+        nullable: true,
+        description:
+            'Reported closure date, null when unknown. Never defaults to today. Newly supplied dates cannot be future. COMPLETED dates must be on or after a known indicated start; DISCONTINUED may precede it.',
+    },
+    discontinuationReason: {
+        type: 'string',
+        nullable: true,
+        minLength: 1,
+        maxLength: 2000,
+        description:
+            'Optional reported discontinuation explanation. Trimmed nonempty text, at most 2000 Unicode code points. Null outside DISCONTINUED.',
+    },
+};
+
+export const completePetMedicationRequestSchema: SchemaObject = {
+    type: 'object',
+    additionalProperties: false,
+    required: ['endedDate'],
+    properties: { endedDate: medicationLifecycleProperties.endedDate },
+};
+
+export const discontinuePetMedicationRequestSchema: SchemaObject = {
+    ...completePetMedicationRequestSchema,
+    properties: {
+        endedDate: medicationLifecycleProperties.endedDate,
+        discontinuationReason: medicationLifecycleProperties.discontinuationReason,
+    },
+};
+
 export const updatePetMedicationRequestSchema: SchemaObject = {
     type: 'object',
     additionalProperties: false,
     minProperties: 1,
     properties: {
         ...recordPetMedicationRequestSchema.properties,
+        endedDate: {
+            ...medicationLifecycleProperties.endedDate,
+            description:
+                'Correct only on a closed record; omission preserves, null clears. Invalid chronology or future dates are rejected. Does not change status.',
+        },
+        discontinuationReason: {
+            ...medicationLifecycleProperties.discontinuationReason,
+            description:
+                'Correct only on DISCONTINUED; omission preserves, null clears. Does not change status.',
+        },
         dosage: {
             ...recordPetMedicationRequestSchema.properties?.dosage,
             description:
@@ -516,7 +565,7 @@ export const updatePetMedicationRequestSchema: SchemaObject = {
         },
     },
     description:
-        'Strict partial correction of name, dosage, frequency, startDate, plannedEndDate and notes. Omission preserves the current value; explicit null clears an optional field. Name cannot be null. Text is trimmed and must remain nonempty; limits count Unicode code points. Both civil dates may be future. The resulting plannedEndDate must be on or after the resulting startDate when both exist, including dates preserved by omission. Equivalent normalized values are a no-op without a physical UPDATE or timestamp changes. This corrects recorded information, not a new prescription, dose administration, completion or discontinuation.',
+        'Strict partial correction of indication information and applicable closure details. Status cannot be patched. Supplying closure fields in an inapplicable state returns 409. Omission preserves the current value; explicit null clears an optional field. Name cannot be null. Text is trimmed and must remain nonempty; limits count Unicode code points. Both civil dates may be future. The resulting plannedEndDate must be on or after the resulting startDate when both exist, including dates preserved by omission. Equivalent normalized values are a no-op without a physical UPDATE or timestamp changes. This corrects recorded information, not a new prescription, dose administration, completion or discontinuation.',
     example: { dosage: '500 mg', plannedEndDate: null },
 };
 
@@ -533,8 +582,12 @@ export const recordedPetMedicationResponseSchema: SchemaObject = {
         'plannedEndDate',
         'notes',
         'recordedByAccountId',
+        'status',
+        'endedDate',
+        'discontinuationReason',
     ],
     properties: {
+        ...medicationLifecycleProperties,
         id: {
             type: 'string',
             format: 'uuid',
@@ -563,8 +616,12 @@ export const listedPetMedicationResponseSchema: SchemaObject = {
         'plannedEndDate',
         'notes',
         'recordedByAccountId',
+        'status',
+        'endedDate',
+        'discontinuationReason',
     ],
     properties: {
+        ...medicationLifecycleProperties,
         id: { type: 'string', format: 'uuid' },
         name: { type: 'string', description: 'Registered medication name.' },
         dosage: {

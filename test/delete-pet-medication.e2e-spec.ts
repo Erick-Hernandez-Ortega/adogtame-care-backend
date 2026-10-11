@@ -204,6 +204,9 @@ describe('DELETE /pets/:petId/health/medications/:medicationId (e2e)', () => {
                     startDate: null,
                     plannedEndDate: null,
                     notes: 'Monitored periodically.',
+                    status: 'OPEN',
+                    endedDate: null,
+                    discontinuationReason: null,
                     recordedByAccountId: owner.id,
                 },
             ],
@@ -229,6 +232,9 @@ describe('DELETE /pets/:petId/health/medications/:medicationId (e2e)', () => {
             id: otherMedicationId,
             petId: otherPetId,
             name: 'Other medication',
+            status: 'OPEN',
+            endedDate: null,
+            discontinuationReason: null,
             recordedByAccountId: owner.id,
         });
         expect(

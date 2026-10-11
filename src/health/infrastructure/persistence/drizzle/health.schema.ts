@@ -167,6 +167,9 @@ export const healthPetMedications = pgTable(
     'health_pet_medications',
     {
         id: uuid('id').primaryKey(),
+        status: varchar('status', { length: 12 }).notNull().default('OPEN'),
+        endedDate: date('ended_date', { mode: 'string' }),
+        discontinuationReason: varchar('discontinuation_reason', { length: 2000 }),
         petId: uuid('pet_id')
             .notNull()
             .references(() => pets.id, { onDelete: 'restrict' }),
@@ -188,6 +191,30 @@ export const healthPetMedications = pgTable(
     },
     (table) => [
         index('health_pet_medications_pet_idx').on(table.petId),
+        check(
+            'health_pet_medications_status_valid',
+            sql`${table.status} in ('OPEN', 'COMPLETED', 'DISCONTINUED')`,
+        ),
+        check(
+            'health_pet_medications_open_ended_date_null',
+            sql`${table.status} <> 'OPEN' or ${table.endedDate} is null`,
+        ),
+        check(
+            'health_pet_medications_reason_discontinued_only',
+            sql`${table.status} = 'DISCONTINUED' or ${table.discontinuationReason} is null`,
+        ),
+        check(
+            'health_pet_medications_reason_not_empty',
+            sql`${table.discontinuationReason} is null or btrim(${table.discontinuationReason}) <> ''`,
+        ),
+        check(
+            'health_pet_medications_ended_date_range',
+            sql`${table.endedDate} is null or ${table.endedDate} between DATE '0001-01-01' and DATE '9999-12-31'`,
+        ),
+        check(
+            'health_pet_medications_completed_date_after_start',
+            sql`${table.status} <> 'COMPLETED' or ${table.startDate} is null or ${table.endedDate} is null or ${table.endedDate} >= ${table.startDate}`,
+        ),
         check('health_pet_medications_name_not_empty', sql`btrim(${table.name}) <> ''`),
         check(
             'health_pet_medications_dosage_not_empty',

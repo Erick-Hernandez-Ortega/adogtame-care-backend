@@ -154,6 +154,9 @@ describe('POST /pets/:petId/health/medications (e2e)', () => {
                 startDate: '2099-10-10',
                 plannedEndDate: '2099-10-17',
                 notes: 'Give with food',
+                status: 'OPEN',
+                endedDate: null,
+                discontinuationReason: null,
                 recordedByAccountId: account.id,
             });
         },
@@ -195,6 +198,9 @@ describe('POST /pets/:petId/health/medications (e2e)', () => {
                 plannedEndDate: null,
                 notes: null,
                 ...payload,
+                status: 'OPEN',
+                endedDate: null,
+                discontinuationReason: null,
                 recordedByAccountId: owner.id,
             });
         }

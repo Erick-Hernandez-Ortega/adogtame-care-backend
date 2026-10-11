@@ -189,6 +189,9 @@ describe('PATCH /pets/:petId/health/medications/:medicationId (e2e)', () => {
                 startDate: '2100-01-01',
                 plannedEndDate: '2100-01-02',
                 notes: 'New notes',
+                status: 'OPEN',
+                endedDate: null,
+                discontinuationReason: null,
                 recordedByAccountId: owner.id,
             });
         },
@@ -208,6 +211,9 @@ describe('PATCH /pets/:petId/health/medications/:medicationId (e2e)', () => {
             startDate: null,
             plannedEndDate: '2099-10-17',
             notes: 'Give with food',
+            status: 'OPEN',
+            endedDate: null,
+            discontinuationReason: null,
             recordedByAccountId: owner.id,
         });
         const listed = await request(application.getHttpServer())

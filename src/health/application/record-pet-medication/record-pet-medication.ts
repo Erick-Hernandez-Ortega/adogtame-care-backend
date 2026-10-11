@@ -1,3 +1,4 @@
+import type { MedicationStatus } from '../../domain/pet-medication/pet-medication';
 import {
     InvalidMedicationNameValueError,
     InvalidMedicationDosageValueError,
@@ -29,6 +30,9 @@ export interface RecordedPetMedication {
     plannedEndDate: string | null;
     notes: string | null;
     recordedByAccountId: string;
+    status: MedicationStatus;
+    endedDate: string | null;
+    discontinuationReason: string | null;
 }
 
 export class InvalidMedicationNameError extends Error {
@@ -95,6 +99,9 @@ export class RecordPetMedication {
                 startDate: medication.startDate?.value ?? null,
                 plannedEndDate: medication.plannedEndDate?.value ?? null,
                 notes: medication.notes,
+                status: medication.status,
+                endedDate: medication.endedDate?.value ?? null,
+                discontinuationReason: medication.discontinuationReason,
                 recordedByAccountId: medication.recordedByAccountId.value,
             };
         } catch (error: unknown) {

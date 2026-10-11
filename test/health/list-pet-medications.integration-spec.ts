@@ -175,6 +175,9 @@ describe('ListPetMedications with PostgreSQL (integration)', () => {
             startDate: input.startDate ?? null,
             plannedEndDate: input.plannedEndDate ?? null,
             notes: input.notes ?? null,
+            status: 'OPEN',
+            endedDate: null,
+            discontinuationReason: null,
             recordedByAccountId: input.recordedByAccountId ?? ownerId,
         };
         const createdAt: string = input.createdAt ?? '2026-10-01T12:00:00.123456Z';

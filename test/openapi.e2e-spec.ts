@@ -33,7 +33,7 @@ describe('OpenAPI documentation (e2e)', () => {
         await application.close();
     });
 
-    it('serves Swagger UI and documents all thirty-nine operations and their contracts', async () => {
+    it('serves Swagger UI and documents all forty-two operations and their contracts', async () => {
         const htmlResponse = await request(application.getHttpServer()).get('/docs').expect(200);
 
         expect(htmlResponse.text).toContain('swagger-ui');
@@ -64,6 +64,9 @@ describe('OpenAPI documentation (e2e)', () => {
             ['/pets/{petId}/health/medications', 'get'],
             ['/pets/{petId}/health/medications/{medicationId}', 'patch'],
             ['/pets/{petId}/health/medications/{medicationId}', 'delete'],
+            ['/pets/{petId}/health/medications/{medicationId}/complete', 'post'],
+            ['/pets/{petId}/health/medications/{medicationId}/discontinue', 'post'],
+            ['/pets/{petId}/health/medications/{medicationId}/reopen', 'post'],
             ['/pets/{petId}/health/medical-conditions', 'post'],
             ['/pets/{petId}/health/medical-conditions', 'get'],
             ['/pets/{petId}/health/medical-conditions/{conditionId}', 'patch'],
@@ -105,7 +108,7 @@ describe('OpenAPI documentation (e2e)', () => {
                     Number(Boolean(path?.delete)),
                 0,
             ),
-        ).toBe(39);
+        ).toBe(42);
 
         const medicationPath = document.paths['/pets/{petId}/health/medications'];
         const medication = medicationPath?.post;
@@ -163,6 +166,9 @@ describe('OpenAPI documentation (e2e)', () => {
             'plannedEndDate',
             'notes',
             'recordedByAccountId',
+            'status',
+            'endedDate',
+            'discontinuationReason',
         ];
 
         expect(item?.additionalProperties).toBe(false);
@@ -196,6 +202,7 @@ describe('OpenAPI documentation (e2e)', () => {
             '400',
             '401',
             '404',
+            '409',
         ]);
         expect(medicationUpdate?.parameters).toEqual(
             expect.arrayContaining([
@@ -227,7 +234,16 @@ describe('OpenAPI documentation (e2e)', () => {
         });
         expect(updateSchema.required).toBeUndefined();
         expect(Object.keys(updateSchema.properties ?? {}).sort()).toEqual(
-            ['name', 'dosage', 'frequency', 'startDate', 'plannedEndDate', 'notes'].sort(),
+            [
+                'name',
+                'dosage',
+                'frequency',
+                'startDate',
+                'plannedEndDate',
+                'notes',
+                'endedDate',
+                'discontinuationReason',
+            ].sort(),
         );
         expect(updateSchema.properties?.name).toMatchObject({ type: 'string', maxLength: 255 });
         expect((updateSchema.properties?.name as SchemaObject).nullable).not.toBe(true);
@@ -264,6 +280,56 @@ describe('OpenAPI documentation (e2e)', () => {
         expect(
             document.paths['/pets/{petId}/health/medications/{medicationId}']?.get,
         ).toBeUndefined();
+
+        for (const action of ['complete', 'discontinue', 'reopen']) {
+            const operation =
+                document.paths[`/pets/{petId}/health/medications/{medicationId}/${action}`]?.post;
+
+            expect(operation?.security).toEqual([{ bearer: [] }]);
+            expect(responseSchema(operation, '200')).toEqual(responseSchema(medication, '201'));
+            expect(operation?.parameters).toHaveLength(2);
+            expect(JSON.stringify(responseSchema(operation, '404'))).toContain(
+                'PET_MEDICATION_NOT_FOUND',
+            );
+            const body = operation?.requestBody as {
+                required: boolean;
+                content: Record<string, { schema: SchemaObject }>;
+            };
+            const schema: SchemaObject = body.content['application/json'].schema;
+
+            expect(schema.additionalProperties).toBe(false);
+
+            if (action === 'reopen') {
+                expect(body.required).toBe(false);
+                expect(schema.maxProperties).toBe(0);
+                expect(operation?.responses['409']).toBeUndefined();
+            } else {
+                expect(body.required).toBe(true);
+                expect(schema.required).toEqual(['endedDate']);
+                expect(schema.properties?.endedDate).toMatchObject({
+                    type: 'string',
+                    format: 'date',
+                    nullable: true,
+                });
+                expect(JSON.stringify(responseSchema(operation, '409'))).toContain(
+                    'PET_MEDICATION_LIFECYCLE_CONFLICT',
+                );
+                expect(JSON.stringify(responseSchema(operation, '400'))).toContain(
+                    'INVALID_MEDICATION_ENDED_DATE',
+                );
+            }
+
+            let expectedFields: string[] = [];
+
+            if (action === 'complete') {
+                expectedFields = ['endedDate'];
+            } else if (action === 'discontinue') {
+                expectedFields = ['discontinuationReason', 'endedDate'];
+            }
+
+            expect(Object.keys(schema.properties ?? {}).sort()).toEqual(expectedFields);
+        }
+
         const medicationDelete =
             document.paths['/pets/{petId}/health/medications/{medicationId}']?.delete;
 
@@ -361,18 +427,26 @@ describe('OpenAPI documentation (e2e)', () => {
             'plannedEndDate',
             'notes',
             'recordedByAccountId',
+            'status',
+            'endedDate',
+            'discontinuationReason',
         ]);
-        expect(Object.keys(medicationResponse?.properties ?? {}).sort()).toEqual([
-            'dosage',
-            'frequency',
-            'id',
-            'name',
-            'notes',
-            'petId',
-            'plannedEndDate',
-            'recordedByAccountId',
-            'startDate',
-        ]);
+        expect(Object.keys(medicationResponse?.properties ?? {}).sort()).toEqual(
+            [
+                'dosage',
+                'frequency',
+                'id',
+                'name',
+                'notes',
+                'petId',
+                'plannedEndDate',
+                'recordedByAccountId',
+                'status',
+                'endedDate',
+                'discontinuationReason',
+                'startDate',
+            ].sort(),
+        );
         expect(responseSchema(medication, '400')?.oneOf).toMatchObject([
             { properties: { code: { enum: ['INVALID_REQUEST'] } } },
             { properties: { code: { enum: ['INVALID_MEDICATION_NAME'] } } },

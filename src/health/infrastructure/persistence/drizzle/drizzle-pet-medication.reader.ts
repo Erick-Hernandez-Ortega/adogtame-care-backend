@@ -1,3 +1,4 @@
+import { MedicationStatus } from '../../../domain/pet-medication/pet-medication';
 import { Injectable } from '@nestjs/common';
 import { and, desc, eq, inArray } from 'drizzle-orm';
 import { DatabaseService } from '../../../../infrastructure/database/database.service';
@@ -29,6 +30,9 @@ export class DrizzlePetMedicationReader implements PetMedicationReader {
                     startDate: healthPetMedications.startDate,
                     plannedEndDate: healthPetMedications.plannedEndDate,
                     notes: healthPetMedications.notes,
+                    status: healthPetMedications.status,
+                    endedDate: healthPetMedications.endedDate,
+                    discontinuationReason: healthPetMedications.discontinuationReason,
                     recordedByAccountId: healthPetMedications.recordedByAccountId,
                 },
             })
@@ -55,6 +59,16 @@ export class DrizzlePetMedicationReader implements PetMedicationReader {
                 return [];
             }
 
+            const status: string = row.medication.status;
+
+            if (
+                status !== MedicationStatus.OPEN &&
+                status !== MedicationStatus.COMPLETED &&
+                status !== MedicationStatus.DISCONTINUED
+            ) {
+                throw new TypeError('Persisted medication status is invalid');
+            }
+
             return [
                 {
                     id: row.medication.id,
@@ -64,6 +78,9 @@ export class DrizzlePetMedicationReader implements PetMedicationReader {
                     startDate: row.medication.startDate,
                     plannedEndDate: row.medication.plannedEndDate,
                     notes: row.medication.notes,
+                    status,
+                    endedDate: row.medication.endedDate,
+                    discontinuationReason: row.medication.discontinuationReason,
                     recordedByAccountId: row.medication.recordedByAccountId,
                 },
             ];

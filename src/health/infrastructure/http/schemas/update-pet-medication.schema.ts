@@ -11,6 +11,8 @@ export const updatePetMedicationSchema = z
         startDate: z.string().nullable().optional(),
         plannedEndDate: z.string().nullable().optional(),
         notes: z.string().nullable().optional(),
+        endedDate: z.string().nullable().optional(),
+        discontinuationReason: z.string().nullable().optional(),
     })
     .strict()
     .refine((value): boolean => Object.values(value).some((field): boolean => field !== undefined));

@@ -51,7 +51,7 @@ describe('PetMedication', () => {
             plannedEndDate: { value: '2099-10-17' },
             notes: 'Give with food',
         });
-        expect(medication).not.toHaveProperty('status');
+        expect(medication.status).toBe('OPEN');
     });
 
     it('does not mutate input or previously created records', () => {
@@ -274,6 +274,9 @@ describe('PetMedicationId shared UUID validation', () => {
 
 function persistedInput() {
     return {
+        status: 'OPEN',
+        endedDate: null,
+        discontinuationReason: null,
         id: PetMedicationId.from('80db31a0-aeb9-4768-b103-770110b39fd8'),
         ...input(),
         name: 'Amoxicillin',

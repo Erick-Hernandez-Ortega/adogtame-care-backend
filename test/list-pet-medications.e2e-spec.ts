@@ -134,6 +134,9 @@ describe('GET /pets/:petId/health/medications (e2e)', () => {
             startDate: '2099-01-01',
             plannedEndDate: '2099-01-07',
             notes: 'Give with food.',
+            status: 'OPEN',
+            endedDate: null,
+            discontinuationReason: null,
             recordedByAccountId: author.id,
         };
     }
@@ -197,6 +200,9 @@ describe('GET /pets/:petId/health/medications (e2e)', () => {
             startDate: null,
             plannedEndDate: null,
             notes: null,
+            status: 'OPEN',
+            endedDate: null,
+            discontinuationReason: null,
             recordedByAccountId: owner.id,
         };
         const tiedLow: ListedPetMedication = {
@@ -215,6 +221,9 @@ describe('GET /pets/:petId/health/medications (e2e)', () => {
             startDate: '2099-01-01',
             plannedEndDate: '2099-01-07',
             notes: 'Give with food.',
+            status: 'OPEN',
+            endedDate: null,
+            discontinuationReason: null,
             recordedByAccountId: collaborator.id,
         };
 
@@ -260,6 +269,9 @@ describe('GET /pets/:petId/health/medications (e2e)', () => {
                 startDate: null,
                 plannedEndDate: null,
                 notes: null,
+                status: 'OPEN',
+                endedDate: null,
+                discontinuationReason: null,
                 recordedByAccountId: owner.id,
             }),
         );
@@ -437,6 +449,9 @@ describe('GET /pets/:petId/health/medications (e2e)', () => {
                     startDate: null,
                     plannedEndDate: null,
                     notes: null,
+                    status: 'OPEN',
+                    endedDate: null,
+                    discontinuationReason: null,
                     recordedByAccountId: owner.id,
                 },
             ],

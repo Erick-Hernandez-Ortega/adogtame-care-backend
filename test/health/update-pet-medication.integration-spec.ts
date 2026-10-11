@@ -302,6 +302,9 @@ describe('UpdatePetMedication with PostgreSQL (integration)', () => {
                 startDate: '2100-01-01',
                 plannedEndDate: '2100-01-02',
                 notes: 'New notes',
+                status: 'OPEN',
+                endedDate: null,
+                discontinuationReason: null,
                 recordedByAccountId: created.recordedByAccountId,
             });
             const after = await physicalRow(created.id);

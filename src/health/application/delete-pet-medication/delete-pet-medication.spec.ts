@@ -20,6 +20,9 @@ function setup() {
         >()
         .mockResolvedValue('DELETED');
     const repository: PetMedicationRepository = {
+        completeIfPetWritable: jest.fn(),
+        discontinueIfPetWritable: jest.fn(),
+        reopenIfPetWritable: jest.fn(),
         createIfPetWritable: jest.fn(),
 
         correctIfPetWritable: jest.fn(),

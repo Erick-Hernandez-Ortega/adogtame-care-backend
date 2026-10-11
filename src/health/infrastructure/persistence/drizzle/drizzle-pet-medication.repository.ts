@@ -13,6 +13,7 @@ import type {
     UpdatePetMedicationOutcome,
     PetMedicationAccess,
     DeletePetMedicationOutcome,
+    PetMedicationClosure,
 } from '../../../application/persistence/pet-medication.repository';
 import {
     PetMedication,
@@ -144,8 +145,14 @@ export class DrizzlePetMedicationRepository implements PetMedicationRepository {
                     startDate: row.startDate,
                     plannedEndDate: row.plannedEndDate,
                     notes: row.notes,
+                    status: row.status,
+                    endedDate: row.endedDate,
+                    discontinuationReason: row.discontinuationReason,
                 });
-                const corrected: PetMedication = medication.correct(correction);
+                const corrected: PetMedication = medication.correct(
+                    correction,
+                    correction.getToday,
+                );
 
                 if (corrected !== medication) {
                     await transaction
@@ -157,6 +164,119 @@ export class DrizzlePetMedicationRepository implements PetMedicationRepository {
                             startDate: corrected.startDate?.value ?? null,
                             plannedEndDate: corrected.plannedEndDate?.value ?? null,
                             notes: corrected.notes,
+                            endedDate: corrected.endedDate?.value ?? null,
+                            discontinuationReason: corrected.discontinuationReason,
+                        })
+                        .where(
+                            and(
+                                eq(healthPetMedications.petId, correction.petId),
+                                eq(healthPetMedications.id, correction.medicationId),
+                            ),
+                        );
+                }
+
+                return { status: 'UPDATED', medication: corrected };
+            },
+            { isolationLevel: 'read committed' },
+        );
+    }
+
+    async completeIfPetWritable(
+        closure: PetMedicationClosure,
+    ): Promise<UpdatePetMedicationOutcome> {
+        return this.transitionIfPetWritable(closure, (medication): PetMedication =>
+            medication.complete(closure, closure.getToday),
+        );
+    }
+
+    async discontinueIfPetWritable(
+        closure: PetMedicationClosure,
+    ): Promise<UpdatePetMedicationOutcome> {
+        return this.transitionIfPetWritable(closure, (medication): PetMedication =>
+            medication.discontinue(closure, closure.getToday),
+        );
+    }
+
+    async reopenIfPetWritable(access: PetMedicationAccess): Promise<UpdatePetMedicationOutcome> {
+        return this.transitionIfPetWritable(access, (medication): PetMedication =>
+            medication.reopen(),
+        );
+    }
+
+    private async transitionIfPetWritable(
+        correction: PetMedicationAccess,
+        transition: (medication: PetMedication) => PetMedication,
+    ): Promise<UpdatePetMedicationOutcome> {
+        return this.databaseService.connection.transaction(
+            async (transaction): Promise<UpdatePetMedicationOutcome> => {
+                const petRows = await transaction
+                    .select({ status: pets.status })
+                    .from(pets)
+                    .where(eq(pets.id, correction.petId))
+                    .for('update');
+
+                if (petRows[0]?.status !== 'ACTIVE') {
+                    return { status: 'PET_NOT_FOUND' };
+                }
+
+                const membershipRows = await transaction
+                    .select({ role: petMemberships.role, status: petMemberships.status })
+                    .from(petMemberships)
+                    .where(
+                        and(
+                            eq(petMemberships.petId, correction.petId),
+                            eq(petMemberships.accountId, correction.authenticatedAccountId),
+                        ),
+                    )
+                    .for('update');
+                const membership = membershipRows[0];
+
+                if (
+                    membership?.status !== 'ACTIVE' ||
+                    (membership.role !== 'OWNER' && membership.role !== 'COLLABORATOR')
+                ) {
+                    return { status: 'PET_NOT_FOUND' };
+                }
+
+                const medicationRows = await transaction
+                    .select()
+                    .from(healthPetMedications)
+                    .where(
+                        and(
+                            eq(healthPetMedications.petId, correction.petId),
+                            eq(healthPetMedications.id, correction.medicationId),
+                        ),
+                    )
+                    .for('update');
+                const row = medicationRows[0];
+
+                if (row === undefined) {
+                    return { status: 'PET_MEDICATION_NOT_FOUND' };
+                }
+
+                const medication: PetMedication = PetMedication.reconstitute({
+                    id: PetMedicationId.from(row.id),
+                    petId: PetId.from(row.petId),
+                    recordedByAccountId: RecordedByAccountId.from(row.recordedByAccountId),
+                    name: row.name,
+                    dosage: row.dosage,
+                    frequency: row.frequency,
+                    startDate: row.startDate,
+                    plannedEndDate: row.plannedEndDate,
+                    notes: row.notes,
+                    status: row.status,
+                    endedDate: row.endedDate,
+                    discontinuationReason: row.discontinuationReason,
+                });
+                const corrected: PetMedication = transition(medication);
+
+                if (corrected !== medication) {
+                    await transaction
+                        .update(healthPetMedications)
+                        .set({
+                            status: corrected.status,
+                            endedDate: corrected.endedDate?.value ?? null,
+                            discontinuationReason: corrected.discontinuationReason,
                         })
                         .where(
                             and(

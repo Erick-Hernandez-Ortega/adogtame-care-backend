@@ -1,3 +1,6 @@
+import { CompletePetMedication } from '../application/complete-pet-medication/complete-pet-medication';
+import { DiscontinuePetMedication } from '../application/discontinue-pet-medication/discontinue-pet-medication';
+import { ReopenPetMedication } from '../application/reopen-pet-medication/reopen-pet-medication';
 import { DeletePetMedication } from '../application/delete-pet-medication/delete-pet-medication';
 import { UpdatePetMedication } from '../application/update-pet-medication/update-pet-medication';
 import { ListPetMedications } from '../application/list-pet-medications/list-pet-medications';
@@ -91,6 +94,28 @@ import { DrizzleVaccinationHistoryReader } from './persistence/drizzle/drizzle-v
     ],
     providers: [
         {
+            provide: CompletePetMedication,
+            inject: [PET_MEDICATION_REPOSITORY, HEALTH_CLOCK],
+            useFactory: (
+                repository: PetMedicationRepository,
+                clock: Clock,
+            ): CompletePetMedication => new CompletePetMedication(repository, clock),
+        },
+        {
+            provide: DiscontinuePetMedication,
+            inject: [PET_MEDICATION_REPOSITORY, HEALTH_CLOCK],
+            useFactory: (
+                repository: PetMedicationRepository,
+                clock: Clock,
+            ): DiscontinuePetMedication => new DiscontinuePetMedication(repository, clock),
+        },
+        {
+            provide: ReopenPetMedication,
+            inject: [PET_MEDICATION_REPOSITORY],
+            useFactory: (repository: PetMedicationRepository): ReopenPetMedication =>
+                new ReopenPetMedication(repository),
+        },
+        {
             provide: DeletePetMedication,
             inject: [PET_MEDICATION_REPOSITORY],
             useFactory: (repository: PetMedicationRepository): DeletePetMedication =>
@@ -98,9 +123,9 @@ import { DrizzleVaccinationHistoryReader } from './persistence/drizzle/drizzle-v
         },
         {
             provide: UpdatePetMedication,
-            inject: [PET_MEDICATION_REPOSITORY],
-            useFactory: (repository: PetMedicationRepository): UpdatePetMedication =>
-                new UpdatePetMedication(repository),
+            inject: [PET_MEDICATION_REPOSITORY, HEALTH_CLOCK],
+            useFactory: (repository: PetMedicationRepository, clock: Clock): UpdatePetMedication =>
+                new UpdatePetMedication(repository, clock),
         },
         DrizzlePetMedicationReader,
         { provide: PET_MEDICATION_READER, useExisting: DrizzlePetMedicationReader },

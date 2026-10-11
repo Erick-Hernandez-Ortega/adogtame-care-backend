@@ -1,0 +1,9 @@
+ALTER TABLE "health_pet_medications" ADD COLUMN "status" varchar(12) DEFAULT 'OPEN' NOT NULL;--> statement-breakpoint
+ALTER TABLE "health_pet_medications" ADD COLUMN "ended_date" date;--> statement-breakpoint
+ALTER TABLE "health_pet_medications" ADD COLUMN "discontinuation_reason" varchar(2000);--> statement-breakpoint
+ALTER TABLE "health_pet_medications" ADD CONSTRAINT "health_pet_medications_status_valid" CHECK ("health_pet_medications"."status" in ('OPEN', 'COMPLETED', 'DISCONTINUED'));--> statement-breakpoint
+ALTER TABLE "health_pet_medications" ADD CONSTRAINT "health_pet_medications_open_ended_date_null" CHECK ("health_pet_medications"."status" <> 'OPEN' or "health_pet_medications"."ended_date" is null);--> statement-breakpoint
+ALTER TABLE "health_pet_medications" ADD CONSTRAINT "health_pet_medications_reason_discontinued_only" CHECK ("health_pet_medications"."status" = 'DISCONTINUED' or "health_pet_medications"."discontinuation_reason" is null);--> statement-breakpoint
+ALTER TABLE "health_pet_medications" ADD CONSTRAINT "health_pet_medications_reason_not_empty" CHECK ("health_pet_medications"."discontinuation_reason" is null or btrim("health_pet_medications"."discontinuation_reason") <> '');--> statement-breakpoint
+ALTER TABLE "health_pet_medications" ADD CONSTRAINT "health_pet_medications_ended_date_range" CHECK ("health_pet_medications"."ended_date" is null or "health_pet_medications"."ended_date" between DATE '0001-01-01' and DATE '9999-12-31');--> statement-breakpoint
+ALTER TABLE "health_pet_medications" ADD CONSTRAINT "health_pet_medications_completed_date_after_start" CHECK ("health_pet_medications"."status" <> 'COMPLETED' or "health_pet_medications"."start_date" is null or "health_pet_medications"."ended_date" is null or "health_pet_medications"."ended_date" >= "health_pet_medications"."start_date");

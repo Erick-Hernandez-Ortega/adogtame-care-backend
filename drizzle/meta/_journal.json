@@ -113,6 +113,13 @@
       "when": 1791747275249,
       "tag": "0015_unknown_spirit",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1791752771271,
+      "tag": "0016_green_skullbuster",
+      "breakpoints": true
     }
   ]
 }

@@ -40,6 +40,9 @@ function setup(outcome?: UpdatePetMedicationOutcome) {
             ),
         );
     const repository: PetMedicationRepository = {
+        completeIfPetWritable: jest.fn(),
+        discontinueIfPetWritable: jest.fn(),
+        reopenIfPetWritable: jest.fn(),
         deleteIfPetWritable: jest.fn(),
         createIfPetWritable: jest.fn(),
         correctIfPetWritable,
@@ -55,7 +58,9 @@ function setup(outcome?: UpdatePetMedicationOutcome) {
         medication,
         command,
         correctIfPetWritable,
-        useCase: new UpdatePetMedication(repository),
+        useCase: new UpdatePetMedication(repository, {
+            now: (): Date => new Date('2026-10-11T00:00:00Z'),
+        }),
     };
 }
 
@@ -67,6 +72,9 @@ describe('UpdatePetMedication', () => {
         await expect(useCase.execute(correction)).resolves.toEqual({
             id: medication.id.value,
             petId: command.petId,
+            status: 'OPEN',
+            endedDate: null,
+            discontinuationReason: null,
             recordedByAccountId: medication.recordedByAccountId.value,
             name: 'Other drug',
             dosage: null,

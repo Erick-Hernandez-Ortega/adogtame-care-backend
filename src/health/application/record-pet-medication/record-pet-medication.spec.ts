@@ -41,6 +41,9 @@ function setup() {
         Parameters<PetMedicationRepository['createIfPetWritable']>
     >();
     const repository: PetMedicationRepository = {
+        completeIfPetWritable: jest.fn(),
+        discontinueIfPetWritable: jest.fn(),
+        reopenIfPetWritable: jest.fn(),
         deleteIfPetWritable: jest.fn(),
         createIfPetWritable,
         correctIfPetWritable: jest.fn(),
@@ -69,6 +72,9 @@ describe('RecordPetMedication', () => {
             startDate: recording.startDate,
             plannedEndDate: recording.plannedEndDate,
             notes: 'Give with food',
+            status: 'OPEN',
+            endedDate: null,
+            discontinuationReason: null,
             recordedByAccountId: recording.authenticatedAccountId,
         });
         expect(createIfPetWritable).toHaveBeenCalledTimes(1);
@@ -99,6 +105,9 @@ describe('RecordPetMedication', () => {
             startDate: null,
             plannedEndDate: null,
             notes: null,
+            status: 'OPEN',
+            endedDate: null,
+            discontinuationReason: null,
             recordedByAccountId: recording.authenticatedAccountId,
         });
     });
