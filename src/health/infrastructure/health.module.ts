@@ -1,3 +1,9 @@
+import { ListPetMedications } from '../application/list-pet-medications/list-pet-medications';
+import {
+    PET_MEDICATION_READER,
+    type PetMedicationReader,
+} from '../application/persistence/pet-medication.reader';
+import { DrizzlePetMedicationReader } from './persistence/drizzle/drizzle-pet-medication.reader';
 import { RecordPetMedication } from '../application/record-pet-medication/record-pet-medication';
 import {
     PET_MEDICATION_REPOSITORY,
@@ -82,6 +88,14 @@ import { DrizzleVaccinationHistoryReader } from './persistence/drizzle/drizzle-v
         PetAllergiesController,
     ],
     providers: [
+        DrizzlePetMedicationReader,
+        { provide: PET_MEDICATION_READER, useExisting: DrizzlePetMedicationReader },
+        {
+            provide: ListPetMedications,
+            inject: [PET_MEDICATION_READER],
+            useFactory: (reader: PetMedicationReader): ListPetMedications =>
+                new ListPetMedications(reader),
+        },
         DrizzlePetMedicationRepository,
         { provide: PET_MEDICATION_REPOSITORY, useExisting: DrizzlePetMedicationRepository },
         {

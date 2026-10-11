@@ -33,7 +33,7 @@ describe('OpenAPI documentation (e2e)', () => {
         await application.close();
     });
 
-    it('serves Swagger UI and documents all thirty-six operations and their contracts', async () => {
+    it('serves Swagger UI and documents all thirty-seven operations and their contracts', async () => {
         const htmlResponse = await request(application.getHttpServer()).get('/docs').expect(200);
 
         expect(htmlResponse.text).toContain('swagger-ui');
@@ -61,6 +61,7 @@ describe('OpenAPI documentation (e2e)', () => {
             ['/pets/{petId}/archive', 'post'],
             ['/pets/{petId}/restore', 'post'],
             ['/pets/{petId}/health/medications', 'post'],
+            ['/pets/{petId}/health/medications', 'get'],
             ['/pets/{petId}/health/medical-conditions', 'post'],
             ['/pets/{petId}/health/medical-conditions', 'get'],
             ['/pets/{petId}/health/medical-conditions/{conditionId}', 'patch'],
@@ -102,7 +103,7 @@ describe('OpenAPI documentation (e2e)', () => {
                     Number(Boolean(path?.delete)),
                 0,
             ),
-        ).toBe(36);
+        ).toBe(37);
 
         const medicationPath = document.paths['/pets/{petId}/health/medications'];
         const medication = medicationPath?.post;
@@ -122,7 +123,68 @@ describe('OpenAPI documentation (e2e)', () => {
                 schema: { type: 'string', format: 'uuid' },
             }),
         ]);
-        expect(medicationPath?.get).toBeUndefined();
+        const medicationList = medicationPath?.get;
+
+        expect(medicationList?.security).toEqual([{ bearer: [] }]);
+        expect(Object.keys(medicationList?.responses ?? {}).sort()).toEqual([
+            '200',
+            '400',
+            '401',
+            '404',
+        ]);
+        expect(medicationList?.requestBody).toBeUndefined();
+        expect(medicationList?.parameters).toEqual(medication?.parameters);
+        expect(medicationList?.description).toContain('active or archived pets');
+        expect(medicationList?.description).toContain(
+            'creation timestamp and medication ID descending',
+        );
+        expect(medicationList?.description).toContain('no filters or pagination');
+        expect(medicationList?.description).toContain('always present as null');
+        const listResponse = responseSchema(medicationList, '200');
+
+        expect(listResponse).toMatchObject({
+            type: 'object',
+            additionalProperties: false,
+            required: ['items'],
+        });
+        expect(Object.keys(listResponse?.properties ?? {})).toEqual(['items']);
+        const listedMedication = listResponse?.properties?.items as SchemaObject | undefined;
+
+        expect(listedMedication?.type).toBe('array');
+        const item = listedMedication?.items as SchemaObject | undefined;
+        const fields: string[] = [
+            'id',
+            'name',
+            'dosage',
+            'frequency',
+            'startDate',
+            'plannedEndDate',
+            'notes',
+            'recordedByAccountId',
+        ];
+
+        expect(item?.additionalProperties).toBe(false);
+        expect(item?.required).toEqual(fields);
+        expect(Object.keys(item?.properties ?? {}).sort()).toEqual([...fields].sort());
+
+        for (const field of ['dosage', 'frequency', 'startDate', 'plannedEndDate', 'notes']) {
+            expect(item?.properties?.[field]).toMatchObject({ type: 'string', nullable: true });
+        }
+
+        for (const field of ['startDate', 'plannedEndDate']) {
+            expect(item?.properties?.[field]).toMatchObject({ format: 'date' });
+        }
+
+        for (const [status, code] of [
+            ['400', 'INVALID_REQUEST'],
+            ['401', 'UNAUTHENTICATED'],
+            ['404', 'PET_NOT_FOUND'],
+        ]) {
+            expect(responseSchema(medicationList, status)?.properties?.code).toMatchObject({
+                enum: [code],
+            });
+        }
+
         expect(medicationPath?.patch).toBeUndefined();
         expect(medicationPath?.delete).toBeUndefined();
         expect(medication?.description).toContain(

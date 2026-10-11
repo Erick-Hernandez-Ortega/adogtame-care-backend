@@ -513,3 +513,61 @@ export const recordedPetMedicationResponseSchema: SchemaObject = {
         },
     },
 };
+
+export const listedPetMedicationResponseSchema: SchemaObject = {
+    type: 'object',
+    additionalProperties: false,
+    required: [
+        'id',
+        'name',
+        'dosage',
+        'frequency',
+        'startDate',
+        'plannedEndDate',
+        'notes',
+        'recordedByAccountId',
+    ],
+    properties: {
+        id: { type: 'string', format: 'uuid' },
+        name: { type: 'string', description: 'Registered medication name.' },
+        dosage: {
+            type: 'string',
+            nullable: true,
+            description: 'Reported dosage as free text, or null when unknown; no calculations.',
+        },
+        frequency: {
+            type: 'string',
+            nullable: true,
+            description: 'Reported frequency as free text, or null when unknown; no schedules.',
+        },
+        startDate: {
+            type: 'string',
+            format: 'date',
+            nullable: true,
+            description:
+                'Reported civil YYYY-MM-DD start date, or null when unknown. May be future and does not prove administration.',
+        },
+        plannedEndDate: {
+            type: 'string',
+            format: 'date',
+            nullable: true,
+            description:
+                'Planned civil YYYY-MM-DD end date, or null when unknown. May be future and does not confirm actual completion.',
+        },
+        notes: { type: 'string', nullable: true, description: 'Registered notes, or null.' },
+        recordedByAccountId: {
+            type: 'string',
+            format: 'uuid',
+            description: 'Historical recording account; authorship does not grant access.',
+        },
+    },
+};
+
+export const petMedicationsResponseSchema: SchemaObject = {
+    type: 'object',
+    additionalProperties: false,
+    required: ['items'],
+    properties: {
+        items: { type: 'array', items: listedPetMedicationResponseSchema },
+    },
+};

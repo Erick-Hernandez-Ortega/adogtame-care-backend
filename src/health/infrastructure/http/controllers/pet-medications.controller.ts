@@ -2,6 +2,7 @@ import {
     BadRequestException,
     Body,
     Controller,
+    Get,
     NotFoundException,
     Param,
     Post,
@@ -16,6 +17,12 @@ import {
     ApiResponse,
     ApiTags,
 } from '@nestjs/swagger';
+import {
+    ListPetMedications,
+    PetNotFoundError as ListPetMedicationsPetNotFoundError,
+    type PetMedications,
+} from '../../../application/list-pet-medications/list-pet-medications';
+import { listPetMedicationsQuerySchema } from '../schemas/list-pet-medications.schema';
 import {
     RecordPetMedication,
     PetNotFoundError,
@@ -38,13 +45,87 @@ import {
 import {
     recordPetMedicationRequestSchema,
     recordedPetMedicationResponseSchema,
+    petMedicationsResponseSchema,
 } from '../schemas/openapi.schemas';
 
 @ApiTags('Health')
 @ApiBearerAuth()
 @Controller('pets/:petId/health/medications')
 export class PetMedicationsController {
-    constructor(private readonly recordPetMedication: RecordPetMedication) {}
+    constructor(
+        private readonly recordPetMedication: RecordPetMedication,
+        private readonly listPetMedications: ListPetMedications,
+    ) {}
+
+    @Get()
+    @UseGuards(AuthenticationGuard)
+    @ApiOperation({
+        summary: 'List registered pet medications',
+        description:
+            'Active owners and collaborators may read all registered medications of active or archived pets regardless of authorship. Results are ordered by technical creation timestamp and medication ID descending, not by start date or planned end date. An accessible pet without medications returns an empty items array. All nullable fields are always present as null when unknown. There are no filters or pagination, and no query parameters are accepted. Dosage and frequency remain reported free text; dates do not infer clinical status or dose administration.',
+    })
+    @ApiParam({
+        name: 'petId',
+        description: 'Non-nil pet UUID',
+        schema: { type: 'string', format: 'uuid' },
+    })
+    @ApiResponse({
+        status: 200,
+        description: 'All registered pet medications',
+        schema: petMedicationsResponseSchema,
+    })
+    @ApiResponse({
+        status: 400,
+        description: 'Invalid pet UUID or unexpected query parameters',
+        schema: errorSchema(['INVALID_REQUEST'], 'Request query is invalid'),
+    })
+    @ApiResponse({
+        status: 401,
+        description: 'Missing or invalid Bearer token',
+        schema: errorSchema(['UNAUTHENTICATED'], 'Authentication is required'),
+    })
+    @ApiResponse({
+        status: 404,
+        description: 'Pet is missing or inaccessible',
+        schema: errorSchema(['PET_NOT_FOUND'], 'Pet was not found'),
+    })
+    async list(
+        @CurrentAccountId() authenticatedAccountId: string,
+        @Param('petId') petId: string,
+        @Query() query: unknown,
+    ): Promise<PetMedications> {
+        const parsedPetId = medicationPetIdSchema.safeParse(petId);
+
+        if (!parsedPetId.success) {
+            throw new BadRequestException({
+                code: 'INVALID_REQUEST',
+                message: 'Pet id is invalid',
+            });
+        }
+
+        if (!listPetMedicationsQuerySchema.safeParse(query).success) {
+            throw new BadRequestException({
+                code: 'INVALID_REQUEST',
+                message: 'Request query is invalid',
+            });
+        }
+
+        try {
+            return await this.listPetMedications.execute({
+                petId: parsedPetId.data,
+                authenticatedAccountId,
+            });
+        } catch (error: unknown) {
+            if (error instanceof ListPetMedicationsPetNotFoundError) {
+                throw new NotFoundException({
+                    code: 'PET_NOT_FOUND',
+                    message: error.message,
+                });
+            }
+
+            throw error;
+        }
+    }
 
     @Post()
     @UseGuards(AuthenticationGuard)
