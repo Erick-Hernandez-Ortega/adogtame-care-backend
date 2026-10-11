@@ -2,6 +2,8 @@ import {
     BadRequestException,
     Body,
     Controller,
+    Delete,
+    HttpCode,
     Get,
     NotFoundException,
     Param,
@@ -61,6 +63,9 @@ import {
     updatePetMedicationQuerySchema,
 } from '../schemas/update-pet-medication.schema';
 
+import { DeletePetMedication } from '../../../application/delete-pet-medication/delete-pet-medication';
+import { deletePetMedicationSchema } from '../schemas/delete-pet-medication.schema';
+
 @ApiTags('Health')
 @ApiBearerAuth()
 @Controller('pets/:petId/health/medications')
@@ -69,6 +74,7 @@ export class PetMedicationsController {
         private readonly recordPetMedication: RecordPetMedication,
         private readonly listPetMedications: ListPetMedications,
         private readonly updatePetMedication: UpdatePetMedication,
+        private readonly deletePetMedication: DeletePetMedication,
     ) {}
 
     @Get()
@@ -442,6 +448,105 @@ export class PetMedicationsController {
             if (error instanceof InvalidMedicationNotesError) {
                 throw new BadRequestException({
                     code: 'INVALID_MEDICATION_NOTES',
+                    message: error.message,
+                });
+            }
+
+            throw error;
+        }
+    }
+
+    @Delete(':medicationId')
+    @UseGuards(AuthenticationGuard)
+    @HttpCode(204)
+    @ApiOperation({
+        summary: 'Delete an erroneous pet medication record',
+        description:
+            'Hard delete permanently removes a medication record recorded in error, without deletion history, tombstones or restoration. It does not represent treatment completion, discontinuation, dose administration, interruption due to adverse effects or a prescription change. Active owners and collaborators may delete records on active pets regardless of original authorship. Archived pets are read-only. A second authorized DELETE returns PET_MEDICATION_NOT_FOUND. No query parameters or functional body are accepted; an absent body or empty JSON object is valid. Errors follow authentication, HTTP structure, Pet access, then medication lookup.',
+    })
+    @ApiParam({
+        name: 'petId',
+        description: 'Non-nil pet UUID',
+        schema: { type: 'string', format: 'uuid' },
+    })
+    @ApiParam({
+        name: 'medicationId',
+        description: 'Non-nil medication UUID',
+        schema: { type: 'string', format: 'uuid' },
+    })
+    @ApiResponse({
+        status: 204,
+        description: 'Pet medication record permanently deleted',
+    })
+    @ApiResponse({
+        status: 400,
+        description: 'Invalid path, unexpected query parameters, or nonempty/invalid JSON body',
+        schema: errorSchema(['INVALID_REQUEST'], 'Request body is invalid'),
+    })
+    @ApiResponse({
+        status: 401,
+        description: 'Missing or invalid Bearer token',
+        schema: errorSchema(['UNAUTHENTICATED'], 'Authentication is required'),
+    })
+    @ApiResponse({
+        status: 404,
+        description:
+            'Pet missing, archived, or inaccessible; or medication missing from an authorized pet',
+        schema: {
+            oneOf: [
+                errorSchema(['PET_NOT_FOUND'], 'Pet was not found'),
+                errorSchema(['PET_MEDICATION_NOT_FOUND'], 'Pet medication was not found'),
+            ],
+        },
+    })
+    async delete(
+        @CurrentAccountId() authenticatedAccountId: string,
+        @Param('petId') petId: string,
+        @Param('medicationId') medicationId: string,
+        @Query() query: unknown,
+        @Body() body: unknown,
+    ): Promise<void> {
+        const parsedPetId = medicationPetIdSchema.safeParse(petId);
+        const parsedMedicationId = medicationIdSchema.safeParse(medicationId);
+
+        if (!parsedPetId.success || !parsedMedicationId.success) {
+            throw new BadRequestException({
+                code: 'INVALID_REQUEST',
+                message: 'Request path is invalid',
+            });
+        }
+
+        if (!recordPetMedicationQuerySchema.safeParse(query).success) {
+            throw new BadRequestException({
+                code: 'INVALID_REQUEST',
+                message: 'Request query is invalid',
+            });
+        }
+
+        if (body !== undefined && !deletePetMedicationSchema.safeParse(body).success) {
+            throw new BadRequestException({
+                code: 'INVALID_REQUEST',
+                message: 'Request body is invalid',
+            });
+        }
+
+        try {
+            await this.deletePetMedication.execute({
+                petId: parsedPetId.data,
+                medicationId: parsedMedicationId.data,
+                authenticatedAccountId,
+            });
+        } catch (error: unknown) {
+            if (error instanceof PetMedicationNotFoundError) {
+                throw new NotFoundException({
+                    code: 'PET_MEDICATION_NOT_FOUND',
+                    message: error.message,
+                });
+            }
+
+            if (error instanceof PetNotFoundError) {
+                throw new NotFoundException({
+                    code: 'PET_NOT_FOUND',
                     message: error.message,
                 });
             }

@@ -41,6 +41,7 @@ function setup() {
         Parameters<PetMedicationRepository['createIfPetWritable']>
     >();
     const repository: PetMedicationRepository = {
+        deleteIfPetWritable: jest.fn(),
         createIfPetWritable,
         correctIfPetWritable: jest.fn(),
     };

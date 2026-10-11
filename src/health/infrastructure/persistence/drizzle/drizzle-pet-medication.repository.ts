@@ -11,6 +11,8 @@ import type {
     CreatePetMedicationOutcome,
     PetMedicationCorrection,
     UpdatePetMedicationOutcome,
+    PetMedicationAccess,
+    DeletePetMedicationOutcome,
 } from '../../../application/persistence/pet-medication.repository';
 import {
     PetMedication,
@@ -165,6 +167,69 @@ export class DrizzlePetMedicationRepository implements PetMedicationRepository {
                 }
 
                 return { status: 'UPDATED', medication: corrected };
+            },
+            { isolationLevel: 'read committed' },
+        );
+    }
+
+    async deleteIfPetWritable(access: PetMedicationAccess): Promise<DeletePetMedicationOutcome> {
+        return this.databaseService.connection.transaction(
+            async (transaction): Promise<DeletePetMedicationOutcome> => {
+                const petRows = await transaction
+                    .select({ status: pets.status })
+                    .from(pets)
+                    .where(eq(pets.id, access.petId))
+                    .for('update');
+
+                if (petRows[0]?.status !== 'ACTIVE') {
+                    return 'PET_NOT_FOUND';
+                }
+
+                const membershipRows = await transaction
+                    .select({ role: petMemberships.role, status: petMemberships.status })
+                    .from(petMemberships)
+                    .where(
+                        and(
+                            eq(petMemberships.petId, access.petId),
+                            eq(petMemberships.accountId, access.authenticatedAccountId),
+                        ),
+                    )
+                    .for('update');
+                const membership = membershipRows[0];
+
+                if (
+                    membership?.status !== 'ACTIVE' ||
+                    (membership.role !== 'OWNER' && membership.role !== 'COLLABORATOR')
+                ) {
+                    return 'PET_NOT_FOUND';
+                }
+
+                const medicationRows = await transaction
+                    .select({ id: healthPetMedications.id })
+                    .from(healthPetMedications)
+                    .where(
+                        and(
+                            eq(healthPetMedications.id, access.medicationId),
+                            eq(healthPetMedications.petId, access.petId),
+                        ),
+                    )
+                    .for('update');
+
+                if (medicationRows.length === 0) {
+                    return 'PET_MEDICATION_NOT_FOUND';
+                }
+
+                const deletedRows = await transaction
+                    .delete(healthPetMedications)
+                    .where(
+                        and(
+                            eq(healthPetMedications.id, access.medicationId),
+                            eq(healthPetMedications.petId, access.petId),
+                        ),
+                    )
+                    .returning({ id: healthPetMedications.id });
+
+                return deletedRows.length === 0 ? 'PET_MEDICATION_NOT_FOUND' : 'DELETED';
             },
             { isolationLevel: 'read committed' },
         );

@@ -33,7 +33,7 @@ describe('OpenAPI documentation (e2e)', () => {
         await application.close();
     });
 
-    it('serves Swagger UI and documents all thirty-eight operations and their contracts', async () => {
+    it('serves Swagger UI and documents all thirty-nine operations and their contracts', async () => {
         const htmlResponse = await request(application.getHttpServer()).get('/docs').expect(200);
 
         expect(htmlResponse.text).toContain('swagger-ui');
@@ -63,6 +63,7 @@ describe('OpenAPI documentation (e2e)', () => {
             ['/pets/{petId}/health/medications', 'post'],
             ['/pets/{petId}/health/medications', 'get'],
             ['/pets/{petId}/health/medications/{medicationId}', 'patch'],
+            ['/pets/{petId}/health/medications/{medicationId}', 'delete'],
             ['/pets/{petId}/health/medical-conditions', 'post'],
             ['/pets/{petId}/health/medical-conditions', 'get'],
             ['/pets/{petId}/health/medical-conditions/{conditionId}', 'patch'],
@@ -104,7 +105,7 @@ describe('OpenAPI documentation (e2e)', () => {
                     Number(Boolean(path?.delete)),
                 0,
             ),
-        ).toBe(38);
+        ).toBe(39);
 
         const medicationPath = document.paths['/pets/{petId}/health/medications'];
         const medication = medicationPath?.post;
@@ -263,9 +264,38 @@ describe('OpenAPI documentation (e2e)', () => {
         expect(
             document.paths['/pets/{petId}/health/medications/{medicationId}']?.get,
         ).toBeUndefined();
+        const medicationDelete =
+            document.paths['/pets/{petId}/health/medications/{medicationId}']?.delete;
+
+        expect(medicationDelete?.security).toEqual([{ bearer: [] }]);
+        expect(Object.keys(medicationDelete?.responses ?? {}).sort()).toEqual([
+            '204',
+            '400',
+            '401',
+            '404',
+        ]);
+        expect(medicationDelete?.parameters).toEqual(medicationUpdate?.parameters);
+        expect(medicationDelete?.requestBody).toBeUndefined();
+        expect((medicationDelete?.responses['204'] as ResponseObject).content).toBeUndefined();
+        expect(medicationDelete?.description).toContain('Hard delete');
+        expect(medicationDelete?.description).toContain('discontinuation');
+        expect(medicationDelete?.description).toContain('without deletion history');
+        expect(medicationDelete?.description).toContain('second authorized DELETE');
+        expect(medicationDelete?.description).toContain('absent body or empty JSON object');
+        expect(responseSchema(medicationDelete, '400')?.properties?.code).toMatchObject({
+            enum: ['INVALID_REQUEST'],
+        });
+        expect(responseSchema(medicationDelete, '401')?.properties?.code).toMatchObject({
+            enum: ['UNAUTHENTICATED'],
+        });
+        const deletionNotFound: SchemaObject = responseSchema(medicationDelete, '404') ?? {};
+
         expect(
-            document.paths['/pets/{petId}/health/medications/{medicationId}']?.delete,
-        ).toBeUndefined();
+            deletionNotFound.oneOf?.map((schema) => (schema as SchemaObject).properties?.code),
+        ).toEqual([
+            expect.objectContaining({ enum: ['PET_NOT_FOUND'] }),
+            expect.objectContaining({ enum: ['PET_MEDICATION_NOT_FOUND'] }),
+        ]);
 
         expect(medicationPath?.patch).toBeUndefined();
         expect(medicationPath?.delete).toBeUndefined();

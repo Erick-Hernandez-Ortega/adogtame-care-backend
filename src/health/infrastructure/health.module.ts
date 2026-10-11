@@ -1,3 +1,4 @@
+import { DeletePetMedication } from '../application/delete-pet-medication/delete-pet-medication';
 import { UpdatePetMedication } from '../application/update-pet-medication/update-pet-medication';
 import { ListPetMedications } from '../application/list-pet-medications/list-pet-medications';
 import {
@@ -89,6 +90,12 @@ import { DrizzleVaccinationHistoryReader } from './persistence/drizzle/drizzle-v
         PetAllergiesController,
     ],
     providers: [
+        {
+            provide: DeletePetMedication,
+            inject: [PET_MEDICATION_REPOSITORY],
+            useFactory: (repository: PetMedicationRepository): DeletePetMedication =>
+                new DeletePetMedication(repository),
+        },
         {
             provide: UpdatePetMedication,
             inject: [PET_MEDICATION_REPOSITORY],

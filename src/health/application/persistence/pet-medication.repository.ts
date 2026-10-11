@@ -33,7 +33,16 @@ export type UpdatePetMedicationOutcome =
     | { status: 'PET_NOT_FOUND' }
     | { status: 'PET_MEDICATION_NOT_FOUND' };
 
+export interface PetMedicationAccess {
+    petId: string;
+    medicationId: string;
+    authenticatedAccountId: string;
+}
+
+export type DeletePetMedicationOutcome = 'DELETED' | 'PET_NOT_FOUND' | 'PET_MEDICATION_NOT_FOUND';
+
 export interface PetMedicationRepository {
+    deleteIfPetWritable(access: PetMedicationAccess): Promise<DeletePetMedicationOutcome>;
     correctIfPetWritable(correction: PetMedicationCorrection): Promise<UpdatePetMedicationOutcome>;
     createIfPetWritable(recording: PetMedicationRecording): Promise<CreatePetMedicationOutcome>;
 }

@@ -40,6 +40,7 @@ function setup(outcome?: UpdatePetMedicationOutcome) {
             ),
         );
     const repository: PetMedicationRepository = {
+        deleteIfPetWritable: jest.fn(),
         createIfPetWritable: jest.fn(),
         correctIfPetWritable,
     };
