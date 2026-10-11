@@ -33,7 +33,7 @@ describe('OpenAPI documentation (e2e)', () => {
         await application.close();
     });
 
-    it('serves Swagger UI and documents all thirty-seven operations and their contracts', async () => {
+    it('serves Swagger UI and documents all thirty-eight operations and their contracts', async () => {
         const htmlResponse = await request(application.getHttpServer()).get('/docs').expect(200);
 
         expect(htmlResponse.text).toContain('swagger-ui');
@@ -62,6 +62,7 @@ describe('OpenAPI documentation (e2e)', () => {
             ['/pets/{petId}/restore', 'post'],
             ['/pets/{petId}/health/medications', 'post'],
             ['/pets/{petId}/health/medications', 'get'],
+            ['/pets/{petId}/health/medications/{medicationId}', 'patch'],
             ['/pets/{petId}/health/medical-conditions', 'post'],
             ['/pets/{petId}/health/medical-conditions', 'get'],
             ['/pets/{petId}/health/medical-conditions/{conditionId}', 'patch'],
@@ -103,7 +104,7 @@ describe('OpenAPI documentation (e2e)', () => {
                     Number(Boolean(path?.delete)),
                 0,
             ),
-        ).toBe(37);
+        ).toBe(38);
 
         const medicationPath = document.paths['/pets/{petId}/health/medications'];
         const medication = medicationPath?.post;
@@ -184,6 +185,87 @@ describe('OpenAPI documentation (e2e)', () => {
                 enum: [code],
             });
         }
+
+        const medicationUpdate =
+            document.paths['/pets/{petId}/health/medications/{medicationId}']?.patch;
+
+        expect(medicationUpdate?.security).toEqual([{ bearer: [] }]);
+        expect(Object.keys(medicationUpdate?.responses ?? {}).sort()).toEqual([
+            '200',
+            '400',
+            '401',
+            '404',
+        ]);
+        expect(medicationUpdate?.parameters).toEqual(
+            expect.arrayContaining([
+                expect.objectContaining({
+                    name: 'petId',
+                    in: 'path',
+                    required: true,
+                    schema: { type: 'string', format: 'uuid' },
+                }),
+                expect.objectContaining({
+                    name: 'medicationId',
+                    in: 'path',
+                    required: true,
+                    schema: { type: 'string', format: 'uuid' },
+                }),
+            ]),
+        );
+        const updateBody = medicationUpdate?.requestBody as {
+            required: boolean;
+            content: Record<string, { schema: SchemaObject }>;
+        };
+        const updateSchema: SchemaObject = updateBody.content['application/json'].schema;
+
+        expect(updateBody.required).toBe(true);
+        expect(updateSchema).toMatchObject({
+            type: 'object',
+            additionalProperties: false,
+            minProperties: 1,
+        });
+        expect(updateSchema.required).toBeUndefined();
+        expect(Object.keys(updateSchema.properties ?? {}).sort()).toEqual(
+            ['name', 'dosage', 'frequency', 'startDate', 'plannedEndDate', 'notes'].sort(),
+        );
+        expect(updateSchema.properties?.name).toMatchObject({ type: 'string', maxLength: 255 });
+        expect((updateSchema.properties?.name as SchemaObject).nullable).not.toBe(true);
+
+        for (const field of ['dosage', 'frequency', 'startDate', 'plannedEndDate', 'notes']) {
+            expect(updateSchema.properties?.[field]).toMatchObject({
+                type: 'string',
+                nullable: true,
+            });
+        }
+
+        expect(updateSchema.description).toContain('Omission preserves');
+        expect(updateSchema.description).toContain('explicit null clears');
+        expect(updateSchema.description).toContain('no-op');
+        expect(updateSchema.description).toContain('resulting startDate');
+        expect(responseSchema(medicationUpdate, '200')).toEqual(responseSchema(medication, '201'));
+        const updateErrors: string = JSON.stringify(responseSchema(medicationUpdate, '400'));
+
+        for (const code of [
+            'INVALID_REQUEST',
+            'INVALID_MEDICATION_NAME',
+            'INVALID_MEDICATION_DOSAGE',
+            'INVALID_MEDICATION_FREQUENCY',
+            'INVALID_MEDICATION_START_DATE',
+            'INVALID_MEDICATION_PLANNED_END_DATE',
+            'INVALID_MEDICATION_NOTES',
+        ]) {
+            expect(updateErrors).toContain(code);
+        }
+
+        expect(JSON.stringify(responseSchema(medicationUpdate, '404'))).toContain(
+            'PET_MEDICATION_NOT_FOUND',
+        );
+        expect(
+            document.paths['/pets/{petId}/health/medications/{medicationId}']?.get,
+        ).toBeUndefined();
+        expect(
+            document.paths['/pets/{petId}/health/medications/{medicationId}']?.delete,
+        ).toBeUndefined();
 
         expect(medicationPath?.patch).toBeUndefined();
         expect(medicationPath?.delete).toBeUndefined();

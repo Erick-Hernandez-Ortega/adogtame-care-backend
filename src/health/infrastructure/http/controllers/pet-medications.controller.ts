@@ -6,6 +6,7 @@ import {
     NotFoundException,
     Param,
     Post,
+    Patch,
     Query,
     UseGuards,
 } from '@nestjs/common';
@@ -46,7 +47,19 @@ import {
     recordPetMedicationRequestSchema,
     recordedPetMedicationResponseSchema,
     petMedicationsResponseSchema,
+    updatePetMedicationRequestSchema,
 } from '../schemas/openapi.schemas';
+
+import {
+    UpdatePetMedication,
+    PetMedicationNotFoundError,
+    type UpdatedPetMedication,
+} from '../../../application/update-pet-medication/update-pet-medication';
+import {
+    medicationIdSchema,
+    updatePetMedicationSchema,
+    updatePetMedicationQuerySchema,
+} from '../schemas/update-pet-medication.schema';
 
 @ApiTags('Health')
 @ApiBearerAuth()
@@ -55,6 +68,7 @@ export class PetMedicationsController {
     constructor(
         private readonly recordPetMedication: RecordPetMedication,
         private readonly listPetMedications: ListPetMedications,
+        private readonly updatePetMedication: UpdatePetMedication,
     ) {}
 
     @Get()
@@ -219,6 +233,175 @@ export class PetMedicationsController {
         } catch (error: unknown) {
             if (error instanceof PetNotFoundError) {
                 throw new NotFoundException({ code: 'PET_NOT_FOUND', message: error.message });
+            }
+
+            if (error instanceof InvalidMedicationNameError) {
+                throw new BadRequestException({
+                    code: 'INVALID_MEDICATION_NAME',
+                    message: error.message,
+                });
+            }
+
+            if (error instanceof InvalidMedicationDosageError) {
+                throw new BadRequestException({
+                    code: 'INVALID_MEDICATION_DOSAGE',
+                    message: error.message,
+                });
+            }
+
+            if (error instanceof InvalidMedicationFrequencyError) {
+                throw new BadRequestException({
+                    code: 'INVALID_MEDICATION_FREQUENCY',
+                    message: error.message,
+                });
+            }
+
+            if (error instanceof InvalidMedicationStartDateError) {
+                throw new BadRequestException({
+                    code: 'INVALID_MEDICATION_START_DATE',
+                    message: error.message,
+                });
+            }
+
+            if (error instanceof InvalidMedicationPlannedEndDateError) {
+                throw new BadRequestException({
+                    code: 'INVALID_MEDICATION_PLANNED_END_DATE',
+                    message: error.message,
+                });
+            }
+
+            if (error instanceof InvalidMedicationNotesError) {
+                throw new BadRequestException({
+                    code: 'INVALID_MEDICATION_NOTES',
+                    message: error.message,
+                });
+            }
+
+            throw error;
+        }
+    }
+
+    @Patch(':medicationId')
+    @UseGuards(AuthenticationGuard)
+    @ApiOperation({
+        summary: 'Update registered pet medication',
+        description:
+            'Active owners and collaborators of active pets may correct registered medication information regardless of authorship. The PATCH is strict and partial: omission preserves values, explicit null clears optional fields, and name is non-nullable. Future civil dates are allowed; the resulting planned end must be on or after the resulting start when both exist. Equivalent normalized corrections return 200 without a physical UPDATE or timestamp changes. This is not a new prescription, dose administration, completion or discontinuation. No query parameters are accepted. Errors follow authentication, HTTP structure, Pet access, medication lookup, then domain validation.',
+    })
+    @ApiParam({
+        name: 'petId',
+        description: 'Non-nil pet UUID',
+        schema: { type: 'string', format: 'uuid' },
+    })
+    @ApiParam({
+        name: 'medicationId',
+        description: 'Non-nil medication UUID',
+        schema: { type: 'string', format: 'uuid' },
+    })
+    @ApiBody({ required: true, schema: updatePetMedicationRequestSchema })
+    @ApiResponse({
+        status: 200,
+        description: 'Complete updated medication, including equivalent corrections',
+        schema: recordedPetMedicationResponseSchema,
+    })
+    @ApiResponse({
+        status: 400,
+        description: 'Invalid HTTP structure or medication information',
+        schema: {
+            oneOf: [
+                errorSchema(['INVALID_REQUEST'], 'Request body is invalid'),
+                errorSchema(['INVALID_MEDICATION_NAME'], 'Medication name cannot be empty'),
+                errorSchema(['INVALID_MEDICATION_DOSAGE'], 'Medication dosage cannot be empty'),
+                errorSchema(
+                    ['INVALID_MEDICATION_FREQUENCY'],
+                    'Medication frequency cannot be empty',
+                ),
+                errorSchema(
+                    ['INVALID_MEDICATION_START_DATE'],
+                    'Medication date must be a valid calendar date',
+                ),
+                errorSchema(
+                    ['INVALID_MEDICATION_PLANNED_END_DATE'],
+                    'Planned end date cannot be before start date',
+                ),
+                errorSchema(['INVALID_MEDICATION_NOTES'], 'Medication notes cannot be empty'),
+            ],
+        },
+    })
+    @ApiResponse({
+        status: 401,
+        description: 'Missing or invalid Bearer token',
+        schema: errorSchema(['UNAUTHENTICATED'], 'Authentication is required'),
+    })
+    @ApiResponse({
+        status: 404,
+        description:
+            'Pet missing, archived, or inaccessible; medication missing or belonging to another pet',
+        schema: {
+            oneOf: [
+                errorSchema(['PET_NOT_FOUND'], 'Pet was not found'),
+                errorSchema(['PET_MEDICATION_NOT_FOUND'], 'Pet medication was not found'),
+            ],
+        },
+    })
+    async update(
+        @CurrentAccountId() authenticatedAccountId: string,
+        @Param('petId') petId: string,
+        @Param('medicationId') medicationId: string,
+        @Body() body: unknown,
+        @Query() query: unknown,
+    ): Promise<UpdatedPetMedication> {
+        const parsedPetId = medicationPetIdSchema.safeParse(petId);
+
+        if (!parsedPetId.success) {
+            throw new BadRequestException({
+                code: 'INVALID_REQUEST',
+                message: 'Pet id is invalid',
+            });
+        }
+
+        const parsedMedicationId = medicationIdSchema.safeParse(medicationId);
+
+        if (!parsedMedicationId.success) {
+            throw new BadRequestException({
+                code: 'INVALID_REQUEST',
+                message: 'Medication id is invalid',
+            });
+        }
+
+        const parsedBody = updatePetMedicationSchema.safeParse(body);
+
+        if (!parsedBody.success) {
+            throw new BadRequestException({
+                code: 'INVALID_REQUEST',
+                message: 'Request body is invalid',
+            });
+        }
+
+        if (!updatePetMedicationQuerySchema.safeParse(query).success) {
+            throw new BadRequestException({
+                code: 'INVALID_REQUEST',
+                message: 'Request query is invalid',
+            });
+        }
+
+        try {
+            return await this.updatePetMedication.execute({
+                ...parsedBody.data,
+                petId: parsedPetId.data,
+                medicationId: parsedMedicationId.data,
+                authenticatedAccountId,
+            });
+        } catch (error: unknown) {
+            if (error instanceof PetNotFoundError) {
+                throw new NotFoundException({ code: 'PET_NOT_FOUND', message: error.message });
+            }
+
+            if (error instanceof PetMedicationNotFoundError) {
+                throw new NotFoundException({
+                    code: 'PET_MEDICATION_NOT_FOUND',
+                    message: error.message,
+                });
             }
 
             if (error instanceof InvalidMedicationNameError) {

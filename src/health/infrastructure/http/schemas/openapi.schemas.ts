@@ -483,6 +483,43 @@ export const recordPetMedicationRequestSchema: SchemaObject = {
     },
 };
 
+export const updatePetMedicationRequestSchema: SchemaObject = {
+    type: 'object',
+    additionalProperties: false,
+    minProperties: 1,
+    properties: {
+        ...recordPetMedicationRequestSchema.properties,
+        dosage: {
+            ...recordPetMedicationRequestSchema.properties?.dosage,
+            description:
+                'Omission preserves dosage; null clears it. Present free text is trimmed, nonempty, and limited to 2000 Unicode code points. No pharmacological interpretation or calculations.',
+        },
+        frequency: {
+            ...recordPetMedicationRequestSchema.properties?.frequency,
+            description:
+                'Omission preserves frequency; null clears it. Present free text is trimmed, nonempty, and limited to 2000 Unicode code points. No schedules or dose administration.',
+        },
+        startDate: {
+            ...recordPetMedicationRequestSchema.properties?.startDate,
+            description:
+                'Omission preserves start date; null clears it. Valid civil YYYY-MM-DD date from 0001-01-01 through 9999-12-31, including future dates. The resulting interval must remain valid; this does not prove administration.',
+        },
+        plannedEndDate: {
+            ...recordPetMedicationRequestSchema.properties?.plannedEndDate,
+            description:
+                'Omission preserves planned end date; null clears it. Valid civil YYYY-MM-DD date from 0001-01-01 through 9999-12-31, including future dates. Must be on or after the resulting startDate when both exist. This does not confirm completion.',
+        },
+        notes: {
+            ...recordPetMedicationRequestSchema.properties?.notes,
+            description:
+                'Omission preserves notes; null clears them. Present text is trimmed, nonempty, and limited to 2000 Unicode code points.',
+        },
+    },
+    description:
+        'Strict partial correction of name, dosage, frequency, startDate, plannedEndDate and notes. Omission preserves the current value; explicit null clears an optional field. Name cannot be null. Text is trimmed and must remain nonempty; limits count Unicode code points. Both civil dates may be future. The resulting plannedEndDate must be on or after the resulting startDate when both exist, including dates preserved by omission. Equivalent normalized values are a no-op without a physical UPDATE or timestamp changes. This corrects recorded information, not a new prescription, dose administration, completion or discontinuation.',
+    example: { dosage: '500 mg', plannedEndDate: null },
+};
+
 export const recordedPetMedicationResponseSchema: SchemaObject = {
     type: 'object',
     additionalProperties: false,

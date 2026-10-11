@@ -78,6 +78,27 @@ interface CreatePetMedicationInput {
     notes?: string | null;
 }
 
+interface ReconstitutePetMedicationInput {
+    id: PetMedicationId;
+    petId: PetId;
+    recordedByAccountId: RecordedByAccountId;
+    name: string;
+    dosage: string | null;
+    frequency: string | null;
+    startDate: string | null;
+    plannedEndDate: string | null;
+    notes: string | null;
+}
+
+interface CorrectPetMedicationInput {
+    name?: string;
+    dosage?: string | null;
+    frequency?: string | null;
+    startDate?: string | null;
+    plannedEndDate?: string | null;
+    notes?: string | null;
+}
+
 export class PetMedication {
     private constructor(
         readonly id: PetMedicationId,
@@ -92,6 +113,90 @@ export class PetMedication {
     ) {}
 
     static create(input: CreatePetMedicationInput): PetMedication {
+        return PetMedication.build(input);
+    }
+
+    static reconstitute(input: ReconstitutePetMedicationInput): PetMedication {
+        try {
+            if (
+                !(input.id instanceof PetMedicationId) ||
+                input.dosage === undefined ||
+                input.frequency === undefined ||
+                input.startDate === undefined ||
+                input.plannedEndDate === undefined ||
+                input.notes === undefined
+            ) {
+                throw new TypeError('Persisted pet medication data is invalid');
+            }
+
+            const medication: PetMedication = PetMedication.build(input, input.id);
+
+            if (
+                medication.name.value !== input.name ||
+                medication.dosage !== input.dosage ||
+                medication.frequency !== input.frequency ||
+                medication.notes !== input.notes
+            ) {
+                throw new TypeError('Persisted pet medication text must be normalized');
+            }
+
+            return medication;
+        } catch (error: unknown) {
+            if (error instanceof TypeError || error instanceof RangeError) {
+                throw new TypeError('Persisted pet medication data is invalid', { cause: error });
+            }
+
+            throw error;
+        }
+    }
+
+    correct(input: CorrectPetMedicationInput): PetMedication {
+        if (
+            input.name === undefined &&
+            input.dosage === undefined &&
+            input.frequency === undefined &&
+            input.startDate === undefined &&
+            input.plannedEndDate === undefined &&
+            input.notes === undefined
+        ) {
+            throw new TypeError('Pet medication correction is invalid');
+        }
+
+        const candidate: PetMedication = PetMedication.build(
+            {
+                petId: this.petId,
+                recordedByAccountId: this.recordedByAccountId,
+                name: input.name === undefined ? this.name.value : input.name,
+                dosage: input.dosage === undefined ? this.dosage : input.dosage,
+                frequency: input.frequency === undefined ? this.frequency : input.frequency,
+                startDate:
+                    input.startDate === undefined
+                        ? (this.startDate?.value ?? null)
+                        : input.startDate,
+                plannedEndDate:
+                    input.plannedEndDate === undefined
+                        ? (this.plannedEndDate?.value ?? null)
+                        : input.plannedEndDate,
+                notes: input.notes === undefined ? this.notes : input.notes,
+            },
+            this.id,
+        );
+
+        if (
+            candidate.name.value === this.name.value &&
+            candidate.dosage === this.dosage &&
+            candidate.frequency === this.frequency &&
+            candidate.startDate?.value === this.startDate?.value &&
+            candidate.plannedEndDate?.value === this.plannedEndDate?.value &&
+            candidate.notes === this.notes
+        ) {
+            return this;
+        }
+
+        return candidate;
+    }
+
+    private static build(input: CreatePetMedicationInput, id?: PetMedicationId): PetMedication {
         if (
             !(input.petId instanceof PetId) ||
             !(input.recordedByAccountId instanceof RecordedByAccountId)
@@ -147,7 +252,7 @@ export class PetMedication {
         );
 
         return new PetMedication(
-            PetMedicationId.generate(),
+            id ?? PetMedicationId.generate(),
             input.petId,
             name,
             dosage,

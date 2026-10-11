@@ -9,9 +9,12 @@ import type {
     PetMedicationRepository,
     PetMedicationRecording,
     CreatePetMedicationOutcome,
+    PetMedicationCorrection,
+    UpdatePetMedicationOutcome,
 } from '../../../application/persistence/pet-medication.repository';
 import {
     PetMedication,
+    PetMedicationId,
     PetId,
     RecordedByAccountId,
 } from '../../../domain/pet-medication/pet-medication';
@@ -74,6 +77,94 @@ export class DrizzlePetMedicationRepository implements PetMedicationRepository {
                 });
 
                 return { status: 'CREATED', medication };
+            },
+            { isolationLevel: 'read committed' },
+        );
+    }
+
+    async correctIfPetWritable(
+        correction: PetMedicationCorrection,
+    ): Promise<UpdatePetMedicationOutcome> {
+        return this.databaseService.connection.transaction(
+            async (transaction): Promise<UpdatePetMedicationOutcome> => {
+                const petRows = await transaction
+                    .select({ status: pets.status })
+                    .from(pets)
+                    .where(eq(pets.id, correction.petId))
+                    .for('update');
+
+                if (petRows[0]?.status !== 'ACTIVE') {
+                    return { status: 'PET_NOT_FOUND' };
+                }
+
+                const membershipRows = await transaction
+                    .select({ role: petMemberships.role, status: petMemberships.status })
+                    .from(petMemberships)
+                    .where(
+                        and(
+                            eq(petMemberships.petId, correction.petId),
+                            eq(petMemberships.accountId, correction.authenticatedAccountId),
+                        ),
+                    )
+                    .for('update');
+                const membership = membershipRows[0];
+
+                if (
+                    membership?.status !== 'ACTIVE' ||
+                    (membership.role !== 'OWNER' && membership.role !== 'COLLABORATOR')
+                ) {
+                    return { status: 'PET_NOT_FOUND' };
+                }
+
+                const medicationRows = await transaction
+                    .select()
+                    .from(healthPetMedications)
+                    .where(
+                        and(
+                            eq(healthPetMedications.petId, correction.petId),
+                            eq(healthPetMedications.id, correction.medicationId),
+                        ),
+                    )
+                    .for('update');
+                const row = medicationRows[0];
+
+                if (row === undefined) {
+                    return { status: 'PET_MEDICATION_NOT_FOUND' };
+                }
+
+                const medication: PetMedication = PetMedication.reconstitute({
+                    id: PetMedicationId.from(row.id),
+                    petId: PetId.from(row.petId),
+                    recordedByAccountId: RecordedByAccountId.from(row.recordedByAccountId),
+                    name: row.name,
+                    dosage: row.dosage,
+                    frequency: row.frequency,
+                    startDate: row.startDate,
+                    plannedEndDate: row.plannedEndDate,
+                    notes: row.notes,
+                });
+                const corrected: PetMedication = medication.correct(correction);
+
+                if (corrected !== medication) {
+                    await transaction
+                        .update(healthPetMedications)
+                        .set({
+                            name: corrected.name.value,
+                            dosage: corrected.dosage,
+                            frequency: corrected.frequency,
+                            startDate: corrected.startDate?.value ?? null,
+                            plannedEndDate: corrected.plannedEndDate?.value ?? null,
+                            notes: corrected.notes,
+                        })
+                        .where(
+                            and(
+                                eq(healthPetMedications.petId, correction.petId),
+                                eq(healthPetMedications.id, correction.medicationId),
+                            ),
+                        );
+                }
+
+                return { status: 'UPDATED', medication: corrected };
             },
             { isolationLevel: 'read committed' },
         );

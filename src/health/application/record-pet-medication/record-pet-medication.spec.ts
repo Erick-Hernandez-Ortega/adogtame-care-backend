@@ -40,7 +40,10 @@ function setup() {
         ReturnType<PetMedicationRepository['createIfPetWritable']>,
         Parameters<PetMedicationRepository['createIfPetWritable']>
     >();
-    const repository: PetMedicationRepository = { createIfPetWritable };
+    const repository: PetMedicationRepository = {
+        createIfPetWritable,
+        correctIfPetWritable: jest.fn(),
+    };
 
     return { useCase: new RecordPetMedication(repository), createIfPetWritable };
 }
