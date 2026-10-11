@@ -1,3 +1,4 @@
+import { recordPetMedicationSchema } from './record-pet-medication.schema';
 import type { SchemaObject } from '@nestjs/swagger';
 import { z } from 'zod';
 import { recordPetAllergySchema } from './record-pet-allergy.schema';
@@ -420,5 +421,95 @@ export const reopenedPetMedicalConditionResponseSchema: SchemaObject = {
         ...updatedPetMedicalConditionResponseSchema.properties,
         status: { type: 'string', enum: ['ACTIVE'] },
         resolvedDate: { type: 'string', format: 'date', nullable: true, enum: [null] },
+    },
+};
+
+export const recordPetMedicationRequestSchema: SchemaObject = {
+    ...(z.toJSONSchema(recordPetMedicationSchema, { target: 'openapi-3.0' }) as SchemaObject),
+    properties: {
+        name: {
+            type: 'string',
+            minLength: 1,
+            maxLength: 255,
+            description:
+                'Required trimmed nonempty medication name. Casing is preserved; limits count Unicode code points. Commercial and generic names are accepted without a catalog.',
+        },
+        dosage: {
+            type: 'string',
+            nullable: true,
+            minLength: 1,
+            maxLength: 2000,
+            description:
+                'Indicated dosage as free text, without interpretation or calculation. Omit or send null when unknown. Present text must remain nonempty after trimming; limits count Unicode code points.',
+        },
+        frequency: {
+            type: 'string',
+            nullable: true,
+            minLength: 1,
+            maxLength: 2000,
+            description:
+                'Indicated frequency as free text; no schedules or dose administration are generated. Omit or send null when unknown. Present text must remain nonempty after trimming; limits count Unicode code points.',
+        },
+        startDate: {
+            type: 'string',
+            format: 'date',
+            nullable: true,
+            description:
+                'Indicated or reported start, not proof that the first dose was administered. Valid civil YYYY-MM-DD date, 0001-01-01 through 9999-12-31, including future dates. Omit or send null when unknown.',
+        },
+        plannedEndDate: {
+            type: 'string',
+            format: 'date',
+            nullable: true,
+            description:
+                'Exclusively the planned end, not confirmation of actual treatment completion. Valid civil YYYY-MM-DD date, 0001-01-01 through 9999-12-31, including future dates. Must be on or after startDate when both are known. Omit or send null when unknown.',
+        },
+        notes: {
+            type: 'string',
+            nullable: true,
+            minLength: 1,
+            maxLength: 2000,
+            description:
+                'Omit or send null when absent. Present text must remain nonempty after trimming; limits count Unicode code points.',
+        },
+    },
+    example: {
+        name: 'Amoxicillin',
+        dosage: '250 mg',
+        frequency: 'Every 12 hours',
+        startDate: '2026-10-10',
+        plannedEndDate: '2026-10-17',
+        notes: 'Give with food',
+    },
+};
+
+export const recordedPetMedicationResponseSchema: SchemaObject = {
+    type: 'object',
+    additionalProperties: false,
+    required: [
+        'id',
+        'petId',
+        'name',
+        'dosage',
+        'frequency',
+        'startDate',
+        'plannedEndDate',
+        'notes',
+        'recordedByAccountId',
+    ],
+    properties: {
+        id: {
+            type: 'string',
+            format: 'uuid',
+            description: 'Independent UUID v4 medication record identity.',
+        },
+        petId: { type: 'string', format: 'uuid' },
+        ...recordPetMedicationRequestSchema.properties,
+        recordedByAccountId: {
+            type: 'string',
+            format: 'uuid',
+            description:
+                'Authenticated recording account; historical authorship does not grant access.',
+        },
     },
 };

@@ -162,3 +162,56 @@ export const healthPetAllergies = pgTable(
         ),
     ],
 );
+
+export const healthPetMedications = pgTable(
+    'health_pet_medications',
+    {
+        id: uuid('id').primaryKey(),
+        petId: uuid('pet_id')
+            .notNull()
+            .references(() => pets.id, { onDelete: 'restrict' }),
+        name: varchar('name', { length: 255 }).notNull(),
+        dosage: varchar('dosage', { length: 2000 }),
+        frequency: varchar('frequency', { length: 2000 }),
+        startDate: date('start_date', { mode: 'string' }),
+        plannedEndDate: date('planned_end_date', { mode: 'string' }),
+        notes: varchar('notes', { length: 2000 }),
+        recordedByAccountId: uuid('recorded_by_account_id')
+            .notNull()
+            .references(() => accounts.id, { onDelete: 'restrict' }),
+        createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' })
+            .notNull()
+            .defaultNow(),
+        updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' })
+            .notNull()
+            .defaultNow(),
+    },
+    (table) => [
+        index('health_pet_medications_pet_idx').on(table.petId),
+        check('health_pet_medications_name_not_empty', sql`btrim(${table.name}) <> ''`),
+        check(
+            'health_pet_medications_dosage_not_empty',
+            sql`${table.dosage} is null or btrim(${table.dosage}) <> ''`,
+        ),
+        check(
+            'health_pet_medications_frequency_not_empty',
+            sql`${table.frequency} is null or btrim(${table.frequency}) <> ''`,
+        ),
+        check(
+            'health_pet_medications_notes_not_empty',
+            sql`${table.notes} is null or btrim(${table.notes}) <> ''`,
+        ),
+        check(
+            'health_pet_medications_start_date_range',
+            sql`${table.startDate} is null or ${table.startDate} between DATE '0001-01-01' and DATE '9999-12-31'`,
+        ),
+        check(
+            'health_pet_medications_planned_end_date_range',
+            sql`${table.plannedEndDate} is null or ${table.plannedEndDate} between DATE '0001-01-01' and DATE '9999-12-31'`,
+        ),
+        check(
+            'health_pet_medications_planned_end_date_after_start_date',
+            sql`${table.startDate} is null or ${table.plannedEndDate} is null or ${table.plannedEndDate} >= ${table.startDate}`,
+        ),
+    ],
+);

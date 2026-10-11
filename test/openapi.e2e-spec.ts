@@ -33,7 +33,7 @@ describe('OpenAPI documentation (e2e)', () => {
         await application.close();
     });
 
-    it('serves Swagger UI and documents all thirty-five operations and their contracts', async () => {
+    it('serves Swagger UI and documents all thirty-six operations and their contracts', async () => {
         const htmlResponse = await request(application.getHttpServer()).get('/docs').expect(200);
 
         expect(htmlResponse.text).toContain('swagger-ui');
@@ -60,6 +60,7 @@ describe('OpenAPI documentation (e2e)', () => {
             ['/pets/{petId}/leave', 'post'],
             ['/pets/{petId}/archive', 'post'],
             ['/pets/{petId}/restore', 'post'],
+            ['/pets/{petId}/health/medications', 'post'],
             ['/pets/{petId}/health/medical-conditions', 'post'],
             ['/pets/{petId}/health/medical-conditions', 'get'],
             ['/pets/{petId}/health/medical-conditions/{conditionId}', 'patch'],
@@ -101,7 +102,118 @@ describe('OpenAPI documentation (e2e)', () => {
                     Number(Boolean(path?.delete)),
                 0,
             ),
-        ).toBe(35);
+        ).toBe(36);
+
+        const medicationPath = document.paths['/pets/{petId}/health/medications'];
+        const medication = medicationPath?.post;
+
+        expect(medication?.security).toEqual([{ bearer: [] }]);
+        expect(Object.keys(medication?.responses ?? {}).sort()).toEqual([
+            '201',
+            '400',
+            '401',
+            '404',
+        ]);
+        expect(medication?.parameters).toEqual([
+            expect.objectContaining({
+                name: 'petId',
+                in: 'path',
+                required: true,
+                schema: { type: 'string', format: 'uuid' },
+            }),
+        ]);
+        expect(medicationPath?.get).toBeUndefined();
+        expect(medicationPath?.patch).toBeUndefined();
+        expect(medicationPath?.delete).toBeUndefined();
+        expect(medication?.description).toContain(
+            'does not prove that the first dose was administered',
+        );
+        expect(medication?.description).toContain('does not confirm actual treatment completion');
+        expect(medication?.description).toContain('domain validation');
+        const medicationRequestBody = medication?.requestBody as {
+            required: boolean;
+            content: { 'application/json': { schema: SchemaObject } };
+        };
+        const medicationRequest = medicationRequestBody.content['application/json'].schema;
+
+        expect(medicationRequestBody.required).toBe(true);
+        expect(medicationRequest).toMatchObject({
+            type: 'object',
+            additionalProperties: false,
+            required: ['name'],
+        });
+        expect(Object.keys(medicationRequest.properties ?? {}).sort()).toEqual([
+            'dosage',
+            'frequency',
+            'name',
+            'notes',
+            'plannedEndDate',
+            'startDate',
+        ]);
+        expect(medicationRequest.properties?.name).toMatchObject({
+            type: 'string',
+            minLength: 1,
+            maxLength: 255,
+        });
+        expect(medicationRequest.properties?.name).not.toHaveProperty('nullable', true);
+
+        for (const field of ['dosage', 'frequency', 'notes']) {
+            expect(medicationRequest.properties?.[field]).toMatchObject({
+                type: 'string',
+                nullable: true,
+                minLength: 1,
+                maxLength: 2000,
+            });
+        }
+
+        for (const field of ['startDate', 'plannedEndDate']) {
+            expect(medicationRequest.properties?.[field]).toMatchObject({
+                type: 'string',
+                format: 'date',
+                nullable: true,
+            });
+        }
+
+        const medicationResponse = responseSchema(medication, '201');
+
+        expect(medicationResponse?.additionalProperties).toBe(false);
+        expect(medicationResponse?.required).toEqual([
+            'id',
+            'petId',
+            'name',
+            'dosage',
+            'frequency',
+            'startDate',
+            'plannedEndDate',
+            'notes',
+            'recordedByAccountId',
+        ]);
+        expect(Object.keys(medicationResponse?.properties ?? {}).sort()).toEqual([
+            'dosage',
+            'frequency',
+            'id',
+            'name',
+            'notes',
+            'petId',
+            'plannedEndDate',
+            'recordedByAccountId',
+            'startDate',
+        ]);
+        expect(responseSchema(medication, '400')?.oneOf).toMatchObject([
+            { properties: { code: { enum: ['INVALID_REQUEST'] } } },
+            { properties: { code: { enum: ['INVALID_MEDICATION_NAME'] } } },
+            { properties: { code: { enum: ['INVALID_MEDICATION_DOSAGE'] } } },
+            { properties: { code: { enum: ['INVALID_MEDICATION_FREQUENCY'] } } },
+            { properties: { code: { enum: ['INVALID_MEDICATION_START_DATE'] } } },
+            { properties: { code: { enum: ['INVALID_MEDICATION_PLANNED_END_DATE'] } } },
+            { properties: { code: { enum: ['INVALID_MEDICATION_NOTES'] } } },
+        ]);
+        expect(responseSchema(medication, '401')?.properties?.code).toMatchObject({
+            enum: ['UNAUTHENTICATED'],
+        });
+        expect(responseSchema(medication, '404')?.properties?.code).toMatchObject({
+            enum: ['PET_NOT_FOUND'],
+        });
 
         const medicalCondition: OperationObject | undefined =
             document.paths['/pets/{petId}/health/medical-conditions']?.post;

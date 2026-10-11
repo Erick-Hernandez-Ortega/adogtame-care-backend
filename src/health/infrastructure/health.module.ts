@@ -1,3 +1,10 @@
+import { RecordPetMedication } from '../application/record-pet-medication/record-pet-medication';
+import {
+    PET_MEDICATION_REPOSITORY,
+    type PetMedicationRepository,
+} from '../application/persistence/pet-medication.repository';
+import { DrizzlePetMedicationRepository } from './persistence/drizzle/drizzle-pet-medication.repository';
+import { PetMedicationsController } from './http/controllers/pet-medications.controller';
 import { DeletePetMedicalCondition } from '../application/delete-pet-medical-condition/delete-pet-medical-condition';
 import { ReopenPetMedicalCondition } from '../application/reopen-pet-medical-condition/reopen-pet-medical-condition';
 import { ResolvePetMedicalCondition } from '../application/resolve-pet-medical-condition/resolve-pet-medical-condition';
@@ -68,12 +75,21 @@ import { DrizzleVaccinationHistoryReader } from './persistence/drizzle/drizzle-v
 @Module({
     imports: [DatabaseModule, IdentityModule],
     controllers: [
+        PetMedicationsController,
         PetMedicalConditionsController,
         WeightRecordsController,
         VaccinationRecordsController,
         PetAllergiesController,
     ],
     providers: [
+        DrizzlePetMedicationRepository,
+        { provide: PET_MEDICATION_REPOSITORY, useExisting: DrizzlePetMedicationRepository },
+        {
+            provide: RecordPetMedication,
+            inject: [PET_MEDICATION_REPOSITORY],
+            useFactory: (repository: PetMedicationRepository): RecordPetMedication =>
+                new RecordPetMedication(repository),
+        },
         {
             provide: DeletePetMedicalCondition,
             inject: [PET_MEDICAL_CONDITION_REPOSITORY],
