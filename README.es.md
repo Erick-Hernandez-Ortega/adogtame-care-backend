@@ -166,6 +166,19 @@ Para abandonar una mascota, envía `POST /pets/{petId}/leave` con Bearer token, 
 
 Leave ahora devuelve `204` sin representación, reemplazando la respuesta JSON `200` anterior. Los clientes ya no deben esperar datos de membership en la respuesta. Consulta [Pet leave](docs/pet-leave.md) para la decisión de dominio y el protocolo de locks transaccionales.
 
+## Utilidades compartidas de dominio
+
+`src/shared/domain/uuid.ts`, `civil-date.ts` y `text.ts` ofrecen validación y
+generación de UUID, validación de calendario civil y normalización de textos
+Unicode con límites. Los UUID requieren exactamente 36 caracteres y las fechas
+civiles exactamente `YYYY-MM-DD`; se rechazan whitespace alrededor y saltos de
+línea al final.
+
+Los objetos de dominio conservan sus identificadores, políticas de capitalización,
+límites, campos nullable, errores, orden de fechas y reglas de fechas futuras.
+Los helpers compartidos no acceden a base de datos, HTTP, configuración ni a la
+fecha actual.
+
 ## Migraciones
 
 Los esquemas Drizzle vivirán en:

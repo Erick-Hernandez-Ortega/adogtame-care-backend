@@ -1,31 +1,18 @@
+import { normalizeRequiredText } from '../../../shared/domain/text';
 import { ResolvedDate } from '../resolved-date/resolved-date';
-import { randomUUID } from 'node:crypto';
+import { generateUuid, normalizeUuid } from '../../../shared/domain/uuid';
 import { DiagnosedDate } from '../diagnosed-date/diagnosed-date';
 import { MedicalConditionName } from '../medical-condition-name/medical-condition-name';
-
-const UUID_PATTERN: RegExp =
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const NIL_UUID: string = '00000000-0000-0000-0000-000000000000';
-
-function validId(value: string, label: string): string {
-    const normalizedValue: string = value.toLowerCase();
-
-    if (!UUID_PATTERN.test(normalizedValue) || normalizedValue === NIL_UUID) {
-        throw new TypeError(`${label} must be a valid non-nil UUID`);
-    }
-
-    return normalizedValue;
-}
 
 export class PetMedicalConditionId {
     private constructor(readonly value: string) {}
 
     static from(value: string): PetMedicalConditionId {
-        return new PetMedicalConditionId(validId(value, 'Pet medical condition ID'));
+        return new PetMedicalConditionId(normalizeUuid(value, 'Pet medical condition ID'));
     }
 
     static generate(): PetMedicalConditionId {
-        return new PetMedicalConditionId(randomUUID());
+        return new PetMedicalConditionId(generateUuid());
     }
 }
 
@@ -33,7 +20,7 @@ export class PetId {
     private constructor(readonly value: string) {}
 
     static from(value: string): PetId {
-        return new PetId(validId(value, 'Pet ID'));
+        return new PetId(normalizeUuid(value, 'Pet ID'));
     }
 }
 
@@ -41,7 +28,7 @@ export class RecordedByAccountId {
     private constructor(readonly value: string) {}
 
     static from(value: string): RecordedByAccountId {
-        return new RecordedByAccountId(validId(value, 'Account ID'));
+        return new RecordedByAccountId(normalizeUuid(value, 'Account ID'));
     }
 }
 
@@ -281,26 +268,14 @@ export class PetMedicalCondition {
             return null;
         }
 
-        if (typeof value !== 'string') {
-            throw new InvalidMedicalConditionNotesValueError(
-                'Medical condition notes must be a string',
-            );
+        try {
+            return normalizeRequiredText(value, 'Medical condition notes', 2000);
+        } catch (error: unknown) {
+            if (error instanceof TypeError || error instanceof RangeError) {
+                throw new InvalidMedicalConditionNotesValueError(error.message);
+            }
+
+            throw error;
         }
-
-        const normalizedValue: string = value.trim();
-
-        if (normalizedValue.length === 0) {
-            throw new InvalidMedicalConditionNotesValueError(
-                'Medical condition notes cannot be empty',
-            );
-        }
-
-        if (Array.from(normalizedValue).length > 2000) {
-            throw new InvalidMedicalConditionNotesValueError(
-                'Medical condition notes must have at most 2000 characters',
-            );
-        }
-
-        return normalizedValue;
     }
 }

@@ -55,3 +55,17 @@ describe('BirthInformation', () => {
         expect(BirthInformation.exact('2026-09-20').date).toBe('2026-09-20');
     });
 });
+
+describe('BirthInformation exact shared format', () => {
+    it.each(['2020-01-01\n', '2020-01-01\r', '2020-01-01 ', ' 2020-01-01'])(
+        'rejects additional characters for exact and approximate dates %s',
+        (value: string) => {
+            expect(() => BirthInformation.exact(value)).toThrow(
+                new TypeError('Birth date must use the YYYY-MM-DD format'),
+            );
+            expect(() => BirthInformation.approximate(value)).toThrow(
+                new TypeError('Birth date must use the YYYY-MM-DD format'),
+            );
+        },
+    );
+});

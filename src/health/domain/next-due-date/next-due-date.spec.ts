@@ -45,3 +45,14 @@ describe('NextDueDate', () => {
         ).toThrow('Next due date must be after applied date');
     });
 });
+
+describe('NextDueDate exact shared format', () => {
+    it.each(['2026-10-10\n', '2026-10-10\r', '2026-10-10 ', ' 2026-10-10'])(
+        'rejects additional characters in %s with the original format error',
+        (value: string) => {
+            expect(() => NextDueDate.from(value)).toThrow(
+                new TypeError('Next due date must use the YYYY-MM-DD format'),
+            );
+        },
+    );
+});

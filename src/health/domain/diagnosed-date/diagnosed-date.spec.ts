@@ -44,3 +44,14 @@ describe('DiagnosedDate persisted reconstruction', () => {
         },
     );
 });
+
+describe('DiagnosedDate exact shared format', () => {
+    it.each(['2026-10-10\n', '2026-10-10\r', '2026-10-10 ', ' 2026-10-10'])(
+        'rejects additional characters in %s with the original format error',
+        (value: string) => {
+            expect(() => DiagnosedDate.from(value, '2026-10-11')).toThrow(
+                new TypeError('Diagnosed date must use the YYYY-MM-DD format'),
+            );
+        },
+    );
+});

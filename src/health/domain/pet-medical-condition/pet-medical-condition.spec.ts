@@ -1,3 +1,8 @@
+import {
+    PetMedicalConditionId as RecordIdentifier,
+    PetId as ReferencePetId,
+    RecordedByAccountId as AuthorAccountId,
+} from './pet-medical-condition';
 import { InvalidMedicalConditionResolvedDateValueError } from './pet-medical-condition';
 import { ResolvedDate } from '../resolved-date/resolved-date';
 import { DiagnosedDate } from '../diagnosed-date/diagnosed-date';
@@ -374,4 +379,22 @@ describe('PetMedicalCondition reopening', () => {
         expect(resolvedAgain.reopen()).toEqual(reopened);
         expect(resolvedAgain.reopen()).not.toBe(resolvedAgain);
     });
+});
+
+describe('PetMedicalConditionId shared UUID validation', () => {
+    it.each([
+        [RecordIdentifier, 'Pet medical condition ID'],
+        [ReferencePetId, 'Pet ID'],
+        [AuthorAccountId, 'Account ID'],
+    ] as const)(
+        'retains identifier-specific errors and normalization',
+        (Identifier, label: string) => {
+            const value: string = '550E8400-E29B-41D4-A716-446655440000';
+
+            expect(Identifier.from(value).value).toBe(value.toLowerCase());
+            expect(() => Identifier.from(`${value}\n`)).toThrow(
+                new TypeError(`${label} must be a valid non-nil UUID`),
+            );
+        },
+    );
 });

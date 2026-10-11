@@ -1,6 +1,6 @@
 import { AccountId } from '../pet-membership/pet-membership';
 import { PetId } from '../pet/pet';
-import { generateUuid, isValidUuid } from '../shared/uuid';
+import { generateUuid, normalizeUuid } from '../../../shared/domain/uuid';
 import type { PetInvitationStatus as PetInvitationStatusType } from './pet-invitation.types';
 
 const EMAIL_FORMAT: RegExp = /^[^\s@]+@[^\s@]+$/;
@@ -22,13 +22,7 @@ export class InvitationId {
     }
 
     static from(value: string): InvitationId {
-        const normalizedValue: string = value.toLowerCase();
-
-        if (!isValidUuid(normalizedValue)) {
-            throw new TypeError('Invitation ID must be a valid non-nil UUID');
-        }
-
-        return new InvitationId(normalizedValue);
+        return new InvitationId(normalizeUuid(value, 'Invitation ID'));
     }
 }
 

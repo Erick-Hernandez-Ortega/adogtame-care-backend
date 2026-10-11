@@ -1,20 +1,16 @@
-import { randomUUID } from 'node:crypto';
+import { generateUuid, isValidUuid } from '../../../shared/domain/uuid';
 import { Email } from '../email/email';
 import { PasswordHash } from '../password-hash/password-hash';
-
-const CANONICAL_UUID_PATTERN: RegExp =
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const NIL_UUID: string = '00000000-0000-0000-0000-000000000000';
 
 export class AccountId {
     private constructor(readonly value: string) {}
 
     static generate(): AccountId {
-        return new AccountId(randomUUID());
+        return new AccountId(generateUuid());
     }
 
     static from(value: string): AccountId {
-        if (!CANONICAL_UUID_PATTERN.test(value) || value.toLowerCase() === NIL_UUID) {
+        if (!isValidUuid(value)) {
             throw new TypeError('Account ID must be a canonical non-nil UUID');
         }
 

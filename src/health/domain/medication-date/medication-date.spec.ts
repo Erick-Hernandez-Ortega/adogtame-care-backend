@@ -33,3 +33,14 @@ describe('MedicationDate', () => {
         expect(() => MedicationDate.from(value as string)).toThrow();
     });
 });
+
+describe('MedicationDate exact shared format', () => {
+    it.each(['2026-10-10\n', '2026-10-10\r', '2026-10-10 ', ' 2026-10-10'])(
+        'rejects additional characters in %s with the original format error',
+        (value: string) => {
+            expect(() => MedicationDate.from(value)).toThrow(
+                new TypeError('Medication date must use the YYYY-MM-DD format'),
+            );
+        },
+    );
+});

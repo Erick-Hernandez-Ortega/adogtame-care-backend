@@ -1,31 +1,17 @@
-import { randomUUID } from 'node:crypto';
+import { generateUuid, normalizeUuid } from '../../../shared/domain/uuid';
 import { AppliedDate } from '../applied-date/applied-date';
 import { NextDueDate } from '../next-due-date/next-due-date';
 import { VaccineName } from '../vaccine-name/vaccine-name';
-
-const UUID_PATTERN: RegExp =
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const NIL_UUID: string = '00000000-0000-0000-0000-000000000000';
-
-function validId(value: string, label: string): string {
-    const normalizedValue: string = value.toLowerCase();
-
-    if (!UUID_PATTERN.test(normalizedValue) || normalizedValue === NIL_UUID) {
-        throw new TypeError(`${label} must be a valid non-nil UUID`);
-    }
-
-    return normalizedValue;
-}
 
 export class VaccinationRecordId {
     private constructor(readonly value: string) {}
 
     static from(value: string): VaccinationRecordId {
-        return new VaccinationRecordId(validId(value, 'Vaccination record ID'));
+        return new VaccinationRecordId(normalizeUuid(value, 'Vaccination record ID'));
     }
 
     static generate(): VaccinationRecordId {
-        return new VaccinationRecordId(randomUUID());
+        return new VaccinationRecordId(generateUuid());
     }
 }
 
@@ -33,7 +19,7 @@ export class PetId {
     private constructor(readonly value: string) {}
 
     static from(value: string): PetId {
-        return new PetId(validId(value, 'Pet ID'));
+        return new PetId(normalizeUuid(value, 'Pet ID'));
     }
 }
 
@@ -41,7 +27,7 @@ export class RecordedByAccountId {
     private constructor(readonly value: string) {}
 
     static from(value: string): RecordedByAccountId {
-        return new RecordedByAccountId(validId(value, 'Account ID'));
+        return new RecordedByAccountId(normalizeUuid(value, 'Account ID'));
     }
 }
 

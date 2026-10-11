@@ -1,4 +1,9 @@
 import {
+    PetMedicationId as RecordIdentifier,
+    PetId as ReferencePetId,
+    RecordedByAccountId as AuthorAccountId,
+} from './pet-medication';
+import {
     PetMedication,
     PetMedicationId,
     PetId,
@@ -244,6 +249,24 @@ describe('PetMedication', () => {
             expect(() => Identifier.from(`${petId}\n`)).toThrow(TypeError);
             expect(() => Identifier.from('00000000-0000-0000-0000-000000000000')).toThrow(
                 TypeError,
+            );
+        },
+    );
+});
+
+describe('PetMedicationId shared UUID validation', () => {
+    it.each([
+        [RecordIdentifier, 'Pet medication ID'],
+        [ReferencePetId, 'Pet ID'],
+        [AuthorAccountId, 'Account ID'],
+    ] as const)(
+        'retains identifier-specific errors and normalization',
+        (Identifier, label: string) => {
+            const value: string = '550E8400-E29B-41D4-A716-446655440000';
+
+            expect(Identifier.from(value).value).toBe(value.toLowerCase());
+            expect(() => Identifier.from(`${value}\n`)).toThrow(
+                new TypeError(`${label} must be a valid non-nil UUID`),
             );
         },
     );

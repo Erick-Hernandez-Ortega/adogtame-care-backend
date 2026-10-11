@@ -1,29 +1,16 @@
-import { randomUUID } from 'node:crypto';
+import { normalizeRequiredText } from '../../../shared/domain/text';
+import { generateUuid, normalizeUuid } from '../../../shared/domain/uuid';
 import { Allergen } from '../allergen/allergen';
-
-const UUID_PATTERN: RegExp =
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const NIL_UUID: string = '00000000-0000-0000-0000-000000000000';
-
-function validId(value: string, label: string): string {
-    const normalizedValue: string = value.toLowerCase();
-
-    if (!UUID_PATTERN.test(normalizedValue) || normalizedValue === NIL_UUID) {
-        throw new TypeError(`${label} must be a valid non-nil UUID`);
-    }
-
-    return normalizedValue;
-}
 
 export class PetAllergyId {
     private constructor(readonly value: string) {}
 
     static from(value: string): PetAllergyId {
-        return new PetAllergyId(validId(value, 'Pet allergy ID'));
+        return new PetAllergyId(normalizeUuid(value, 'Pet allergy ID'));
     }
 
     static generate(): PetAllergyId {
-        return new PetAllergyId(randomUUID());
+        return new PetAllergyId(generateUuid());
     }
 }
 
@@ -31,7 +18,7 @@ export class PetId {
     private constructor(readonly value: string) {}
 
     static from(value: string): PetId {
-        return new PetId(validId(value, 'Pet ID'));
+        return new PetId(normalizeUuid(value, 'Pet ID'));
     }
 }
 
@@ -39,7 +26,7 @@ export class RecordedByAccountId {
     private constructor(readonly value: string) {}
 
     static from(value: string): RecordedByAccountId {
-        return new RecordedByAccountId(validId(value, 'Account ID'));
+        return new RecordedByAccountId(normalizeUuid(value, 'Account ID'));
     }
 }
 
@@ -241,22 +228,14 @@ export class PetAllergy {
             return null;
         }
 
-        if (typeof value !== 'string') {
-            throw new InvalidAllergyNotesValueError('Allergy notes must be a string');
+        try {
+            return normalizeRequiredText(value, 'Allergy notes', 2000);
+        } catch (error: unknown) {
+            if (error instanceof TypeError || error instanceof RangeError) {
+                throw new InvalidAllergyNotesValueError(error.message);
+            }
+
+            throw error;
         }
-
-        const normalizedValue: string = value.trim();
-
-        if (normalizedValue.length === 0) {
-            throw new InvalidAllergyNotesValueError('Allergy notes cannot be empty');
-        }
-
-        if (Array.from(normalizedValue).length > 2000) {
-            throw new InvalidAllergyNotesValueError(
-                'Allergy notes must have at most 2000 characters',
-            );
-        }
-
-        return normalizedValue;
     }
 }

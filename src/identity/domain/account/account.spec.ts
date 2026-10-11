@@ -73,3 +73,20 @@ describe('Account', () => {
         ).toThrow('Account password hash must be a PasswordHash');
     });
 });
+
+describe('AccountId shared validation', () => {
+    it('preserves the original hexadecimal casing', () => {
+        const value: string = '550E8400-E29B-41D4-A716-446655440000';
+
+        expect(AccountId.from(value).value).toBe(value);
+    });
+
+    it.each(['550e8400-e29b-41d4-a716-446655440000\n', '550e8400-e29b-41d4-a716-446655440000 '])(
+        'rejects nonexact UUID %s with the original identity message',
+        (value: string) => {
+            expect(() => AccountId.from(value)).toThrow(
+                new TypeError('Account ID must be a canonical non-nil UUID'),
+            );
+        },
+    );
+});

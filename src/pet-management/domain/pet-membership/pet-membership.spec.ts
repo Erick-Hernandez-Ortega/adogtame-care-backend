@@ -1,3 +1,4 @@
+import { MembershipId as RecordIdentifier } from './pet-membership';
 import {
     AccountId,
     InactivePetMembershipError,
@@ -245,4 +246,15 @@ describe('owner removal transition', () => {
             expect(membership.status).toBe(status);
         },
     );
+});
+
+describe('MembershipId shared UUID validation', () => {
+    it('retains lowercase normalization and rejects nonexact UUIDs', () => {
+        const value: string = '550E8400-E29B-41D4-A716-446655440000';
+
+        expect(RecordIdentifier.from(value).value).toBe(value.toLowerCase());
+        expect(() => RecordIdentifier.from(`${value}\n`)).toThrow(
+            new TypeError('Membership ID must be a valid non-nil UUID'),
+        );
+    });
 });

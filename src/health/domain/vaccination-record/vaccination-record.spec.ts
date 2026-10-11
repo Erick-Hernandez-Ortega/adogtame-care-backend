@@ -1,3 +1,8 @@
+import {
+    VaccinationRecordId as RecordIdentifier,
+    PetId as ReferencePetId,
+    RecordedByAccountId as AuthorAccountId,
+} from './vaccination-record';
 import { AppliedDate } from '../applied-date/applied-date';
 import { NextDueDate } from '../next-due-date/next-due-date';
 import { VaccineName } from '../vaccine-name/vaccine-name';
@@ -145,4 +150,22 @@ describe('VaccinationRecord', () => {
         ).toBe('2027-06-01');
         expect(() => AppliedDate.from('2026-09-28', '2026-09-27')).toThrow(RangeError);
     });
+});
+
+describe('VaccinationRecordId shared UUID validation', () => {
+    it.each([
+        [RecordIdentifier, 'Vaccination record ID'],
+        [ReferencePetId, 'Pet ID'],
+        [AuthorAccountId, 'Account ID'],
+    ] as const)(
+        'retains identifier-specific errors and normalization',
+        (Identifier, label: string) => {
+            const value: string = '550E8400-E29B-41D4-A716-446655440000';
+
+            expect(Identifier.from(value).value).toBe(value.toLowerCase());
+            expect(() => Identifier.from(`${value}\n`)).toThrow(
+                new TypeError(`${label} must be a valid non-nil UUID`),
+            );
+        },
+    );
 });

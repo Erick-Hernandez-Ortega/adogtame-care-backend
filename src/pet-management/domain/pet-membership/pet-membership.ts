@@ -1,4 +1,4 @@
-import { generateUuid, isValidUuid } from '../shared/uuid';
+import { generateUuid, normalizeUuid } from '../../../shared/domain/uuid';
 import type {
     PetMembershipRole as PetMembershipRoleType,
     PetMembershipStatus as PetMembershipStatusType,
@@ -22,11 +22,7 @@ export class MembershipId {
     }
 
     static from(value: string): MembershipId {
-        if (!isValidUuid(value)) {
-            throw new TypeError('Membership ID must be a valid non-nil UUID');
-        }
-
-        return new MembershipId(value.toLowerCase());
+        return new MembershipId(normalizeUuid(value, 'Membership ID'));
     }
 }
 
@@ -34,13 +30,7 @@ export class AccountId {
     private constructor(readonly value: string) {}
 
     static from(value: string): AccountId {
-        const normalizedValue: string = value.toLowerCase();
-
-        if (!isValidUuid(normalizedValue)) {
-            throw new TypeError('Account ID must be a valid non-nil UUID');
-        }
-
-        return new AccountId(normalizedValue);
+        return new AccountId(normalizeUuid(value, 'Account ID'));
     }
 }
 

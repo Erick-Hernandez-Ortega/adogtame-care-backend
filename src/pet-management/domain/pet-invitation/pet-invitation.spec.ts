@@ -1,3 +1,4 @@
+import { InvitationId as RecordIdentifier } from './pet-invitation';
 import { AccountId } from '../pet-membership/pet-membership';
 import { PetId } from '../pet/pet';
 import { InvitationId, InvitedEmail, PetInvitation, PetInvitationStatus } from './pet-invitation';
@@ -186,5 +187,16 @@ describe('PetInvitation', () => {
                 expiresAt: '2026-10-02T12:30:00.000Z',
             }),
         ).toThrow('Invitation state is invalid');
+    });
+});
+
+describe('InvitationId shared UUID validation', () => {
+    it('retains lowercase normalization and rejects nonexact UUIDs', () => {
+        const value: string = '550E8400-E29B-41D4-A716-446655440000';
+
+        expect(RecordIdentifier.from(value).value).toBe(value.toLowerCase());
+        expect(() => RecordIdentifier.from(`${value}\n`)).toThrow(
+            new TypeError('Invitation ID must be a valid non-nil UUID'),
+        );
     });
 });

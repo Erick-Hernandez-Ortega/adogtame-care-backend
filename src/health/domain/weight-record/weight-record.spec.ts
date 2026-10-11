@@ -1,3 +1,8 @@
+import {
+    WeightRecordId as RecordIdentifier,
+    PetId as ReferencePetId,
+    RecordedByAccountId as AuthorAccountId,
+} from './weight-record';
 import { MeasuredDate } from '../measured-date/measured-date';
 import { Weight } from '../weight/weight';
 import { PetId, RecordedByAccountId, WeightRecord, WeightRecordId } from './weight-record';
@@ -68,4 +73,22 @@ describe('WeightRecord', () => {
             }),
         ).toBe(record);
     });
+});
+
+describe('WeightRecordId shared UUID validation', () => {
+    it.each([
+        [RecordIdentifier, 'Weight record ID'],
+        [ReferencePetId, 'Pet ID'],
+        [AuthorAccountId, 'Account ID'],
+    ] as const)(
+        'retains identifier-specific errors and normalization',
+        (Identifier, label: string) => {
+            const value: string = '550E8400-E29B-41D4-A716-446655440000';
+
+            expect(Identifier.from(value).value).toBe(value.toLowerCase());
+            expect(() => Identifier.from(`${value}\n`)).toThrow(
+                new TypeError(`${label} must be a valid non-nil UUID`),
+            );
+        },
+    );
 });

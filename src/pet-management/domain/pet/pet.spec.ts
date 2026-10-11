@@ -1,3 +1,4 @@
+import { PetId as RecordIdentifier } from './pet';
 import { BirthInformation } from '../birth-information/birth-information';
 import { Breed } from '../breed/breed';
 import {
@@ -337,5 +338,16 @@ describe('PetId', () => {
 
     it('rejects malformed IDs', () => {
         expect(() => PetId.from('not-a-uuid')).toThrow('Pet ID must be a valid non-nil UUID');
+    });
+});
+
+describe('PetId shared UUID validation', () => {
+    it('retains lowercase normalization and rejects nonexact UUIDs', () => {
+        const value: string = '550E8400-E29B-41D4-A716-446655440000';
+
+        expect(RecordIdentifier.from(value).value).toBe(value.toLowerCase());
+        expect(() => RecordIdentifier.from(`${value}\n`)).toThrow(
+            new TypeError('Pet ID must be a valid non-nil UUID'),
+        );
     });
 });

@@ -13,3 +13,14 @@ describe('AppliedDate', () => {
         },
     );
 });
+
+describe('AppliedDate exact shared format', () => {
+    it.each(['2026-10-10\n', '2026-10-10\r', '2026-10-10 ', ' 2026-10-10'])(
+        'rejects additional characters in %s with the original format error',
+        (value: string) => {
+            expect(() => AppliedDate.from(value, '2026-10-11')).toThrow(
+                new TypeError('Applied date must use the YYYY-MM-DD format'),
+            );
+        },
+    );
+});

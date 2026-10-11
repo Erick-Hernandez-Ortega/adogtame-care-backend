@@ -166,6 +166,17 @@ To leave a pet, send `POST /pets/{petId}/leave` with a Bearer token, no query pa
 
 Leave now returns `204` without a representation, replacing its previous `200` JSON response. Clients must no longer expect membership data in the response. See [Pet leave](docs/pet-leave.md) for the domain decision and transaction locking protocol.
 
+## Shared domain utilities
+
+`src/shared/domain/uuid.ts`, `civil-date.ts`, and `text.ts` provide reusable
+UUID validation/generation, civil calendar validation, and bounded Unicode text
+normalization. UUIDs require exactly 36 characters and civil dates exactly
+`YYYY-MM-DD`; surrounding whitespace and trailing line breaks are rejected.
+
+Domain objects retain their own identifiers, casing policies, field limits,
+nullable semantics, errors, date ordering, and future-date rules. Shared helpers
+do not access the database, HTTP, configuration, or the current date.
+
 ## Migrations
 
 Drizzle schemas will live in:

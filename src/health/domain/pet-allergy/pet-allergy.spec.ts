@@ -1,3 +1,8 @@
+import {
+    PetAllergyId as RecordIdentifier,
+    PetId as ReferencePetId,
+    RecordedByAccountId as AuthorAccountId,
+} from './pet-allergy';
 import { Allergen } from '../allergen/allergen';
 import {
     PetAllergy,
@@ -201,4 +206,22 @@ describe('PetAllergy correction', () => {
 
         expect(withoutNotes.correct({ notes: null })).toBe(withoutNotes);
     });
+});
+
+describe('PetAllergyId shared UUID validation', () => {
+    it.each([
+        [RecordIdentifier, 'Pet allergy ID'],
+        [ReferencePetId, 'Pet ID'],
+        [AuthorAccountId, 'Account ID'],
+    ] as const)(
+        'retains identifier-specific errors and normalization',
+        (Identifier, label: string) => {
+            const value: string = '550E8400-E29B-41D4-A716-446655440000';
+
+            expect(Identifier.from(value).value).toBe(value.toLowerCase());
+            expect(() => Identifier.from(`${value}\n`)).toThrow(
+                new TypeError(`${label} must be a valid non-nil UUID`),
+            );
+        },
+    );
 });
