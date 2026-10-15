@@ -63,7 +63,7 @@ después llama a `POST /auth/login` con tu correo y contraseña. Copia
 `accessToken` de la respuesta, pulsa **Authorize** en Swagger e introduce el
 token. Swagger añade automáticamente el prefijo Bearer a las peticiones.
 
-La API expone 47 operaciones.
+La API expone 48 operaciones.
 
 | Ruta                                          | Descripción                 | Token Bearer |
 | --------------------------------------------- | --------------------------- | ------------ |
@@ -82,6 +82,7 @@ La API expone 47 operaciones.
 | `POST /pets/{petId}/restore` | Restaurar una mascota | Sí |
 | `POST /pets/{petId}/leave`                    | Abandonar una mascota  | Sí           |
 | `POST /pets/{petId}/care/routines` | Crear una rutina de cuidado | Sí |
+| `GET /pets/{petId}/care/routines` | Consultar rutinas de cuidado | Sí |
 | `POST /pets/{petId}/health/veterinary-visits` | Registrar una visita veterinaria | Sí |
 | `GET /pets/{petId}/health/veterinary-visits` | Consultar el historial de visitas veterinarias | Sí |
 | `PATCH /pets/{petId}/health/veterinary-visits/{visitId}` | Corregir una visita veterinaria registrada | Sí |
@@ -254,6 +255,17 @@ INVALID_ROUTINE_INSTRUCTIONS, INVALID_ROUTINE_FREQUENCY o INVALID_ROUTINE_TIMEZO
 Las mascotas ausentes, archivadas o inaccesibles usan 404 PET_NOT_FOUND.
 Las rutinas duplicadas son independientes. Consulta [Pet care](docs/pet-care.md)
 para las decisiones y los detalles de persistencia.
+
+Consulta rutinas con `GET /pets/{petId}/care/routines`, un token Bearer y sin
+parámetros de consulta. Owners y colaboradores activos pueden leer mascotas
+activas o archivadas. Devuelve `200 { "items": [...] }` con `id`, `type`, `title`,
+`instructions` nullable, `frequency` completo, `timezone` y `recordedByAccountId`.
+Se omiten `petId` y timestamps técnicos. Orden: creación e ID descendentes; se
+conservan duplicados y no hay paginación. Sin rutinas devuelve `items: []`.
+UUID o consulta inválidos devuelven `400 INVALID_REQUEST`; tokens ausentes o
+inválidos, `401 UNAUTHENTICATED`; mascotas ausentes o inaccesibles,
+`404 PET_NOT_FOUND`. La autenticación precede a la validación, incluidos errores
+del parser JSON. Consulta [Pet care](docs/pet-care.md).
 
 ## Verificación
 

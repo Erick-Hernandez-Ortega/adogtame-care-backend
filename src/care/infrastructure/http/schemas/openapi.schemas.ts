@@ -96,3 +96,26 @@ export const createdCareRoutineResponseSchema: SchemaObject = {
         },
     },
 };
+
+const routineListProperties = Object.fromEntries(
+    Object.entries(createdCareRoutineResponseSchema.properties ?? {}).filter(
+        ([name]): boolean => name !== 'petId',
+    ),
+);
+
+export const careRoutinesResponseSchema: SchemaObject = {
+    type: 'object',
+    additionalProperties: false,
+    required: ['items'],
+    properties: {
+        items: {
+            type: 'array',
+            items: {
+                type: 'object',
+                additionalProperties: false,
+                required: Object.keys(routineListProperties),
+                properties: routineListProperties,
+            },
+        },
+    },
+};

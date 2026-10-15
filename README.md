@@ -63,7 +63,7 @@ To try protected routes, register with `POST /accounts` if needed, then call
 response, click **Authorize** in Swagger, and enter the token. Swagger adds the
 Bearer prefix to requests automatically.
 
-The API exposes 47 operations.
+The API exposes 48 operations.
 
 | Route                                         | Description             | Bearer token |
 | --------------------------------------------- | ----------------------- | ------------ |
@@ -82,6 +82,7 @@ The API exposes 47 operations.
 | `POST /pets/{petId}/restore` | Restore a pet | Yes |
 | `POST /pets/{petId}/leave`                    | Leave a pet   | Yes          |
 | `POST /pets/{petId}/care/routines` | Create a care routine | Yes |
+| `GET /pets/{petId}/care/routines` | List care routines | Yes |
 | `POST /pets/{petId}/health/veterinary-visits` | Record a veterinary visit | Yes |
 | `GET /pets/{petId}/health/veterinary-visits` | List veterinary visit history | Yes |
 | `PATCH /pets/{petId}/health/veterinary-visits/{visitId}` | Correct a registered veterinary visit | Yes |
@@ -213,6 +214,17 @@ Authentication precedes validation, including malformed JSON. Structural errors 
 INVALID_ROUTINE_INSTRUCTIONS, INVALID_ROUTINE_FREQUENCY or INVALID_ROUTINE_TIMEZONE.
 Missing/archived/inaccessible pets use 404 PET_NOT_FOUND. Duplicate routines are
 independent. See [Pet care](docs/pet-care.md) for decisions and persistence details.
+
+List routines with `GET /pets/{petId}/care/routines`, a Bearer token and no query
+parameters. Active owners and collaborators may read active or archived pets.
+Success returns `200 { "items": [...] }` with `id`, `type`, `title`, nullable
+`instructions`, complete `frequency`, `timezone` and `recordedByAccountId`.
+Pet identity and technical timestamps are omitted. Order is creation timestamp,
+then ID descending; duplicates are preserved and there is no pagination. An
+accessible pet without routines returns `items: []`. Invalid UUIDs or queries
+return `400 INVALID_REQUEST`; missing/invalid tokens return `401 UNAUTHENTICATED`;
+missing or inaccessible pets return `404 PET_NOT_FOUND`. Authentication precedes
+validation, including JSON parser failures. See [Pet care](docs/pet-care.md).
 
 ## Shared domain utilities
 

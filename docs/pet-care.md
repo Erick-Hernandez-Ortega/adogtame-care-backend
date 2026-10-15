@@ -116,7 +116,8 @@ data and timestamps. Creation does not update pet or membership timestamps.
 The existing care_routines schema, index, migration and timestamp trigger suffice;
 no new schema change or migration is needed. No reader is introduced for POST:
 the response projects the created aggregate, following Health, without a postcommit
-query. List, PATCH, activities, and missed-activity queries remain separate slices.
+query. PATCH, activities, and missed-activity queries remain separate slices.
+List is described below.
 
 Application unit tests cover real aggregates, projection, normalization, domain
 error translation, access outcomes and unexpected persistence failures. Integration
@@ -127,3 +128,41 @@ continue covering constraints and triggers. HTTP tests cover strict nested reque
 Unicode limits, timezone canonicalization, all types, frequencies, independent
 duplicates, parser errors, authentication precedence, and access hiding. OpenAPI
 tests assert the request/response/error schemas and 47-operation contract.
+
+## List routines (#48)
+
+`GET /pets/{petId}/care/routines` is the 48th API operation. The path requires a
+non-nil UUID and the query must be empty: there are no filters, pagination, or
+sorting parameters. Authentication precedes path/query validation and JSON parser
+failures. Errors are 400 INVALID_REQUEST, 401 UNAUTHENTICATED and 404 PET_NOT_FOUND.
+
+ACTIVE owners and collaborators may read ACTIVE or ARCHIVED pets. Missing pets,
+outsiders and inactive members receive the same PET_NOT_FOUND, including original
+recorders whose membership has ended. An accessible pet without routines returns
+`200 { "items": [] }`. Each item contains exactly `id`, `type`, `title`, nullable
+`instructions`, `frequency`, `timezone` and `recordedByAccountId`; pet identity
+comes from the route and technical timestamps stay in persistence. Frequency
+includes period, timesPerPeriod, suggestedTimes and weekdays, preserving order,
+duplicates and empty arrays. Suggested times remain local HH:mm in the stored
+IANA timezone; reading does not convert them to UTC or evaluate schedules.
+
+Following Medication List, all routines are returned ordered by created_at DESC
+(including PostgreSQL microseconds), then id DESC. Independent duplicates and
+original authorship are preserved. No activities or missed occurrences are computed.
+
+The application-owned CareRoutineReader.findAccessibleByPet returns an array or
+null for inaccessible pets. ListCareRoutines maps null to PetNotFoundError and
+propagates unexpected failures. Its Drizzle adapter uses one statement joining
+Pet, ACTIVE requester Membership and a left join of routines. Reads take no row
+locks and do not update any timestamps. They may observe a snapshot before a
+concurrent writer commits; subsequent queries recheck access. Write locking remains
+Pet → requester Membership → record, with no changes to existing writers.
+
+The existing table, primary key and non-unique pet index suffice; no schema change,
+`pnpm db:generate` confirms no schema changes, so no migration is generated. No
+new infrastructure or domain rule is required. Application tests cover delegation,
+order, empty results, inaccessible pets and failures. PostgreSQL tests cover member
+access, archived reads, pet isolation, independent duplicates beyond 20 rows,
+microsecond/UUID ordering, Archive/Restore, Leave/Remove, unchanged timestamps and
+nonblocking snapshot reads. HTTP and OpenAPI tests cover exact representations,
+strict paths/queries, authentication precedence and the 48-operation contract.
