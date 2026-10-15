@@ -1,3 +1,4 @@
+import { UpdatePetVeterinaryVisit } from '../application/update-pet-veterinary-visit/update-pet-veterinary-visit';
 import { ListPetVeterinaryVisits } from '../application/list-pet-veterinary-visits/list-pet-veterinary-visits';
 import {
     PET_VETERINARY_VISIT_READER,
@@ -127,6 +128,14 @@ import { DrizzleVaccinationHistoryReader } from './persistence/drizzle/drizzle-v
                 repository: PetVeterinaryVisitRepository,
                 clock: Clock,
             ): RecordPetVeterinaryVisit => new RecordPetVeterinaryVisit(repository, clock),
+        },
+        {
+            provide: UpdatePetVeterinaryVisit,
+            inject: [PET_VETERINARY_VISIT_REPOSITORY, HEALTH_CLOCK],
+            useFactory: (
+                repository: PetVeterinaryVisitRepository,
+                clock: Clock,
+            ): UpdatePetVeterinaryVisit => new UpdatePetVeterinaryVisit(repository, clock),
         },
         {
             provide: CompletePetMedication,

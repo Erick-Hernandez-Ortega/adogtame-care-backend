@@ -758,3 +758,46 @@ export const petVeterinaryVisitsResponseSchema: SchemaObject = {
         },
     },
 };
+
+export const updatePetVeterinaryVisitRequestSchema: SchemaObject = {
+    type: 'object',
+    additionalProperties: false,
+    minProperties: 1,
+    properties: {
+        ...recordPetVeterinaryVisitRequestSchema.properties,
+        visitDate: {
+            type: 'string',
+            format: 'date',
+            description:
+                'Exact calendar date YYYY-MM-DD, years 0001–9999, no later than today UTC. Omission preserves the stored date; null is invalid.',
+        },
+        diagnosis: {
+            type: 'string',
+            nullable: true,
+            minLength: 1,
+            maxLength: 2000,
+            description:
+                'Omission preserves diagnosis; null clears it. Present text is trimmed and nonempty; limits count Unicode code points.',
+        },
+        observations: {
+            type: 'string',
+            nullable: true,
+            minLength: 1,
+            maxLength: 5000,
+            description:
+                'Omission preserves observations; null clears them. Present text is trimmed and nonempty; limits count Unicode code points.',
+        },
+    },
+    description:
+        'At least one field is required. Omission preserves stored values; null clears diagnosis or observations. Identity, original author and technical timestamps cannot be modified. Explicit visit dates cannot exceed today UTC.',
+    example: {
+        visitDate: '2026-03-14',
+        reason: 'Follow-up examination',
+        diagnosis: null,
+        observations: 'Corrected observations.',
+    },
+};
+
+export const updatedPetVeterinaryVisitResponseSchema: SchemaObject = {
+    ...recordedPetVeterinaryVisitResponseSchema,
+};

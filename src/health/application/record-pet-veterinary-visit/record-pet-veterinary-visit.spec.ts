@@ -31,6 +31,7 @@ function setup() {
         >()
         .mockResolvedValue('CREATED');
     const repository: PetVeterinaryVisitRepository = {
+        correctIfPetWritable: jest.fn(),
         createIfPetWritable,
     };
     const now = jest.fn((): Date => new Date('2026-03-13T18:30:00-06:00'));

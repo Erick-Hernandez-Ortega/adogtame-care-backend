@@ -5,7 +5,7 @@
 `POST /pets/{petId}/health/veterinary-visits` records a visit. A visit reports an encounter; it has independent
 identity, allows duplicates, and has no lifecycle status. Diagnosis text does not create
 or link a medical condition. Veterinarians, clinics, attachments, medication links,
-reminders, and visit mutations are outside these slices.
+and reminders are outside these slices.
 
 The strict body requires `visitDate` and `reason`. Visit date is an exact complete civil
 `YYYY-MM-DD` date in years 0001–9999, no later than today UTC, sampled once through
@@ -95,3 +95,47 @@ duplicates beyond 20 rows, date/microsecond/UUID ordering, Archive/Restore, Leav
 unchanged timestamps and nonblocking reads before/after a locked writer commits. E2E
 and OpenAPI tests verify exact response shapes, validation, authentication precedence,
 authorization, deterministic ordering, and the 44-operation contract.
+
+## Update (#44)
+
+`PATCH /pets/{petId}/health/veterinary-visits/{visitId}` adds one operation, bringing
+the API to 45 OpenAPI operations. Both path IDs must be non-nil UUIDs; query parameters
+are rejected. The strict partial body requires at least one of `visitDate`, `reason`,
+`diagnosis`, or `observations`. Omitted fields retain their stored values. Only diagnosis
+and observations accept null to clear them. Record's date, normalization, nonempty text,
+and Unicode code point limits apply to supplied values. Unknown fields, empty bodies,
+wrong types, and null for required visit facts return `400 INVALID_REQUEST`.
+
+ACTIVE owners and collaborators may correct visits on ACTIVE pets, regardless of original
+authorship. Archived pets remain read-only. Authentication precedes structural validation,
+including malformed JSON and JSON scalar parser failures. The transaction checks pet and
+requester access before resolving the pet-scoped visit, then validates semantic values.
+Missing, archived, or inaccessible pets return `404 PET_NOT_FOUND`; only authorized
+requesters can receive `404 PET_VETERINARY_VISIT_NOT_FOUND` for absent or wrong-pet visits.
+Field errors reuse Record's four `INVALID_VETERINARY_VISIT_*` codes. Success returns 200
+with the same seven fields as Record, preserving ID, pet, and original author.
+
+`PetVeterinaryVisit.correct` enforces correction invariants and returns the same instance
+for an equivalent normalized result. Reconstitution validates stored dates structurally;
+an omitted historical date is preserved even if beyond current UTC today, while an
+explicit date is validated temporally. The application defers its existing Health Clock
+to persistence, sampled once after Pet → requester Membership → Visit row locks under
+READ COMMITTED. `correctIfPetWritable` returns `UPDATED`, `UNCHANGED`, `PET_NOT_FOUND`, or
+`PET_VETERINARY_VISIT_NOT_FOUND`; unexpected failures propagate and roll back.
+
+Real corrections update only editable visit fields. The existing trigger assigns
+`updated_at` using `statement_timestamp()`; creation time, authorship, pet and membership
+timestamps remain unchanged. No-ops issue no UPDATE, preserving timestamps and row version.
+Concurrent partial corrections reconstitute the latest locked state and preserve each
+other's fields. Archive, Restore, Leave and Remove serialize through the same Pet lock.
+No schema change or new index is required. `pnpm db:generate` reports no changes; no new
+migration is generated. PostgreSQL reports the retained history index as
+`(pet_id, visit_date DESC NULLS LAST)`.
+
+Domain tests cover corrections, explicit validation, Unicode boundaries, preservation,
+null clearing and no-op identity. Application tests cover raw command/deferred Clock
+orchestration, outcomes and error mapping. PostgreSQL tests cover rollback, access hiding,
+physical no-ops, timestamps, duplicates, list ordering, UTC midnight after lock waits,
+concurrent partial corrections and both serialization orders for access changes. E2E and
+OpenAPI tests cover strict contracts, exact representations, error precedence, parser
+authentication and the 45-operation contract.

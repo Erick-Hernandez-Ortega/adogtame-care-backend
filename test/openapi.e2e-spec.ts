@@ -33,7 +33,7 @@ describe('OpenAPI documentation (e2e)', () => {
         await application.close();
     });
 
-    it('serves Swagger UI and documents all forty-four operations and their contracts', async () => {
+    it('serves Swagger UI and documents all forty-five operations and their contracts', async () => {
         const htmlResponse = await request(application.getHttpServer()).get('/docs').expect(200);
 
         expect(htmlResponse.text).toContain('swagger-ui');
@@ -62,6 +62,7 @@ describe('OpenAPI documentation (e2e)', () => {
             ['/pets/{petId}/restore', 'post'],
             ['/pets/{petId}/health/veterinary-visits', 'post'],
             ['/pets/{petId}/health/veterinary-visits', 'get'],
+            ['/pets/{petId}/health/veterinary-visits/{visitId}', 'patch'],
             ['/pets/{petId}/health/medications', 'post'],
             ['/pets/{petId}/health/medications', 'get'],
             ['/pets/{petId}/health/medications/{medicationId}', 'patch'],
@@ -110,7 +111,7 @@ describe('OpenAPI documentation (e2e)', () => {
                     Number(Boolean(path?.delete)),
                 0,
             ),
-        ).toBe(44);
+        ).toBe(45);
 
         const veterinaryVisit = document.paths['/pets/{petId}/health/veterinary-visits']?.post;
 
@@ -186,6 +187,56 @@ describe('OpenAPI documentation (e2e)', () => {
         expect(responseSchema(veterinaryVisit, '404')?.properties?.code).toMatchObject({
             enum: ['PET_NOT_FOUND'],
         });
+        const visitUpdate =
+            document.paths['/pets/{petId}/health/veterinary-visits/{visitId}']?.patch;
+
+        expect(visitUpdate?.security).toEqual([{ bearer: [] }]);
+        expect(Object.keys(visitUpdate?.responses ?? {}).sort()).toEqual([
+            '200',
+            '400',
+            '401',
+            '404',
+        ]);
+        expect(visitUpdate?.parameters).toHaveLength(2);
+        const visitUpdateRequest = (
+            visitUpdate?.requestBody as {
+                content: { 'application/json': { schema: SchemaObject } };
+            }
+        ).content['application/json'].schema;
+
+        expect(visitUpdateRequest).toMatchObject({
+            type: 'object',
+            additionalProperties: false,
+            minProperties: 1,
+        });
+        expect(visitUpdateRequest.required).toBeUndefined();
+        expect(Object.keys(visitUpdateRequest.properties ?? {}).sort()).toEqual([
+            'diagnosis',
+            'observations',
+            'reason',
+            'visitDate',
+        ]);
+        expect(visitUpdateRequest.properties).toMatchObject({
+            visitDate: { type: 'string', format: 'date' },
+            reason: { type: 'string', maxLength: 255 },
+            diagnosis: { type: 'string', nullable: true, maxLength: 2000 },
+            observations: { type: 'string', nullable: true, maxLength: 5000 },
+        });
+        expect(responseSchema(visitUpdate, '200')).toEqual(veterinaryVisitResponse);
+        expect(responseSchema(visitUpdate, '400')?.oneOf).toMatchObject([
+            { properties: { code: { enum: ['INVALID_REQUEST'] } } },
+            { properties: { code: { enum: ['INVALID_VETERINARY_VISIT_REASON'] } } },
+            { properties: { code: { enum: ['INVALID_VETERINARY_VISIT_DATE'] } } },
+            { properties: { code: { enum: ['INVALID_VETERINARY_VISIT_DIAGNOSIS'] } } },
+            { properties: { code: { enum: ['INVALID_VETERINARY_VISIT_OBSERVATIONS'] } } },
+        ]);
+        expect(responseSchema(visitUpdate, '401')?.properties?.code).toMatchObject({
+            enum: ['UNAUTHENTICATED'],
+        });
+        expect(responseSchema(visitUpdate, '404')?.oneOf).toMatchObject([
+            { properties: { code: { enum: ['PET_NOT_FOUND'] } } },
+            { properties: { code: { enum: ['PET_VETERINARY_VISIT_NOT_FOUND'] } } },
+        ]);
         const veterinaryVisitList = document.paths['/pets/{petId}/health/veterinary-visits']?.get;
 
         expect(veterinaryVisitList?.security).toEqual([{ bearer: [] }]);

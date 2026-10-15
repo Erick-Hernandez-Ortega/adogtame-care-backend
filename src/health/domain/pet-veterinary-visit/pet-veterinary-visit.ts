@@ -47,6 +47,25 @@ interface ReconstitutePetVeterinaryVisitInput extends CreatePetVeterinaryVisitIn
     id: PetVeterinaryVisitId;
 }
 
+interface CorrectPetVeterinaryVisitInput {
+    visitDate?: string;
+    reason?: string;
+    diagnosis?: string | null;
+    observations?: string | null;
+}
+
+export class InvalidVeterinaryVisitReasonValueError extends TypeError {
+    constructor(cause: TypeError | RangeError) {
+        super(cause.message, { cause });
+    }
+}
+
+export class InvalidVeterinaryVisitDateValueError extends TypeError {
+    constructor(cause: TypeError | RangeError) {
+        super(cause.message, { cause });
+    }
+}
+
 export class PetVeterinaryVisit {
     private constructor(
         readonly id: PetVeterinaryVisitId,
@@ -117,5 +136,65 @@ export class PetVeterinaryVisit {
             observations,
             input.recordedByAccountId,
         );
+    }
+
+    correct(input: CorrectPetVeterinaryVisitInput, today: string): PetVeterinaryVisit {
+        if (
+            input.visitDate === undefined &&
+            input.reason === undefined &&
+            input.diagnosis === undefined &&
+            input.observations === undefined
+        ) {
+            throw new TypeError('Pet veterinary visit correction is invalid');
+        }
+
+        let reason: VeterinaryVisitReason = this.reason;
+
+        if (input.reason !== undefined) {
+            try {
+                reason = VeterinaryVisitReason.from(input.reason);
+            } catch (error: unknown) {
+                if (error instanceof TypeError || error instanceof RangeError) {
+                    throw new InvalidVeterinaryVisitReasonValueError(error);
+                }
+
+                throw error;
+            }
+        }
+
+        let visitDate: VisitDate = this.visitDate;
+
+        if (input.visitDate !== undefined) {
+            try {
+                visitDate = VisitDate.from(input.visitDate, today);
+            } catch (error: unknown) {
+                if (error instanceof TypeError || error instanceof RangeError) {
+                    throw new InvalidVeterinaryVisitDateValueError(error);
+                }
+
+                throw error;
+            }
+        }
+
+        const candidate: PetVeterinaryVisit = PetVeterinaryVisit.reconstitute({
+            id: this.id,
+            petId: this.petId,
+            reason,
+            visitDate,
+            diagnosis: input.diagnosis === undefined ? this.diagnosis : input.diagnosis,
+            observations: input.observations === undefined ? this.observations : input.observations,
+            recordedByAccountId: this.recordedByAccountId,
+        });
+
+        if (
+            candidate.reason.value === this.reason.value &&
+            candidate.visitDate.value === this.visitDate.value &&
+            candidate.diagnosis === this.diagnosis &&
+            candidate.observations === this.observations
+        ) {
+            return this;
+        }
+
+        return candidate;
     }
 }
