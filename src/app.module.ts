@@ -10,6 +10,7 @@ import { DatabaseModule } from './infrastructure/database/database.module';
 import { HealthModule } from './health/infrastructure/health.module';
 import { IdentityModule } from './identity/infrastructure/identity.module';
 import { PetManagementModule } from './pet-management/infrastructure/pet-management.module';
+import { HealthCheckController } from './infrastructure/http/health-check.controller';
 
 @Module({
     imports: [
@@ -24,7 +25,7 @@ import { PetManagementModule } from './pet-management/infrastructure/pet-managem
         HealthModule,
         CareModule,
     ],
-    controllers: [AppController],
+    controllers: [AppController, HealthCheckController],
     providers: [
         AppService,
         { provide: APP_FILTER, useClass: AuthenticatedJsonRequestExceptionFilter },

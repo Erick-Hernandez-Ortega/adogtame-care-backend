@@ -41,7 +41,7 @@ describe('OpenAPI documentation (e2e)', () => {
         await request(application.getHttpServer()).get('/docs-json').expect(200);
     });
 
-    it('documents all fifty-one operations and their contracts', () => {
+    it('documents all fifty-two operations and their contracts', () => {
         const document: OpenAPIObject = SwaggerModule.createDocument(
             application,
             new DocumentBuilder().addBearerAuth().build(),
@@ -71,6 +71,7 @@ describe('OpenAPI documentation (e2e)', () => {
 
         const routes: [string, string][] = [
             ['/', 'get'],
+            ['/health', 'get'],
             ['/accounts', 'post'],
             ['/auth/login', 'post'],
             ['/pets', 'get'],
@@ -141,7 +142,31 @@ describe('OpenAPI documentation (e2e)', () => {
                     Number(Boolean(path?.delete)),
                 0,
             ),
-        ).toBe(51);
+        ).toBe(52);
+
+        const healthCheck = document.paths['/health']?.get;
+
+        expect(healthCheck?.security ?? []).toEqual([]);
+        expect(Object.keys(healthCheck?.responses ?? {}).sort()).toEqual(['200', '503']);
+        expect(healthCheck?.requestBody).toBeUndefined();
+        expect(responseSchema(healthCheck, '200')).toEqual({
+            type: 'object',
+            additionalProperties: false,
+            required: ['status'],
+            properties: { status: { type: 'string', enum: ['ok'] } },
+        });
+        expect(responseSchema(healthCheck, '503')).toEqual({
+            type: 'object',
+            required: ['code', 'message'],
+            properties: {
+                code: {
+                    type: 'string',
+                    enum: ['DATABASE_UNAVAILABLE'],
+                    example: 'DATABASE_UNAVAILABLE',
+                },
+                message: { type: 'string', example: 'Database is unavailable' },
+            },
+        });
 
         const activityHistory = document.paths['/pets/{petId}/care/activities']?.get;
 

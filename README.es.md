@@ -29,6 +29,7 @@ Inicia PostgreSQL 18 y espera hasta que el contenedor esté saludable:
 
 ```bash
 pnpm db:up
+pnpm db:migrate
 ```
 
 Comandos disponibles:
@@ -52,6 +53,53 @@ pnpm start:dev
 
 La API escucha en el puerto definido por `PORT`.
 
+## Ejecución y despliegue
+
+Usa Node.js 20 o posterior, compatible con NestJS 11. Configura las variables del
+proceso o un archivo `.env` antes de iniciar:
+
+| Variable | Regla | Valor predeterminado |
+| --- | --- | --- |
+| `NODE_ENV` | `development`, `test` o `production` | `development` |
+| `PORT` | Entero entre 1 y 65535 | `3000` |
+| `DATABASE_URL` | URL `postgres://` o `postgresql://` | Obligatoria |
+| `JWT_ACCESS_TOKEN_SECRET` | Al menos 32 caracteres; genera un secreto aleatorio | Obligatoria |
+| `JWT_ACCESS_TOKEN_TTL_SECONDS` | Entero positivo | `3600` |
+
+El archivo `.env.example` deja el secreto vacío intencionalmente; debes completarlo.
+Las variables del proceso tienen prioridad sobre `.env`. Una configuración inválida
+impide iniciar y reporta solo los nombres de las variables inválidas.
+
+Para un despliegue genérico, configura `NODE_ENV=production`, una URL remota de Neon
+con la configuración TLS indicada por Neon y un secreto propio del entorno. En la
+etapa de preparación instala las dependencias del lockfile y compila; aplica las
+migraciones revisadas una sola vez antes de arrancar la versión compatible:
+
+```bash
+pnpm install --frozen-lockfile --prod=false
+pnpm lint
+pnpm test
+pnpm build
+pnpm db:migrations:check
+pnpm db:migrate
+pnpm db:check
+pnpm start:prod
+```
+
+La compilación y las herramientas de migración requieren las dependencias de
+preparación. La ejecución requiere `dist/` y las dependencias de producción.
+`GET /health` es público: ejecuta `SELECT 1` y devuelve `200 {"status":"ok"}` o
+`503 {"code":"DATABASE_UNAVAILABLE","message":"Database is unavailable"}`.
+Comprueba esta ruta después del arranque; un puerto abierto no prueba conectividad
+ni que las migraciones estén aplicadas. `GET /` conserva su mensaje de bienvenida.
+
+Los logs usan el Logger integrado de Nest en formato JSON. SIGINT/SIGTERM activan
+el cierre de Nest, del servidor HTTP y del pool PostgreSQL; el gestor de procesos
+debe enviar la señal al proceso Node y permitir que termine. SIGKILL no permite
+cierre ordenado. No se configura un proveedor de despliegue, política CORS, retención
+ni límites de frecuencia. Helmet y rate limiting siguen pendientes porque necesitan
+dependencias nuevas. Consulta [Preparación para producción](docs/production-readiness.md).
+
 ## Documentación de la API
 
 Abre Swagger UI en `http://localhost:3000/docs` (usa el `PORT` configurado si
@@ -63,7 +111,7 @@ después llama a `POST /auth/login` con tu correo y contraseña. Copia
 `accessToken` de la respuesta, pulsa **Authorize** en Swagger e introduce el
 token. Swagger añade automáticamente el prefijo Bearer a las peticiones.
 
-La API expone 51 operaciones.
+La API expone 52 operaciones.
 
 Todos los endpoints de listado aceptan `limit` opcional (20 por defecto, máximo
 100) y `cursor` opaco; responden con `{ items, nextCursor }`. Envía `nextCursor`
@@ -79,6 +127,7 @@ para límites, autorización, errores y Helmet/control de frecuencia pendientes.
 | Ruta                                          | Descripción                 | Token Bearer |
 | --------------------------------------------- | --------------------------- | ------------ |
 | `GET /`                                       | Mensaje de bienvenida       | No           |
+| `GET /health` | Verificar conectividad con PostgreSQL | No |
 | `POST /accounts`                              | Registrar cuenta            | No           |
 | `POST /auth/login`                            | Obtener token               | No           |
 | `GET /pets`                                   | Listar mascotas accesibles  | Sí           |
@@ -227,14 +276,14 @@ fecha actual.
 
 ## Migraciones
 
-Los esquemas Drizzle vivirán en:
+Los esquemas Drizzle viven en:
 
 ```text
 src/<bounded-context>/infrastructure/persistence/drizzle/*.schema.ts
 ```
 
-Cuando exista el primer esquema de dominio, genera y revisa la migración antes
-de aplicarla:
+Después de cambiar un esquema, genera la migración y revisa su SQL y metadata
+antes de aplicarla:
 
 ```bash
 pnpm db:generate
@@ -242,8 +291,12 @@ pnpm db:migrations:check
 pnpm db:migrate
 ```
 
-Las migraciones SQL versionadas se guardarán en `drizzle/`. No se genera una
-migración vacía mientras no exista un esquema de dominio.
+Las migraciones SQL versionadas y su metadata están en `drizzle/`. Revisa el SQL
+generado antes de ejecutar `pnpm db:migrate`. Solo añade las sentencias extra ya
+usadas por migraciones existentes, como el trigger de `updated_at` de
+`drizzle/0017_mean_bishop.sql`. No generes migraciones vacías ni edites migraciones
+ya aplicadas. En despliegues aplica las migraciones revisadas; no las generes al
+iniciar la API. Consulta [Preparación para producción](docs/production-readiness.md).
 
 Consulta [Lecturas de miembros de mascotas](docs/pet-members-read.md) para conocer
 la frontera de consulta de email, la consistencia de lectura y la deuda técnica

@@ -1,23 +1,24 @@
-import { INestApplicationContext } from '@nestjs/common';
+import { ConsoleLogger, INestApplicationContext, Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
-import { sql } from 'drizzle-orm';
 import { AppModule } from '../../app.module';
 import { DatabaseService } from './database.service';
 
 async function checkDatabaseConnection(): Promise<void> {
     let applicationContext: INestApplicationContext | undefined;
+    const logger: Logger = new Logger('DatabaseCheck');
 
     try {
-        applicationContext = await NestFactory.createApplicationContext(AppModule);
+        applicationContext = await NestFactory.createApplicationContext(AppModule, {
+            abortOnError: false,
+            logger: new ConsoleLogger({ json: true }),
+        });
 
         const databaseService: DatabaseService = applicationContext.get(DatabaseService);
 
-        await databaseService.connection.execute(sql`SELECT 1`);
-        console.log('Database connection successful.');
-    } catch (error: unknown) {
-        const message: string = error instanceof Error ? error.message : String(error);
-
-        console.error(`Database connection failed: ${message}`);
+        await databaseService.checkConnection();
+        logger.log({ event: 'database_connection_succeeded' });
+    } catch {
+        logger.error({ event: 'database_connection_failed' });
         process.exitCode = 1;
     } finally {
         await applicationContext?.close();

@@ -12,5 +12,15 @@ const environmentSchema = z.object({
 export type EnvironmentVariables = z.infer<typeof environmentSchema>;
 
 export function validateEnvironment(configuration: Record<string, unknown>): EnvironmentVariables {
-    return environmentSchema.parse(configuration);
+    const result = environmentSchema.safeParse(configuration);
+
+    if (!result.success) {
+        const fields: string[] = [
+            ...new Set(result.error.issues.map((issue): string => issue.path.join('.'))),
+        ];
+
+        throw new Error(`Invalid environment configuration: ${fields.join(', ')}`);
+    }
+
+    return result.data;
 }

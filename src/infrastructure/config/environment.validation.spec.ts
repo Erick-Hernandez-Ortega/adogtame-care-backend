@@ -18,6 +18,47 @@ describe('validateEnvironment', () => {
         });
     });
 
+    it('uses defaults only for omitted optional settings', () => {
+        expect(
+            validateEnvironment({
+                DATABASE_URL: validConfiguration.DATABASE_URL,
+                JWT_ACCESS_TOKEN_SECRET: validConfiguration.JWT_ACCESS_TOKEN_SECRET,
+            }),
+        ).toEqual({
+            ...validConfiguration,
+            PORT: 3000,
+            JWT_ACCESS_TOKEN_TTL_SECONDS: 3600,
+        });
+    });
+
+    it.each(['', '0', '-1', '65536', '3000.5', 'invalid'])(
+        'rejects an invalid port: %s',
+        (port: string) => {
+            expect(() => validateEnvironment({ ...validConfiguration, PORT: port })).toThrow(
+                'Invalid environment configuration: PORT',
+            );
+        },
+    );
+
+    it('rejects unsupported environments', () => {
+        expect(() => validateEnvironment({ ...validConfiguration, NODE_ENV: 'staging' })).toThrow(
+            'Invalid environment configuration: NODE_ENV',
+        );
+    });
+
+    it('reports invalid field names without including configuration values', () => {
+        expect(() =>
+            validateEnvironment({
+                ...validConfiguration,
+                NODE_ENV: 'sensitive-environment-value',
+                DATABASE_URL: 'https://user:private-password@example.com/database',
+                JWT_ACCESS_TOKEN_SECRET: 'private-secret',
+            }),
+        ).toThrow(
+            'Invalid environment configuration: NODE_ENV, DATABASE_URL, JWT_ACCESS_TOKEN_SECRET',
+        );
+    });
+
     it('rejects a missing DATABASE_URL', () => {
         const configuration: Record<string, unknown> = {
             NODE_ENV: validConfiguration.NODE_ENV,

@@ -29,6 +29,7 @@ Start PostgreSQL 18 and wait until the container is healthy:
 
 ```bash
 pnpm db:up
+pnpm db:migrate
 ```
 
 Available commands:
@@ -52,6 +53,53 @@ pnpm start:dev
 
 The API listens on the port defined by `PORT`.
 
+## Running and deploying
+
+Use Node.js 20 or later, compatible with NestJS 11. Supply process environment
+variables or a `.env` file before startup:
+
+| Variable | Rule | Default |
+| --- | --- | --- |
+| `NODE_ENV` | `development`, `test` or `production` | `development` |
+| `PORT` | Integer from 1 to 65535 | `3000` |
+| `DATABASE_URL` | `postgres://` or `postgresql://` URL | Required |
+| `JWT_ACCESS_TOKEN_SECRET` | At least 32 characters; generate a random secret | Required |
+| `JWT_ACCESS_TOKEN_TTL_SECONDS` | Positive integer | `3600` |
+
+The secret in `.env.example` is intentionally empty; set it before running.
+Process variables override `.env`. Invalid configuration prevents startup and
+reports only invalid variable names.
+
+For a generic deployment, set `NODE_ENV=production`, a remote Neon database URL
+with Neon's supplied TLS settings, and an environment-specific secret. In the
+preparation stage install from the lockfile and build; apply reviewed migrations
+once before starting the compatible release:
+
+```bash
+pnpm install --frozen-lockfile --prod=false
+pnpm lint
+pnpm test
+pnpm build
+pnpm db:migrations:check
+pnpm db:migrate
+pnpm db:check
+pnpm start:prod
+```
+
+Build and migration tooling require development dependencies in the preparation
+stage. Runtime requires `dist/` and production dependencies. Public `GET /health`
+executes `SELECT 1` and returns `200 {"status":"ok"}` or
+`503 {"code":"DATABASE_UNAVAILABLE","message":"Database is unavailable"}`.
+Check this route after startup; an open port does not prove database connectivity
+or applied migrations. `GET /` retains its welcome message.
+
+Logs use Nest's built-in Logger in JSON format. SIGINT/SIGTERM invoke Nest shutdown,
+close the HTTP server and PostgreSQL pool; the process manager must forward the
+signal to Node and allow shutdown to finish. SIGKILL cannot shut down gracefully.
+No deployment provider, CORS policy, retention or rate limits are configured.
+Helmet and rate limiting remain pending because they need new dependencies.
+See [Production readiness](docs/production-readiness.md).
+
 ## API documentation
 
 Open Swagger UI at `http://localhost:3000/docs` (use your configured `PORT` if
@@ -63,7 +111,7 @@ To try protected routes, register with `POST /accounts` if needed, then call
 response, click **Authorize** in Swagger, and enter the token. Swagger adds the
 Bearer prefix to requests automatically.
 
-The API exposes 51 operations.
+The API exposes 52 operations.
 
 All list endpoints accept optional `limit` (default 20, maximum 100) and opaque
 `cursor`; responses use `{ items, nextCursor }`. Pass `nextCursor` for the next
@@ -78,6 +126,7 @@ error handling and pending Helmet/rate limiting.
 | Route                                         | Description             | Bearer token |
 | --------------------------------------------- | ----------------------- | ------------ |
 | `GET /`                                       | Welcome message         | No           |
+| `GET /health` | Check PostgreSQL connectivity | No |
 | `POST /accounts`                              | Register account        | No           |
 | `POST /auth/login`                            | Get access token        | No           |
 | `GET /pets`                                   | List accessible pets    | Yes          |
@@ -297,14 +346,14 @@ do not access the database, HTTP, configuration, or the current date.
 
 ## Migrations
 
-Drizzle schemas will live in:
+Drizzle schemas live in:
 
 ```text
 src/<bounded-context>/infrastructure/persistence/drizzle/*.schema.ts
 ```
 
-Once the first domain schema exists, generate and review the migration before
-applying it:
+After changing a schema, generate the migration and review its SQL and metadata
+before applying it:
 
 ```bash
 pnpm db:generate
@@ -312,8 +361,12 @@ pnpm db:migrations:check
 pnpm db:migrate
 ```
 
-Versioned SQL migrations will be stored in `drizzle/`. No empty migration is
-generated before a domain schema exists.
+Versioned SQL migrations and metadata are stored in `drizzle/`. Review the generated
+SQL before running `pnpm db:migrate`. Append only extra statements already used by
+existing migrations, such as the `updated_at` trigger in `drizzle/0017_mean_bishop.sql`.
+Do not generate empty migrations or edit applied migrations. Deployments apply
+reviewed migrations; they do not generate them at API startup. See
+[Production readiness](docs/production-readiness.md).
 
 See [Pet member reads](docs/pet-members-read.md) for the email lookup boundary,
 read consistency, and the separate technical debt concerning the missing

@@ -1,11 +1,14 @@
-import { Injectable, OnApplicationShutdown } from '@nestjs/common';
+import { Injectable, Logger, OnApplicationShutdown } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { drizzle, PostgresJsDatabase } from 'drizzle-orm/postgres-js';
+import { sql } from 'drizzle-orm';
 import postgres, { Sql } from 'postgres';
 import { EnvironmentVariables } from '../config/environment.validation';
 
 @Injectable()
 export class DatabaseService implements OnApplicationShutdown {
+    private readonly logger: Logger = new Logger(DatabaseService.name);
+
     private readonly client: Sql;
 
     readonly connection: PostgresJsDatabase;
@@ -21,5 +24,10 @@ export class DatabaseService implements OnApplicationShutdown {
 
     async onApplicationShutdown(): Promise<void> {
         await this.client.end();
+        this.logger.log({ event: 'database_pool_closed' });
+    }
+
+    async checkConnection(): Promise<void> {
+        await this.connection.execute(sql`SELECT 1`);
     }
 }
