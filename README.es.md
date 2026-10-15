@@ -63,7 +63,7 @@ después llama a `POST /auth/login` con tu correo y contraseña. Copia
 `accessToken` de la respuesta, pulsa **Authorize** en Swagger e introduce el
 token. Swagger añade automáticamente el prefijo Bearer a las peticiones.
 
-La API expone 46 operaciones.
+La API expone 47 operaciones.
 
 | Ruta                                          | Descripción                 | Token Bearer |
 | --------------------------------------------- | --------------------------- | ------------ |
@@ -81,6 +81,7 @@ La API expone 46 operaciones.
 | `POST /pets/{petId}/archive` | Archivar una mascota | Sí |
 | `POST /pets/{petId}/restore` | Restaurar una mascota | Sí |
 | `POST /pets/{petId}/leave`                    | Abandonar una mascota  | Sí           |
+| `POST /pets/{petId}/care/routines` | Crear una rutina de cuidado | Sí |
 | `POST /pets/{petId}/health/veterinary-visits` | Registrar una visita veterinaria | Sí |
 | `GET /pets/{petId}/health/veterinary-visits` | Consultar el historial de visitas veterinarias | Sí |
 | `PATCH /pets/{petId}/health/veterinary-visits/{visitId}` | Corregir una visita veterinaria registrada | Sí |
@@ -237,11 +238,22 @@ Ejecuta `pnpm format` para aplicar el estilo del proyecto con ESLint y Prettier:
 
 ## Cuidados
 
-El dominio de rutinas de cuidado y su esquema de persistencia generado permiten
-representar alimentación, paseos, higiene y otras rutinas, con frecuencias diarias
-o semanales, horarios locales sugeridos y zonas horarias IANA. Esta entrega del
-dominio no agrega rutas a la API. Consulta [Cuidados de mascotas](docs/pet-care.md)
-para conocer las decisiones y el estado de la persistencia.
+Crea una rutina con `POST /pets/{petId}/care/routines`, un token Bearer y un cuerpo
+estricto como `{"type":"FEEDING","title":"Breakfast","frequency":{"period":"DAILY","timesPerPeriod":1,"suggestedTimes":["08:00"]},"timezone":"America/Mexico_City"}`.
+Los propietarios y colaboradores activos pueden crear rutinas para mascotas activas;
+las archivadas son de solo lectura. Los tipos son FEEDING, WALK, HYGIENE y OTHER.
+La frecuencia es DAILY o WEEKLY con un entero seguro positivo; WEEKLY permite
+`weekdays` opcionales (MONDAY–SUNDAY). Las horas sugeridas son locales HH:mm y debe
+indicarse explícitamente la zona IANA del creador. `instructions` permite omisión/null.
+La respuesta 201 incluye `id`, `petId`, `type`, `title`, `instructions` nullable,
+`frequency` completa, `timezone` canónica y `recordedByAccountId` de la cuenta autenticada.
+No se aceptan parámetros de consulta. La autenticación precede a la validación,
+incluso con JSON malformado. Los errores estructurales usan 400 INVALID_REQUEST;
+los de dominio usan INVALID_ROUTINE_TYPE, INVALID_ROUTINE_TITLE,
+INVALID_ROUTINE_INSTRUCTIONS, INVALID_ROUTINE_FREQUENCY o INVALID_ROUTINE_TIMEZONE.
+Las mascotas ausentes, archivadas o inaccesibles usan 404 PET_NOT_FOUND.
+Las rutinas duplicadas son independientes. Consulta [Pet care](docs/pet-care.md)
+para las decisiones y los detalles de persistencia.
 
 ## Verificación
 

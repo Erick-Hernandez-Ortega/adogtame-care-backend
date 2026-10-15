@@ -1,3 +1,4 @@
+import { CareModule } from './care/infrastructure/care.module';
 import { Module } from '@nestjs/common';
 import { APP_FILTER } from '@nestjs/core';
 import { AuthenticatedJsonRequestExceptionFilter } from './infrastructure/http/authenticated-json-request-exception.filter';
@@ -21,6 +22,7 @@ import { PetManagementModule } from './pet-management/infrastructure/pet-managem
         IdentityModule,
         PetManagementModule,
         HealthModule,
+        CareModule,
     ],
     controllers: [AppController],
     providers: [

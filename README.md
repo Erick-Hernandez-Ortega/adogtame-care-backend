@@ -63,7 +63,7 @@ To try protected routes, register with `POST /accounts` if needed, then call
 response, click **Authorize** in Swagger, and enter the token. Swagger adds the
 Bearer prefix to requests automatically.
 
-The API exposes 46 operations.
+The API exposes 47 operations.
 
 | Route                                         | Description             | Bearer token |
 | --------------------------------------------- | ----------------------- | ------------ |
@@ -81,6 +81,7 @@ The API exposes 46 operations.
 | `POST /pets/{petId}/archive` | Archive a pet | Yes |
 | `POST /pets/{petId}/restore` | Restore a pet | Yes |
 | `POST /pets/{petId}/leave`                    | Leave a pet   | Yes          |
+| `POST /pets/{petId}/care/routines` | Create a care routine | Yes |
 | `POST /pets/{petId}/health/veterinary-visits` | Record a veterinary visit | Yes |
 | `GET /pets/{petId}/health/veterinary-visits` | List veterinary visit history | Yes |
 | `PATCH /pets/{petId}/health/veterinary-visits/{visitId}` | Correct a registered veterinary visit | Yes |
@@ -198,10 +199,20 @@ Leave now returns `204` without a representation, replacing its previous `200` J
 
 ## Care
 
-Care routine domain objects and a generated persistence schema are available for
-feeding, walks, hygiene and other routines, with daily/weekly frequencies, local
-suggested times and IANA timezones. This domain slice adds no API routes.
-See [Pet care](docs/pet-care.md) for decisions and persistence status.
+Create a routine with `POST /pets/{petId}/care/routines`, a Bearer token and a strict
+body such as `{"type":"FEEDING","title":"Breakfast","frequency":{"period":"DAILY","timesPerPeriod":1,"suggestedTimes":["08:00"]},"timezone":"America/Mexico_City"}`.
+Active owners and collaborators may create routines for active pets; archived pets
+are read-only. Types are FEEDING, WALK, HYGIENE and OTHER. Frequencies are DAILY or
+WEEKLY with a positive safe-integer target; WEEKLY permits optional `weekdays`
+(MONDAY–SUNDAY). Suggestions are local HH:mm; supply the creator's IANA timezone
+explicitly. Optional `instructions` accepts omission/null. Success returns 201 with
+`id`, `petId`, `type`, `title`, nullable `instructions`, complete `frequency`, canonical
+`timezone` and authenticated `recordedByAccountId`. No query parameters are accepted.
+Authentication precedes validation, including malformed JSON. Structural errors use
+400 INVALID_REQUEST; domain errors use INVALID_ROUTINE_TYPE, INVALID_ROUTINE_TITLE,
+INVALID_ROUTINE_INSTRUCTIONS, INVALID_ROUTINE_FREQUENCY or INVALID_ROUTINE_TIMEZONE.
+Missing/archived/inaccessible pets use 404 PET_NOT_FOUND. Duplicate routines are
+independent. See [Pet care](docs/pet-care.md) for decisions and persistence details.
 
 ## Shared domain utilities
 

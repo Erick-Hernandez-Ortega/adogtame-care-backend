@@ -33,7 +33,7 @@ describe('OpenAPI documentation (e2e)', () => {
         await application.close();
     });
 
-    it('serves Swagger UI and documents all forty-six operations and their contracts', async () => {
+    it('serves Swagger UI and documents all forty-seven operations and their contracts', async () => {
         const htmlResponse = await request(application.getHttpServer()).get('/docs').expect(200);
 
         expect(htmlResponse.text).toContain('swagger-ui');
@@ -60,6 +60,7 @@ describe('OpenAPI documentation (e2e)', () => {
             ['/pets/{petId}/leave', 'post'],
             ['/pets/{petId}/archive', 'post'],
             ['/pets/{petId}/restore', 'post'],
+            ['/pets/{petId}/care/routines', 'post'],
             ['/pets/{petId}/health/veterinary-visits', 'post'],
             ['/pets/{petId}/health/veterinary-visits', 'get'],
             ['/pets/{petId}/health/veterinary-visits/{visitId}', 'patch'],
@@ -112,7 +113,121 @@ describe('OpenAPI documentation (e2e)', () => {
                     Number(Boolean(path?.delete)),
                 0,
             ),
-        ).toBe(46);
+        ).toBe(47);
+
+        const routine = document.paths['/pets/{petId}/care/routines']?.post;
+
+        expect(routine?.security).toEqual([{ bearer: [] }]);
+        expect(routine?.tags).toEqual(['Care']);
+        expect(Object.keys(routine?.responses ?? {}).sort()).toEqual(['201', '400', '401', '404']);
+        expect(routine?.parameters).toEqual([
+            expect.objectContaining({
+                name: 'petId',
+                in: 'path',
+                required: true,
+                schema: { type: 'string', format: 'uuid' },
+            }),
+        ]);
+        const routineRequest = (
+            routine?.requestBody as { content: { 'application/json': { schema: SchemaObject } } }
+        ).content['application/json'].schema;
+
+        expect(routineRequest).toMatchObject({
+            type: 'object',
+            additionalProperties: false,
+            required: ['type', 'title', 'frequency', 'timezone'],
+        });
+        expect(Object.keys(routineRequest.properties ?? {}).sort()).toEqual([
+            'frequency',
+            'instructions',
+            'timezone',
+            'title',
+            'type',
+        ]);
+        expect(routineRequest.properties).toMatchObject({
+            type: { enum: ['FEEDING', 'WALK', 'HYGIENE', 'OTHER'] },
+            title: { type: 'string', minLength: 1, maxLength: 255 },
+            instructions: { type: 'string', nullable: true, minLength: 1, maxLength: 2000 },
+            timezone: { type: 'string' },
+            frequency: {
+                type: 'object',
+                additionalProperties: false,
+                required: ['period', 'timesPerPeriod'],
+                properties: {
+                    period: { enum: ['DAILY', 'WEEKLY'] },
+                    timesPerPeriod: {
+                        type: 'integer',
+                        minimum: 1,
+                        maximum: Number.MAX_SAFE_INTEGER,
+                    },
+                    suggestedTimes: {
+                        type: 'array',
+                        nullable: true,
+                        items: { pattern: '^([01][0-9]|2[0-3]):[0-5][0-9]$' },
+                    },
+                    weekdays: {
+                        type: 'array',
+                        nullable: true,
+                        items: {
+                            enum: [
+                                'MONDAY',
+                                'TUESDAY',
+                                'WEDNESDAY',
+                                'THURSDAY',
+                                'FRIDAY',
+                                'SATURDAY',
+                                'SUNDAY',
+                            ],
+                        },
+                    },
+                },
+            },
+        });
+        const routineResponse = responseSchema(routine, '201');
+
+        expect(routineResponse?.additionalProperties).toBe(false);
+        expect(routineResponse?.required).toEqual([
+            'id',
+            'petId',
+            'type',
+            'title',
+            'instructions',
+            'frequency',
+            'timezone',
+            'recordedByAccountId',
+        ]);
+        expect(Object.keys(routineResponse?.properties ?? {}).sort()).toEqual([
+            'frequency',
+            'id',
+            'instructions',
+            'petId',
+            'recordedByAccountId',
+            'timezone',
+            'title',
+            'type',
+        ]);
+        expect(routineResponse?.properties).toMatchObject({
+            id: { type: 'string', format: 'uuid' },
+            petId: { type: 'string', format: 'uuid' },
+            recordedByAccountId: { type: 'string', format: 'uuid' },
+            instructions: { nullable: true },
+            frequency: {
+                required: ['period', 'timesPerPeriod', 'suggestedTimes', 'weekdays'],
+                properties: { suggestedTimes: { nullable: false }, weekdays: { nullable: false } },
+            },
+        });
+        expect(responseSchema(routine, '400')?.oneOf).toMatchObject([
+            { properties: { code: { enum: ['INVALID_REQUEST'] } } },
+            ...['TYPE', 'TITLE', 'INSTRUCTIONS', 'FREQUENCY', 'TIMEZONE'].map((field: string) => ({
+                properties: { code: { enum: [`INVALID_ROUTINE_${field}`] } },
+            })),
+        ]);
+        expect(responseSchema(routine, '401')?.properties?.code).toMatchObject({
+            enum: ['UNAUTHENTICATED'],
+        });
+        expect(responseSchema(routine, '404')?.properties?.code).toMatchObject({
+            enum: ['PET_NOT_FOUND'],
+        });
 
         const veterinaryVisit = document.paths['/pets/{petId}/health/veterinary-visits']?.post;
 
