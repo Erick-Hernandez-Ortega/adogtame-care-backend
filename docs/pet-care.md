@@ -340,11 +340,12 @@ remain Pet → requester Membership → record. Archived pets remain read-only.
 The existing schema and pet/routine index suffice. `pnpm db:generate` confirms no
 schema changes; no migration, dependencies, infrastructure or domain mutation is added.
 
-The optional per-day expected/completed summary is deliberately skipped. WEEKLY
-`timesPerPeriod` has no approved daily allocation or week boundary, weekdays are
-suggestions, and editable routines have no historical schedule versions. Evaluating
-past expectations or allocating weekly targets to days would require new product
-rules. No missed activities are stored or inferred as persisted facts. No reminders,
+The optional per-day expected/completed summary was deferred in #51 and is now
+implemented below. At that time, WEEKLY
+`timesPerPeriod` had no approved daily allocation or week boundary. The summary
+rules below now define allocation and evaluation using the current frequency;
+editable routines still have no historical schedule versions. No missed activities
+are stored or inferred as persisted facts. No reminders,
 notifications, attachments, stats or Adogtame integration are introduced.
 
 Application tests cover delegation, filters, order, empty results, access errors and
@@ -353,3 +354,75 @@ routine and pet isolation, microsecond/UUID ordering, duplicates beyond 20 rows,
 active/archived access, revocation, preservation, unchanged timestamps and nonblocking
 snapshot reads. HTTP and OpenAPI tests cover exact contracts, strict queries,
 authentication-first parser failures, member access and the 51-operation contract.
+
+## Expected and completed summary
+
+`GET /pets/{petId}/care/summary?from=YYYY-MM-DD&to=YYYY-MM-DD` is the 53rd API
+operation. Both dates are required, inclusive local calendar dates in years
+0001–9999. The range must contain 1–31 days. Optional `routineId` is a non-nil
+UUID scoped to the pet; unknown and wrong-pet routines return empty items after
+authorization. As with other Care reads, optional `limit` defaults to 20 (1–100)
+and `cursor` is opaque, scoped to account, pet, both dates and routine filter.
+Pagination is over routines, ordered by creation timestamp (including PostgreSQL
+microseconds), then ID descending. Follow `nextCursor` to retrieve all routines.
+Unknown, repeated, nested, malformed or reversed parameters and excessive ranges
+return `400 INVALID_REQUEST`, with `Request query is invalid`. Invalid pet IDs
+use `Pet id is invalid`. Authentication precedes validation and JSON parser
+failures; missing/invalid tokens return `401 UNAUTHENTICATED`. Oversized bodies
+retain the existing authenticated `413 INVALID_REQUEST` contract.
+
+ACTIVE owners and collaborators may read ACTIVE or ARCHIVED pets. Missing pets,
+outsiders and inactive members share `404 PET_NOT_FOUND`, even with empty filters
+or exhausted pages. Authorship grants no enduring access. Archived pets remain
+read-only; this operation performs no writes or row locking.
+
+The response is `{ items, nextCursor }`. Each item has exactly `routineId`, current
+routine `timezone`, `days` and `weeks`. Daily entries have `localDay`, `expected`,
+`completed` and `missed`. Weekly entries have `weekStart` instead of `localDay`.
+Entries sort chronologically; the unused period array is empty.
+
+- DAILY expects `timesPerPeriod` on each local day.
+- WEEKLY with selected `frequency.weekdays` (the existing API name for days of
+  week) divides `timesPerPeriod` by the selected count. Each selected day gets
+  the floor; remaining occurrences go one each to the earliest selected weekdays
+  in ISO order, Monday through Sunday, independent of stored suggestion order.
+  For example, five occurrences over Sunday, Monday and Wednesday become Monday
+  two, Wednesday two and Sunday one. Unselected days expect zero; their actual
+  completions are still reported. No matching to suggested HH:mm times occurs.
+- WEEKLY without weekdays has no daily entries. It reports each whole ISO week
+  overlapping the requested range, identified by its Monday `weekStart`. Both
+  expected and completed counts cover Monday–Sunday, including days outside the
+  range at partial edges. Weeks before the routine's creation week are omitted.
+  The creation week expects zero; the full target begins the following Monday.
+
+Every query uses the routine's CURRENT frequency and timezone, including for past
+dates; there is no schedule history. Creation day is derived from technical
+`created_at` in that current routine timezone. Daily dates before creation are
+omitted. Weekly completion counts also exclude activity local dates before that
+creation day. An activity contributes on its own stored local day, computed from
+its UTC `completedAt` and stored IANA timezone, independent of the routine timezone.
+Independent duplicate completions count independently. Every reported period uses
+`missed = max(expected - completed, 0)`; excess completions do not offset other
+periods. The same calculation applies to every valid requested date, including
+current/future dates, without a Clock-dependent cutoff. Missed activities are never
+stored and no persisted completion is inferred from elapsed time.
+
+`GetCareSummary` delegates to the application-owned `CareSummaryReader`, maps
+inaccessible null to PetNotFoundError and invokes the pure domain `summarizeRoutine`.
+The Drizzle adapter uses one statement snapshot for Pet, ACTIVE requester Membership,
+current routines and completion counts. Correlated SQL aggregates local dates before
+returning data, bounded to the overlapping ISO weeks; it does not load individual
+activities or an unbounded routine list into application memory. The existing
+pet/routine index remains available; large histories may need later query-plan tuning.
+Reads do not wait for mutation row locks, change timestamps, or alter the existing
+Pet → Membership → record write ordering. Subsequent reads recheck committed access.
+Existing schema, triggers and indexes suffice; `pnpm db:generate` confirms no
+schema changes, so no migration is generated.
+
+Pure domain tests cover daily/weekly allocation, creation boundaries, ISO year
+boundaries, leap dates, zero-clamping and current frequency. Application tests cover
+orchestration, pagination, cursor scope and failures. PostgreSQL tests cover stored
+local-day/DST filtering, creation timezone, current frequency, access, whole-week
+edges, pagination and unchanged records/timestamps. HTTP and OpenAPI tests cover
+exact contracts, authentication precedence and strict query bounds. Reminders,
+notifications, attachments, statistics and Adogtame integration remain V2.

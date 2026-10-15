@@ -111,7 +111,7 @@ después llama a `POST /auth/login` con tu correo y contraseña. Copia
 `accessToken` de la respuesta, pulsa **Authorize** en Swagger e introduce el
 token. Swagger añade automáticamente el prefijo Bearer a las peticiones.
 
-La API expone 52 operaciones.
+La API expone 53 operaciones.
 
 Todos los endpoints de listado aceptan `limit` opcional (20 por defecto, máximo
 100) y `cursor` opaco; responden con `{ items, nextCursor }`. Envía `nextCursor`
@@ -144,6 +144,7 @@ para límites, autorización, errores y Helmet/control de frecuencia pendientes.
 | `POST /pets/{petId}/care/routines` | Crear una rutina de cuidado | Sí |
 | `GET /pets/{petId}/care/routines` | Consultar rutinas de cuidado | Sí |
 | `GET /pets/{petId}/care/activities` | Consultar el historial de actividades de cuidado | Sí |
+| `GET /pets/{petId}/care/summary` | Consultar el resumen de cuidados esperados y completados | Sí |
 | `PATCH /pets/{petId}/care/routines/{routineId}` | Actualizar una rutina de cuidado | Sí |
 | `POST /pets/{petId}/care/routines/{routineId}/activities` | Registrar una actividad de cuidado completada | Sí |
 | `POST /pets/{petId}/health/veterinary-visits` | Registrar una visita veterinaria | Sí |
@@ -371,9 +372,20 @@ creación e ID descendentes, con paginación mediante `limit`/`cursor`. Sin coin
 inexistente o de otra mascota, devuelve una lista vacía tras autorizar el acceso.
 Rangos invertidos, fechas/UUID inválidos y parámetros desconocidos o repetidos usan
 400 INVALID_REQUEST; autenticación inválida usa 401 UNAUTHENTICATED; mascotas
-inexistentes o inaccesibles usan 404 PET_NOT_FOUND. No se incluye un resumen diario
-de expectativas: los objetivos semanales y los cambios históricos de rutinas
-requieren decisiones adicionales. Las actividades omitidas nunca se almacenan.
+inexistentes o inaccesibles usan 404 PET_NOT_FOUND. El resumen de expectativas está
+disponible en la ruta descrita a continuación.
+Las actividades omitidas nunca se almacenan.
+Consulta [Cuidado de mascotas](docs/pet-care.md).
+
+Consulta los cuidados esperados y completados con `GET /pets/{petId}/care/summary?from=2026-03-01&to=2026-03-31`
+y un token Bearer. Ambas fechas locales son obligatorias, inclusivas y con un máximo
+de 31 días. `routineId` filtra las rutinas de la mascota; `limit`/`cursor` las paginan.
+Los propietarios y colaboradores activos pueden consultar mascotas archivadas.
+Cada rutina devuelve `days` o semanas ISO completas en `weeks`, con cantidades
+esperadas, completadas y omitidas. Se aplica la frecuencia y zona actual de la rutina;
+las actividades conservan su propia zona. El resto semanal se reparte desde el lunes
+entre los días seleccionados. Sin días seleccionados, se informa la semana completa
+y la semana de creación espera cero. Las omisiones no se almacenan.
 Consulta [Cuidado de mascotas](docs/pet-care.md).
 
 ## Auditoría e historial

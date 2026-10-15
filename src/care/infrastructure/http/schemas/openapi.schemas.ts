@@ -216,3 +216,62 @@ export const careActivitiesResponseSchema: SchemaObject = {
         },
     },
 };
+
+const summaryCountProperties: Record<string, SchemaObject> = {
+    expected: { type: 'integer', minimum: 0 },
+    completed: { type: 'integer', minimum: 0 },
+    missed: { type: 'integer', minimum: 0 },
+};
+
+export const careSummaryResponseSchema: SchemaObject = {
+    type: 'object',
+    additionalProperties: false,
+    required: ['items', 'nextCursor'],
+    properties: {
+        nextCursor: { type: 'string', nullable: true },
+        items: {
+            type: 'array',
+            maxItems: 100,
+            items: {
+                type: 'object',
+                additionalProperties: false,
+                required: ['routineId', 'timezone', 'days', 'weeks'],
+                properties: {
+                    routineId: { type: 'string', format: 'uuid' },
+                    timezone: { type: 'string', description: 'Current routine IANA timezone.' },
+                    days: {
+                        type: 'array',
+                        maxItems: 31,
+                        items: {
+                            type: 'object',
+                            additionalProperties: false,
+                            required: ['localDay', 'expected', 'completed', 'missed'],
+                            properties: {
+                                localDay: { type: 'string', format: 'date' },
+                                ...summaryCountProperties,
+                            },
+                        },
+                    },
+                    weeks: {
+                        type: 'array',
+                        maxItems: 6,
+                        items: {
+                            type: 'object',
+                            additionalProperties: false,
+                            required: ['weekStart', 'expected', 'completed', 'missed'],
+                            properties: {
+                                weekStart: {
+                                    type: 'string',
+                                    format: 'date',
+                                    description:
+                                        'Monday of the whole ISO week, including days outside from/to.',
+                                },
+                                ...summaryCountProperties,
+                            },
+                        },
+                    },
+                },
+            },
+        },
+    },
+};

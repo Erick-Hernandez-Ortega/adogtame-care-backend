@@ -69,7 +69,7 @@ describe('API security (e2e)', () => {
     });
 
     it('authenticates before malformed, scalar and oversized JSON on every protected operation', async (): Promise<void> => {
-        expect(operations).toHaveLength(48);
+        expect(operations).toHaveLength(49);
 
         for (const operation of operations) {
             for (const body of [

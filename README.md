@@ -111,7 +111,7 @@ To try protected routes, register with `POST /accounts` if needed, then call
 response, click **Authorize** in Swagger, and enter the token. Swagger adds the
 Bearer prefix to requests automatically.
 
-The API exposes 52 operations.
+The API exposes 53 operations.
 
 All list endpoints accept optional `limit` (default 20, maximum 100) and opaque
 `cursor`; responses use `{ items, nextCursor }`. Pass `nextCursor` for the next
@@ -143,6 +143,7 @@ error handling and pending Helmet/rate limiting.
 | `POST /pets/{petId}/care/routines` | Create a care routine | Yes |
 | `GET /pets/{petId}/care/routines` | List care routines | Yes |
 | `GET /pets/{petId}/care/activities` | List care activity history | Yes |
+| `GET /pets/{petId}/care/summary` | Summarize expected and completed care | Yes |
 | `PATCH /pets/{petId}/care/routines/{routineId}` | Update a care routine | Yes |
 | `POST /pets/{petId}/care/routines/{routineId}/activities` | Record a completed care activity | Yes |
 | `POST /pets/{petId}/health/veterinary-visits` | Record a veterinary visit | Yes |
@@ -323,10 +324,19 @@ with `id`, `routineId`, `completedAt`, `completedBy`, `timezone`, `localDay` and
 after pet authorization. Reversed ranges, invalid dates/UUIDs and unknown or repeated
 query parameters return 400 INVALID_REQUEST; invalid authentication returns 401
 UNAUTHENTICATED; missing/inaccessible pets return 404 PET_NOT_FOUND. Authentication
-precedes validation, including JSON parser failures. A daily expected/completed
-summary is skipped because weekly allocation and historical routine expectations
-require additional product decisions. Missed activities are never stored. See
+precedes validation, including JSON parser failures. Expected/completed summaries
+are available through the summary route below. Missed activities are never stored. See
 [Pet care](docs/pet-care.md).
+
+Read expected/completed care with `GET /pets/{petId}/care/summary?from=2026-03-01&to=2026-03-31`
+and a Bearer token. Both local dates are required (inclusive, maximum 31 days).
+Optional `routineId` filters the pet's routines; `limit`/`cursor` paginate routines.
+Active owners/collaborators may read archived pets. Each routine returns `days`
+or whole ISO `weeks` with expected/completed/missed counts. Current frequency and
+routine timezone apply to past expectations; completion days use each activity's
+stored timezone. Weekly remainder goes to earliest selected ISO weekdays; routines
+without selected weekdays report whole weeks, with zero expectation in their
+creation week. Nothing is stored for missed activities. See [Pet care](docs/pet-care.md).
 
 ## Audit and history
 

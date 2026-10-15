@@ -59,7 +59,7 @@ export class AuthenticatedJsonRequestExceptionFilter extends BaseExceptionFilter
             return request.method === 'POST';
         }
 
-        if (/^\/pets\/[^/]+\/(members|care\/activities)\/?$/i.test(path)) {
+        if (/^\/pets\/[^/]+\/(members|care\/(activities|summary))\/?$/i.test(path)) {
             return request.method === 'GET';
         }
 

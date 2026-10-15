@@ -1,3 +1,10 @@
+import { GetCareSummary } from '../application/get-care-summary/get-care-summary';
+import {
+    CARE_SUMMARY_READER,
+    type CareSummaryReader,
+} from '../application/persistence/care-summary.reader';
+import { DrizzleCareSummaryReader } from './persistence/drizzle/drizzle-care-summary.reader';
+import { CareSummaryController } from './http/controllers/care-summary.controller';
 import { ListCareActivities } from '../application/list-care-activities/list-care-activities';
 import {
     CARE_ACTIVITY_READER,
@@ -33,8 +40,20 @@ import { DrizzleCareRoutineReader } from './persistence/drizzle/drizzle-care-rou
 
 @Module({
     imports: [DatabaseModule, IdentityModule],
-    controllers: [CareRoutinesController, CareActivitiesController, CareActivityHistoryController],
+    controllers: [
+        CareRoutinesController,
+        CareActivitiesController,
+        CareActivityHistoryController,
+        CareSummaryController,
+    ],
     providers: [
+        DrizzleCareSummaryReader,
+        { provide: CARE_SUMMARY_READER, useExisting: DrizzleCareSummaryReader },
+        {
+            provide: GetCareSummary,
+            inject: [CARE_SUMMARY_READER],
+            useFactory: (reader: CareSummaryReader): GetCareSummary => new GetCareSummary(reader),
+        },
         DrizzleCareActivityReader,
         { provide: CARE_ACTIVITY_READER, useExisting: DrizzleCareActivityReader },
         {

@@ -1,3 +1,4 @@
+import { careSummaryResponseSchema } from '../src/care/infrastructure/http/schemas/openapi.schemas';
 import { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
@@ -41,7 +42,7 @@ describe('OpenAPI documentation (e2e)', () => {
         await request(application.getHttpServer()).get('/docs-json').expect(200);
     });
 
-    it('documents all fifty-two operations and their contracts', () => {
+    it('documents all fifty-three operations and their contracts', () => {
         const document: OpenAPIObject = SwaggerModule.createDocument(
             application,
             new DocumentBuilder().addBearerAuth().build(),
@@ -86,6 +87,7 @@ describe('OpenAPI documentation (e2e)', () => {
             ['/pets/{petId}/archive', 'post'],
             ['/pets/{petId}/restore', 'post'],
             ['/pets/{petId}/care/activities', 'get'],
+            ['/pets/{petId}/care/summary', 'get'],
             ['/pets/{petId}/care/routines', 'post'],
             ['/pets/{petId}/care/routines', 'get'],
             ['/pets/{petId}/care/routines/{routineId}', 'patch'],
@@ -142,7 +144,7 @@ describe('OpenAPI documentation (e2e)', () => {
                     Number(Boolean(path?.delete)),
                 0,
             ),
-        ).toBe(52);
+        ).toBe(53);
 
         const healthCheck = document.paths['/health']?.get;
 
@@ -166,6 +168,54 @@ describe('OpenAPI documentation (e2e)', () => {
                 },
                 message: { type: 'string', example: 'Database is unavailable' },
             },
+        });
+
+        const careSummaryOperation = document.paths['/pets/{petId}/care/summary']?.get;
+
+        expect(careSummaryOperation?.tags).toEqual(['Care']);
+        expect(careSummaryOperation?.security).toEqual([{ bearer: [] }]);
+        expect(Object.keys(careSummaryOperation?.responses ?? {}).sort()).toEqual([
+            '200',
+            '400',
+            '401',
+            '404',
+            '413',
+        ]);
+        expect(careSummaryOperation?.requestBody).toBeUndefined();
+        expect(careSummaryOperation?.parameters).toHaveLength(6);
+        expect(careSummaryOperation?.parameters).toEqual(
+            expect.arrayContaining([
+                expect.objectContaining({
+                    in: 'query',
+                    name: 'from',
+                    required: true,
+                    schema: { type: 'string', format: 'date' },
+                }),
+                expect.objectContaining({
+                    in: 'query',
+                    name: 'to',
+                    required: true,
+                    schema: { type: 'string', format: 'date' },
+                }),
+                expect.objectContaining({
+                    in: 'query',
+                    name: 'routineId',
+                    required: false,
+                    schema: { type: 'string', format: 'uuid' },
+                }),
+            ]),
+        );
+        const careSummaryOperationSchema = responseSchema(careSummaryOperation, '200');
+
+        expect(careSummaryOperationSchema).toEqual(careSummaryResponseSchema);
+        expect(responseSchema(careSummaryOperation, '400')?.properties?.code).toMatchObject({
+            enum: ['INVALID_REQUEST'],
+        });
+        expect(responseSchema(careSummaryOperation, '401')?.properties?.code).toMatchObject({
+            enum: ['UNAUTHENTICATED'],
+        });
+        expect(responseSchema(careSummaryOperation, '404')?.properties?.code).toMatchObject({
+            enum: ['PET_NOT_FOUND'],
         });
 
         const activityHistory = document.paths['/pets/{petId}/care/activities']?.get;
