@@ -119,3 +119,12 @@ export const careRoutinesResponseSchema: SchemaObject = {
         },
     },
 };
+
+export const updateCareRoutineRequestSchema: SchemaObject = {
+    ...createCareRoutineRequestSchema,
+    required: [],
+    minProperties: 1,
+    description:
+        'Partial update. Omitted fields are preserved; null clears instructions. A supplied frequency replaces the complete frequency, using the creation shape. Timezone changes preserve local wall-clock suggestions.',
+    example: { title: 'Evening meal', instructions: null, timezone: 'UTC' },
+};

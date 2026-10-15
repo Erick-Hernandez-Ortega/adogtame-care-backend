@@ -1,10 +1,20 @@
 import {
+    UpdateCareRoutine,
+    CareRoutineNotFoundError,
+    type UpdatedCareRoutine,
+} from '../../../application/update-care-routine/update-care-routine';
+import {
+    careRoutineIdSchema,
+    updateCareRoutineSchema,
+} from '../schemas/update-care-routine.schema';
+import {
     BadRequestException,
     Body,
     Controller,
     Get,
     NotFoundException,
     Param,
+    Patch,
     Post,
     Query,
     UseGuards,
@@ -37,6 +47,7 @@ import {
 } from '../schemas/create-care-routine.schema';
 import {
     createCareRoutineRequestSchema,
+    updateCareRoutineRequestSchema,
     createdCareRoutineResponseSchema,
     careRoutinesResponseSchema,
 } from '../schemas/openapi.schemas';
@@ -52,6 +63,7 @@ import { listCareRoutinesQuerySchema } from '../schemas/list-care-routines.schem
 @ApiBearerAuth()
 export class CareRoutinesController {
     constructor(
+        private readonly updateCareRoutine: UpdateCareRoutine,
         private readonly createCareRoutine: CreateCareRoutine,
         private readonly listCareRoutines: ListCareRoutines,
     ) {}
@@ -218,6 +230,167 @@ export class CareRoutinesController {
                 authenticatedAccountId,
             });
         } catch (error: unknown) {
+            if (error instanceof PetNotFoundError) {
+                throw new NotFoundException({ code: 'PET_NOT_FOUND', message: error.message });
+            }
+
+            if (error instanceof InvalidRoutineTypeError) {
+                throw new BadRequestException({
+                    code: 'INVALID_ROUTINE_TYPE',
+                    message: error.message,
+                });
+            }
+
+            if (error instanceof InvalidRoutineTitleError) {
+                throw new BadRequestException({
+                    code: 'INVALID_ROUTINE_TITLE',
+                    message: error.message,
+                });
+            }
+
+            if (error instanceof InvalidRoutineInstructionsError) {
+                throw new BadRequestException({
+                    code: 'INVALID_ROUTINE_INSTRUCTIONS',
+                    message: error.message,
+                });
+            }
+
+            if (error instanceof InvalidRoutineFrequencyError) {
+                throw new BadRequestException({
+                    code: 'INVALID_ROUTINE_FREQUENCY',
+                    message: error.message,
+                });
+            }
+
+            if (error instanceof InvalidRoutineTimezoneError) {
+                throw new BadRequestException({
+                    code: 'INVALID_ROUTINE_TIMEZONE',
+                    message: error.message,
+                });
+            }
+
+            throw error;
+        }
+    }
+
+    @Patch(':routineId')
+    @UseGuards(AuthenticationGuard)
+    @ApiOperation({
+        summary: 'Update a pet care routine',
+        description:
+            'Active owners and collaborators may update routines on ACTIVE pets regardless of authorship. Archived pets are read-only. Authentication precedes structural validation; Pet and membership authorization and pet-scoped routine lookup precede semantic validation. Omitted fields are preserved; null clears instructions. Supplied frequency replaces the full value. Timezone changes preserve local HH:mm suggestions. Equivalent normalized updates perform no UPDATE. Identity, authorship and creation time are preserved. No query parameters are accepted.',
+    })
+    @ApiParam({
+        name: 'petId',
+        description: 'Non-nil pet UUID',
+        schema: { type: 'string', format: 'uuid' },
+    })
+    @ApiParam({
+        name: 'routineId',
+        description: 'Non-nil routine UUID',
+        schema: { type: 'string', format: 'uuid' },
+    })
+    @ApiBody({ schema: updateCareRoutineRequestSchema })
+    @ApiResponse({
+        status: 200,
+        description: 'Updated care routine',
+        schema: createdCareRoutineResponseSchema,
+    })
+    @ApiResponse({
+        status: 400,
+        description: 'Invalid path, body, query or routine values',
+        schema: {
+            oneOf: [
+                errorSchema(['INVALID_REQUEST'], 'Request body is invalid'),
+                errorSchema(
+                    ['INVALID_ROUTINE_TYPE'],
+                    'Routine type must be FEEDING, WALK, HYGIENE or OTHER',
+                ),
+                errorSchema(['INVALID_ROUTINE_TITLE'], 'Routine title cannot be empty'),
+                errorSchema(
+                    ['INVALID_ROUTINE_INSTRUCTIONS'],
+                    'Routine instructions cannot be empty',
+                ),
+                errorSchema(
+                    ['INVALID_ROUTINE_FREQUENCY'],
+                    'Routine times per period must be a positive safe integer',
+                ),
+                errorSchema(
+                    ['INVALID_ROUTINE_TIMEZONE'],
+                    'Routine timezone must be an IANA timezone',
+                ),
+            ],
+        },
+    })
+    @ApiResponse({
+        status: 401,
+        description: 'Missing or invalid Bearer token',
+        schema: errorSchema(['UNAUTHENTICATED'], 'Authentication is required'),
+    })
+    @ApiResponse({
+        status: 404,
+        description: 'Pet missing, archived or inaccessible',
+        schema: errorSchema(
+            ['PET_NOT_FOUND', 'CARE_ROUTINE_NOT_FOUND'],
+            'Pet or care routine was not found',
+        ),
+    })
+    async update(
+        @CurrentAccountId() authenticatedAccountId: string,
+        @Param('petId') petId: string,
+        @Param('routineId') routineId: string,
+        @Body() body: unknown,
+        @Query() query: unknown,
+    ): Promise<UpdatedCareRoutine> {
+        const parsedPetId = careRoutinePetIdSchema.safeParse(petId);
+
+        if (!parsedPetId.success) {
+            throw new BadRequestException({
+                code: 'INVALID_REQUEST',
+                message: 'Pet id is invalid',
+            });
+        }
+
+        const parsedRoutineId = careRoutineIdSchema.safeParse(routineId);
+
+        if (!parsedRoutineId.success) {
+            throw new BadRequestException({
+                code: 'INVALID_REQUEST',
+                message: 'Routine id is invalid',
+            });
+        }
+
+        const parsedBody = updateCareRoutineSchema.safeParse(body);
+
+        if (!parsedBody.success) {
+            throw new BadRequestException({
+                code: 'INVALID_REQUEST',
+                message: 'Request body is invalid',
+            });
+        }
+
+        if (!createCareRoutineQuerySchema.safeParse(query).success) {
+            throw new BadRequestException({
+                code: 'INVALID_REQUEST',
+                message: 'Request query is invalid',
+            });
+        }
+
+        try {
+            return await this.updateCareRoutine.execute({
+                routineId: parsedRoutineId.data,
+                ...parsedBody.data,
+                petId: parsedPetId.data,
+                authenticatedAccountId,
+            });
+        } catch (error: unknown) {
+            if (error instanceof CareRoutineNotFoundError) {
+                throw new NotFoundException({
+                    code: 'CARE_ROUTINE_NOT_FOUND',
+                    message: error.message,
+                });
+            }
+
             if (error instanceof PetNotFoundError) {
                 throw new NotFoundException({ code: 'PET_NOT_FOUND', message: error.message });
             }

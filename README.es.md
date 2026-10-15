@@ -63,7 +63,7 @@ después llama a `POST /auth/login` con tu correo y contraseña. Copia
 `accessToken` de la respuesta, pulsa **Authorize** en Swagger e introduce el
 token. Swagger añade automáticamente el prefijo Bearer a las peticiones.
 
-La API expone 48 operaciones.
+La API expone 49 operaciones.
 
 | Ruta                                          | Descripción                 | Token Bearer |
 | --------------------------------------------- | --------------------------- | ------------ |
@@ -83,6 +83,7 @@ La API expone 48 operaciones.
 | `POST /pets/{petId}/leave`                    | Abandonar una mascota  | Sí           |
 | `POST /pets/{petId}/care/routines` | Crear una rutina de cuidado | Sí |
 | `GET /pets/{petId}/care/routines` | Consultar rutinas de cuidado | Sí |
+| `PATCH /pets/{petId}/care/routines/{routineId}` | Actualizar una rutina de cuidado | Sí |
 | `POST /pets/{petId}/health/veterinary-visits` | Registrar una visita veterinaria | Sí |
 | `GET /pets/{petId}/health/veterinary-visits` | Consultar el historial de visitas veterinarias | Sí |
 | `PATCH /pets/{petId}/health/veterinary-visits/{visitId}` | Corregir una visita veterinaria registrada | Sí |
@@ -266,6 +267,17 @@ UUID o consulta inválidos devuelven `400 INVALID_REQUEST`; tokens ausentes o
 inválidos, `401 UNAUTHENTICATED`; mascotas ausentes o inaccesibles,
 `404 PET_NOT_FOUND`. La autenticación precede a la validación, incluidos errores
 del parser JSON. Consulta [Pet care](docs/pet-care.md).
+
+Actualiza una rutina con `PATCH /pets/{petId}/care/routines/{routineId}` y al menos
+uno de `type`, `title`, `instructions`, `frequency` o `timezone`. Los campos omitidos
+se conservan; null borra las instrucciones. La frecuencia proporcionada reemplaza
+el valor completo con la estructura de creación. Cambiar la zona horaria conserva
+las sugerencias HH:mm locales. Los propietarios y colaboradores activos pueden
+actualizar mascotas activas sin importar la autoría. Devuelve la rutina completa
+con 200; una actualización equivalente no escribe. Las mascotas archivadas o
+inaccesibles devuelven PET_NOT_FOUND; una rutina ausente o de otra mascota devuelve
+CARE_ROUTINE_NOT_FOUND tras autorizar. La autenticación precede a la validación HTTP;
+el acceso y la búsqueda preceden a la validación semántica. Consulta [Pet care](docs/pet-care.md).
 
 ## Verificación
 

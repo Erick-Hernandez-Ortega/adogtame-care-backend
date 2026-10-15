@@ -33,7 +33,7 @@ describe('OpenAPI documentation (e2e)', () => {
         await application.close();
     });
 
-    it('serves Swagger UI and documents all forty-eight operations and their contracts', async () => {
+    it('serves Swagger UI and documents all forty-nine operations and their contracts', async () => {
         const htmlResponse = await request(application.getHttpServer()).get('/docs').expect(200);
 
         expect(htmlResponse.text).toContain('swagger-ui');
@@ -62,6 +62,7 @@ describe('OpenAPI documentation (e2e)', () => {
             ['/pets/{petId}/restore', 'post'],
             ['/pets/{petId}/care/routines', 'post'],
             ['/pets/{petId}/care/routines', 'get'],
+            ['/pets/{petId}/care/routines/{routineId}', 'patch'],
             ['/pets/{petId}/health/veterinary-visits', 'post'],
             ['/pets/{petId}/health/veterinary-visits', 'get'],
             ['/pets/{petId}/health/veterinary-visits/{visitId}', 'patch'],
@@ -114,7 +115,7 @@ describe('OpenAPI documentation (e2e)', () => {
                     Number(Boolean(path?.delete)),
                 0,
             ),
-        ).toBe(48);
+        ).toBe(49);
 
         const routine = document.paths['/pets/{petId}/care/routines']?.post;
 
@@ -228,6 +229,46 @@ describe('OpenAPI documentation (e2e)', () => {
         });
         expect(responseSchema(routine, '404')?.properties?.code).toMatchObject({
             enum: ['PET_NOT_FOUND'],
+        });
+
+        const routineUpdate = document.paths['/pets/{petId}/care/routines/{routineId}']?.patch;
+
+        expect(routineUpdate?.security).toEqual([{ bearer: [] }]);
+        expect(routineUpdate?.tags).toEqual(['Care']);
+        expect(Object.keys(routineUpdate?.responses ?? {}).sort()).toEqual([
+            '200',
+            '400',
+            '401',
+            '404',
+        ]);
+        expect(routineUpdate?.parameters).toEqual(
+            ['petId', 'routineId'].map((name: string): unknown =>
+                expect.objectContaining({
+                    name,
+                    in: 'path',
+                    required: true,
+                    schema: { type: 'string', format: 'uuid' },
+                }),
+            ),
+        );
+        const routineUpdateRequest = (
+            routineUpdate?.requestBody as {
+                content: { 'application/json': { schema: SchemaObject } };
+            }
+        ).content['application/json'].schema;
+
+        expect(routineUpdateRequest).toMatchObject({
+            type: 'object',
+            additionalProperties: false,
+            required: [],
+            minProperties: 1,
+        });
+        expect(routineUpdateRequest.properties).toEqual(routineRequest.properties);
+        expect(responseSchema(routineUpdate, '200')).toEqual(routineResponse);
+        expect(responseSchema(routineUpdate, '400')).toEqual(responseSchema(routine, '400'));
+        expect(responseSchema(routineUpdate, '401')).toEqual(responseSchema(routine, '401'));
+        expect(responseSchema(routineUpdate, '404')?.properties?.code).toMatchObject({
+            enum: ['PET_NOT_FOUND', 'CARE_ROUTINE_NOT_FOUND'],
         });
 
         const routineList = document.paths['/pets/{petId}/care/routines']?.get;

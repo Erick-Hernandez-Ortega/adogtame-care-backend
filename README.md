@@ -63,7 +63,7 @@ To try protected routes, register with `POST /accounts` if needed, then call
 response, click **Authorize** in Swagger, and enter the token. Swagger adds the
 Bearer prefix to requests automatically.
 
-The API exposes 48 operations.
+The API exposes 49 operations.
 
 | Route                                         | Description             | Bearer token |
 | --------------------------------------------- | ----------------------- | ------------ |
@@ -83,6 +83,7 @@ The API exposes 48 operations.
 | `POST /pets/{petId}/leave`                    | Leave a pet   | Yes          |
 | `POST /pets/{petId}/care/routines` | Create a care routine | Yes |
 | `GET /pets/{petId}/care/routines` | List care routines | Yes |
+| `PATCH /pets/{petId}/care/routines/{routineId}` | Update a care routine | Yes |
 | `POST /pets/{petId}/health/veterinary-visits` | Record a veterinary visit | Yes |
 | `GET /pets/{petId}/health/veterinary-visits` | List veterinary visit history | Yes |
 | `PATCH /pets/{petId}/health/veterinary-visits/{visitId}` | Correct a registered veterinary visit | Yes |
@@ -225,6 +226,16 @@ accessible pet without routines returns `items: []`. Invalid UUIDs or queries
 return `400 INVALID_REQUEST`; missing/invalid tokens return `401 UNAUTHENTICATED`;
 missing or inaccessible pets return `404 PET_NOT_FOUND`. Authentication precedes
 validation, including JSON parser failures. See [Pet care](docs/pet-care.md).
+
+Update a routine with `PATCH /pets/{petId}/care/routines/{routineId}` and at least
+one of `type`, `title`, `instructions`, `frequency` or `timezone`. Omitted fields
+are preserved; null clears instructions. A supplied frequency replaces the full
+value using the creation shape. Timezone changes preserve local HH:mm suggestions.
+ACTIVE owners and collaborators may update ACTIVE pets regardless of authorship.
+Success returns the complete routine with 200; normalized no-ops do not write.
+Archived/inaccessible pets return PET_NOT_FOUND; an authorized missing or wrong-pet
+routine returns CARE_ROUTINE_NOT_FOUND. Authentication precedes HTTP validation;
+access and target lookup precede semantic validation. See [Pet care](docs/pet-care.md).
 
 ## Shared domain utilities
 

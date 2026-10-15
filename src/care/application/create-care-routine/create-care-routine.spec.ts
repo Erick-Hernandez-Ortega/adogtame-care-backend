@@ -31,7 +31,10 @@ function setup() {
             Parameters<CareRoutineRepository['createIfPetWritable']>
         >()
         .mockResolvedValue('CREATED');
-    const repository: CareRoutineRepository = { createIfPetWritable };
+    const repository: CareRoutineRepository = {
+        createIfPetWritable,
+        correctIfPetWritable: jest.fn(),
+    };
 
     return { useCase: new CreateCareRoutine(repository), createIfPetWritable };
 }

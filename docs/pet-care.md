@@ -29,7 +29,7 @@ unknown zones are rejected. The creator's timezone is supplied explicitly to the
 creation use case; the aggregate does not read a machine default or
 an account profile. `changeTimezone` returns a new aggregate while preserving
 identity, authorship, frequency and its local wall-clock suggestions. An equivalent
-canonical timezone returns the same instance. There is no HTTP PATCH route yet.
+canonical timezone returns the same instance. The HTTP PATCH route is introduced in #49 below.
 
 An activity's occurrence will be stored as a UTC instant together with its
 recorder's IANA timezone, with the day computed locally. Routine suggestions are
@@ -116,7 +116,7 @@ data and timestamps. Creation does not update pet or membership timestamps.
 The existing care_routines schema, index, migration and timestamp trigger suffice;
 no new schema change or migration is needed. No reader is introduced for POST:
 the response projects the created aggregate, following Health, without a postcommit
-query. PATCH, activities, and missed-activity queries remain separate slices.
+query. Activities and missed-activity queries remain separate slices.
 List is described below.
 
 Application unit tests cover real aggregates, projection, normalization, domain
@@ -166,3 +166,54 @@ access, archived reads, pet isolation, independent duplicates beyond 20 rows,
 microsecond/UUID ordering, Archive/Restore, Leave/Remove, unchanged timestamps and
 nonblocking snapshot reads. HTTP and OpenAPI tests cover exact representations,
 strict paths/queries, authentication precedence and the 48-operation contract.
+
+
+## Update routine (#49)
+
+`PATCH /pets/{petId}/care/routines/{routineId}` is the 49th API operation.
+Both IDs must be non-nil UUIDs; query parameters are rejected. The strict partial
+body requires at least one of `type`, `title`, `instructions`, `frequency` or
+`timezone`. Omitted fields retain their stored values. Only instructions accept
+null to clear the value. A supplied frequency replaces the complete value using
+the creation shape: period and timesPerPeriod are required; omitted/null suggestion
+arrays become empty arrays. Creation's normalization, Unicode code point limits,
+frequency rules and canonical IANA timezone validation apply to supplied values.
+Changing timezone preserves local HH:mm suggestions without conversion.
+
+Authentication precedes all HTTP validation, including malformed or scalar JSON.
+Structural failures return 400 INVALID_REQUEST. ACTIVE owners and collaborators
+may update ACTIVE pets regardless of authorship. Archived pets remain read-only.
+Missing, archived or inaccessible pets return 404 PET_NOT_FOUND before target lookup;
+authorized missing or wrong-pet routines return 404 CARE_ROUTINE_NOT_FOUND before
+semantic validation. Semantic errors reuse creation's five INVALID_ROUTINE_* codes.
+Success returns 200 with the same eight fields as Create, preserving identity,
+pet and original author. Technical timestamps remain private.
+
+CareRoutine.correct owns validation and immutable corrections, returning the same
+instance for equivalent normalized data. Array order and duplicates remain significant.
+UpdateCareRoutine forwards raw values through the application-owned repository port,
+maps UPDATED/UNCHANGED, PET_NOT_FOUND and CARE_ROUTINE_NOT_FOUND outcomes, projects
+the aggregate and translates typed domain failures. Unexpected failures propagate.
+The Drizzle adapter uses READ COMMITTED and locks Pet → requester Membership →
+pet-scoped Routine before reconstitution and correction. Concurrent partial updates
+therefore use the latest locked state and preserve one another's omitted fields.
+Archive, Leave and Remove serialize on the same Pet lock.
+
+Real corrections update only editable fields; the existing trigger assigns
+updated_at with statement_timestamp(). Creation time, original authorship, pet and
+membership timestamps stay unchanged. No-ops perform no UPDATE, preserving physical
+row version and timestamps. List ordering stays based on creation time and ID.
+The existing schema and index suffice; pnpm db:generate reports no changes.
+No migration, dependency or infrastructure is introduced.
+
+No deactivation capability is added: Care routines have no existing lifecycle state
+or approved transition rules. Medication's reported clinical closure is specific to
+that aggregate and does not establish routine deactivation semantics. Activities,
+missed-activity evaluation and all V2 capabilities remain outside this slice.
+
+Domain and application unit tests cover corrections, preservation, no-op identity,
+frequency replacement and error mapping. PostgreSQL tests cover physical no-ops,
+rollback, timestamps, access hiding, concurrent partial corrections and both lock
+orders with Archive/Leave/Remove. HTTP and OpenAPI tests cover exact representations,
+strict requests, Unicode limits, authentication-first parser failures, membership
+access, archived writes, wrong-pet targets and the 49-operation contract.

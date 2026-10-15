@@ -1,3 +1,4 @@
+import { UpdateCareRoutine } from '../application/update-care-routine/update-care-routine';
 import { Module } from '@nestjs/common';
 import { DatabaseModule } from '../../infrastructure/database/database.module';
 import { IdentityModule } from '../../identity/infrastructure/identity.module';
@@ -19,6 +20,12 @@ import { DrizzleCareRoutineReader } from './persistence/drizzle/drizzle-care-rou
     imports: [DatabaseModule, IdentityModule],
     controllers: [CareRoutinesController],
     providers: [
+        {
+            provide: UpdateCareRoutine,
+            inject: [CARE_ROUTINE_REPOSITORY],
+            useFactory: (repository: CareRoutineRepository): UpdateCareRoutine =>
+                new UpdateCareRoutine(repository),
+        },
         DrizzleCareRoutineReader,
         { provide: CARE_ROUTINE_READER, useExisting: DrizzleCareRoutineReader },
         {
