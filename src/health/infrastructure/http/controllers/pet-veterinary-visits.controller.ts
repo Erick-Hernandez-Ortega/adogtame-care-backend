@@ -1,3 +1,4 @@
+import { ApiPagination, parsePage } from '../../../../infrastructure/http/pagination';
 import { DeletePetVeterinaryVisit } from '../../../application/delete-pet-veterinary-visit/delete-pet-veterinary-visit';
 import { deletePetVeterinaryVisitSchema } from '../schemas/delete-pet-veterinary-visit.schema';
 import {
@@ -18,7 +19,6 @@ import {
     PetNotFoundError as ListPetVeterinaryVisitsPetNotFoundError,
     type PetVeterinaryVisits,
 } from '../../../application/list-pet-veterinary-visits/list-pet-veterinary-visits';
-import { listPetVeterinaryVisitsQuerySchema } from '../schemas/list-pet-veterinary-visits.schema';
 import { petVeterinaryVisitsResponseSchema } from '../schemas/openapi.schemas';
 import {
     BadRequestException,
@@ -67,6 +67,11 @@ import {
 @Controller('pets/:petId/health/veterinary-visits')
 @ApiTags('Health')
 @ApiBearerAuth()
+@ApiResponse({
+    status: 413,
+    description: 'Request body exceeds the 100 KB parser limit; authentication is checked first',
+    schema: errorSchema(['INVALID_REQUEST'], 'Request body is too large'),
+})
 export class PetVeterinaryVisitsController {
     constructor(
         private readonly deletePetVeterinaryVisit: DeletePetVeterinaryVisit,
@@ -230,11 +235,12 @@ export class PetVeterinaryVisitsController {
     }
 
     @Get()
+    @ApiPagination()
     @UseGuards(AuthenticationGuard)
     @ApiOperation({
         summary: 'List registered pet veterinary visits',
         description:
-            'Active owners and collaborators may read all visits of ACTIVE or ARCHIVED pets. Visit dates appear newest first; ties use technical creation timestamp and visit ID descending. Technical timestamps are not clinical dates. An accessible pet without visits returns an empty items array. No query parameters are accepted. Authentication precedes HTTP validation.',
+            'Active owners and collaborators may read all visits of ACTIVE or ARCHIVED pets. Visit dates appear newest first; ties use technical creation timestamp and visit ID descending. Technical timestamps are not clinical dates. An accessible pet without visits returns an empty items array. Optional limit (default 20, maximum 100) and opaque cursor paginate results. Authentication precedes HTTP validation.',
     })
     @ApiParam({
         name: 'petId',
@@ -275,15 +281,14 @@ export class PetVeterinaryVisitsController {
             });
         }
 
-        if (!listPetVeterinaryVisitsQuerySchema.safeParse(query).success) {
-            throw new BadRequestException({
-                code: 'INVALID_REQUEST',
-                message: 'Request query is invalid',
-            });
-        }
+        const page = parsePage(
+            query,
+            JSON.stringify(['pet-veterinary-visits', parsedPetId.data, authenticatedAccountId]),
+        );
 
         try {
             return await this.listPetVeterinaryVisits.execute({
+                ...page,
                 petId: parsedPetId.data,
                 authenticatedAccountId,
             });

@@ -190,7 +190,7 @@ describe('ListPetMembers with PostgreSQL (integration)', () => {
             await database.connection.update(pets).set({ status }).where(eq(pets.id, petId));
             await expect(
                 listPetMembers.execute(petId, accountIds[requesterIndex]),
-            ).resolves.toEqual({ members: expectedMembers });
+            ).resolves.toEqual({ items: expectedMembers, nextCursor: null });
             await expect(
                 reader.findAccessibleMembers(petId, accountIds[requesterIndex]),
             ).resolves.toEqual(
@@ -227,7 +227,8 @@ describe('ListPetMembers with PostgreSQL (integration)', () => {
             .set({ status: 'INACTIVE' })
             .where(inArray(petMemberships.accountId, accountIds.slice(1, 6)));
         await expect(listPetMembers.execute(petId, accountIds[0])).resolves.toEqual({
-            members: [expectedMembers[0]],
+            nextCursor: null,
+            items: [expectedMembers[0]],
         });
     });
 

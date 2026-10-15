@@ -367,7 +367,7 @@ describe('DeletePetMedicalCondition with PostgreSQL (integration)', () => {
                 await application
                     .get(ListPetMedicalConditions)
                     .execute({ petId, authenticatedAccountId: ownerId }),
-            ).toEqual({ items: [] });
+            ).toEqual({ nextCursor: null, items: [] });
         },
     );
 

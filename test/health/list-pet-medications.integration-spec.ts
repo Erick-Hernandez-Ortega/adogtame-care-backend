@@ -216,7 +216,7 @@ describe('ListPetMedications with PostgreSQL (integration)', () => {
             await database.connection.update(pets).set({ status }).where(eq(pets.id, petId));
             const accountId: string = role === 'OWNER' ? ownerId : collaboratorId;
 
-            await expect(list(accountId)).resolves.toEqual({ items: [item] });
+            await expect(list(accountId)).resolves.toEqual({ nextCursor: null, items: [item] });
         },
     );
 
@@ -226,7 +226,7 @@ describe('ListPetMedications with PostgreSQL (integration)', () => {
             await database.connection.update(pets).set({ status }).where(eq(pets.id, petId));
 
             for (const accountId of [ownerId, collaboratorId]) {
-                await expect(list(accountId)).resolves.toEqual({ items: [] });
+                await expect(list(accountId)).resolves.toEqual({ nextCursor: null, items: [] });
             }
         },
     );
@@ -288,11 +288,12 @@ describe('ListPetMedications with PostgreSQL (integration)', () => {
             createdAt: '2026-10-02T12:00:00Z',
         });
         await expect(list()).resolves.toEqual({
+            nextCursor: null,
             items: [newest, tiedHigh, tiedLow, oldest],
         });
     });
 
-    it('returns duplicates independently and never applies a hidden page limit', async (): Promise<void> => {
+    it('returns duplicates independently and supports an explicit larger page', async (): Promise<void> => {
         const items: ListedPetMedication[] = [];
 
         for (let itemIndex: number = 0; itemIndex < 25; itemIndex += 1) {
@@ -302,7 +303,28 @@ describe('ListPetMedications with PostgreSQL (integration)', () => {
         items.sort((firstItem: ListedPetMedication, secondItem: ListedPetMedication): number =>
             secondItem.id.localeCompare(firstItem.id),
         );
-        await expect(list()).resolves.toEqual({ items });
+        const page = await list();
+
+        expect(page.items).toEqual(items.slice(0, 20));
+        expect(page.nextCursor).not.toBeNull();
+        const continuation = await listPetMedications.execute({
+            petId,
+            authenticatedAccountId: ownerId,
+            cursor: page.nextCursor,
+        });
+
+        expect(continuation).toEqual({ items: items.slice(20), nextCursor: null });
+        await database.connection
+            .update(petMemberships)
+            .set({ status: 'INACTIVE' })
+            .where(and(eq(petMemberships.petId, petId), eq(petMemberships.accountId, ownerId)));
+        await expect(
+            listPetMedications.execute({
+                petId,
+                authenticatedAccountId: ownerId,
+                cursor: page.nextCursor,
+            }),
+        ).rejects.toThrow(PetNotFoundError);
     });
 
     it('preserves the read result through real Archive and Restore use cases', async (): Promise<void> => {
@@ -386,7 +408,10 @@ describe('ListPetMedications with PostgreSQL (integration)', () => {
             notes: 'Future reported treatment.',
         });
 
-        await expect(list()).resolves.toEqual({ items: [unknown, startOnly, endOnly, future] });
+        await expect(list()).resolves.toEqual({
+            nextCursor: null,
+            items: [unknown, startOnly, endOnly, future],
+        });
     });
 
     it('executes one authorized SELECT without locks or a transaction for each reader outcome', async (): Promise<void> => {
@@ -428,14 +453,15 @@ describe('ListPetMedications with PostgreSQL (integration)', () => {
                 reader.listIfPetReadable({ petId, authenticatedAccountId: outsiderId }),
             ).resolves.toBeNull();
             expect(queries).toHaveLength(1);
-            await insertMedication();
+            const medication: ListedPetMedication = await insertMedication();
+
             queries.length = 0;
             const items: ListedPetMedication[] | null = await reader.listIfPetReadable({
                 petId,
                 authenticatedAccountId: ownerId,
             });
 
-            expect(items).toHaveLength(1);
+            expect(items).toEqual([medication]);
             expect(queries).toHaveLength(1);
             expect(transactionCount).toBe(0);
             const query: string = queries[0].toLowerCase();
@@ -447,8 +473,9 @@ describe('ListPetMedications with PostgreSQL (integration)', () => {
             expect(query).toContain(
                 'order by "health_pet_medications"."created_at" desc, "health_pet_medications"."id" desc',
             );
-            expect(query).not.toMatch(/for (update|share)|limit|offset/);
-            expect(projection).not.toMatch(/pet_id|created_at|updated_at/);
+            expect(query).toMatch(/limit \$\d+$/);
+            expect(query).not.toMatch(/for (update|share)|offset/);
+            expect(projection).not.toMatch(/pet_id|updated_at/);
         } finally {
             Object.defineProperty(connection, 'transaction', { value: originalTransaction });
             Object.defineProperty(database, 'connection', { value: originalConnection });
@@ -542,7 +569,7 @@ describe('ListPetMedications with PostgreSQL (integration)', () => {
                 recordedId = recorded.id;
             },
             async (): Promise<void> => {
-                await expect(list()).resolves.toEqual({ items: [original] });
+                await expect(list()).resolves.toEqual({ nextCursor: null, items: [original] });
             },
         );
         const result: PetMedications = await list();
@@ -576,11 +603,14 @@ describe('ListPetMedications with PostgreSQL (integration)', () => {
                     }
                 },
                 async (): Promise<void> => {
-                    await expect(list(collaboratorId)).resolves.toEqual({ items: [item] });
+                    await expect(list(collaboratorId)).resolves.toEqual({
+                        nextCursor: null,
+                        items: [item],
+                    });
                 },
             );
             await expect(list(collaboratorId)).rejects.toThrow(PetNotFoundError);
-            await expect(list()).resolves.toEqual({ items: [item] });
+            await expect(list()).resolves.toEqual({ nextCursor: null, items: [item] });
         },
     );
 
@@ -590,10 +620,13 @@ describe('ListPetMedications with PostgreSQL (integration)', () => {
         await whileCommitIsPending(
             () => application.get(ArchivePet).execute({ petId, requesterAccountId: ownerId }),
             async (): Promise<void> => {
-                await expect(list(collaboratorId)).resolves.toEqual({ items: [item] });
+                await expect(list(collaboratorId)).resolves.toEqual({
+                    nextCursor: null,
+                    items: [item],
+                });
             },
         );
-        await expect(list(ownerId)).resolves.toEqual({ items: [item] });
-        await expect(list(collaboratorId)).resolves.toEqual({ items: [item] });
+        await expect(list(ownerId)).resolves.toEqual({ nextCursor: null, items: [item] });
+        await expect(list(collaboratorId)).resolves.toEqual({ nextCursor: null, items: [item] });
     });
 });

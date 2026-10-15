@@ -3,7 +3,7 @@ import type { RegisterAccountCommand } from '../../../application/register-accou
 
 export const registerAccountSchema: z.ZodType<RegisterAccountCommand> = z
     .object({
-        email: z.string(),
-        password: z.string(),
+        email: z.string().max(508),
+        password: z.string().max(256),
     })
     .strict();

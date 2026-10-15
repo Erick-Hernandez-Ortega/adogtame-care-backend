@@ -1,6 +1,7 @@
+import type { PageRequest, PageRow } from '../../../shared/application/pagination';
 export const CARE_ACTIVITY_READER: unique symbol = Symbol('CARE_ACTIVITY_READER');
 
-export interface CareActivityListItem {
+export interface CareActivityListItem extends PageRow {
     readonly id: string;
     readonly routineId: string;
     readonly completedAt: string;
@@ -11,6 +12,7 @@ export interface CareActivityListItem {
 }
 
 export interface CareActivityReadRequest {
+    readonly page?: PageRequest;
     readonly petId: string;
     readonly accountId: string;
     readonly from?: string;

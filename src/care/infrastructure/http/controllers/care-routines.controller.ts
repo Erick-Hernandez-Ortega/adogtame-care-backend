@@ -1,3 +1,4 @@
+import { ApiPagination, parsePage } from '../../../../infrastructure/http/pagination';
 import {
     UpdateCareRoutine,
     CareRoutineNotFoundError,
@@ -56,11 +57,15 @@ import {
     type CareRoutines,
     PetNotFoundError as ListCareRoutinesPetNotFoundError,
 } from '../../../application/list-care-routines/list-care-routines';
-import { listCareRoutinesQuerySchema } from '../schemas/list-care-routines.schema';
 
 @Controller('pets/:petId/care/routines')
 @ApiTags('Care')
 @ApiBearerAuth()
+@ApiResponse({
+    status: 413,
+    description: 'Request body exceeds the 100 KB parser limit; authentication is checked first',
+    schema: errorSchema(['INVALID_REQUEST'], 'Request body is too large'),
+})
 export class CareRoutinesController {
     constructor(
         private readonly updateCareRoutine: UpdateCareRoutine,
@@ -69,11 +74,12 @@ export class CareRoutinesController {
     ) {}
 
     @Get()
+    @ApiPagination()
     @UseGuards(AuthenticationGuard)
     @ApiOperation({
         summary: 'List registered pet care routines',
         description:
-            'Active owners and collaborators may read all routines for ACTIVE or ARCHIVED pets. Returns items ordered by creation timestamp then ID descending, including duplicates. No query parameters, pagination, filters or sorting options are accepted. Pet identity comes from the route; technical timestamps are omitted. Suggested times remain local HH:mm in the stored IANA timezone. Reads take no row locks and do not change timestamps. Authentication precedes HTTP validation.',
+            'Active owners and collaborators may read all routines for ACTIVE or ARCHIVED pets. Returns items ordered by creation timestamp then ID descending, including duplicates. Optional limit and cursor paginate results; no other filters or sorting options are accepted. Pet identity comes from the route; technical timestamps are omitted. Suggested times remain local HH:mm in the stored IANA timezone. Reads take no row locks and do not change timestamps. Authentication precedes HTTP validation.',
     })
     @ApiParam({
         name: 'petId',
@@ -114,15 +120,14 @@ export class CareRoutinesController {
             });
         }
 
-        if (!listCareRoutinesQuerySchema.safeParse(query).success) {
-            throw new BadRequestException({
-                code: 'INVALID_REQUEST',
-                message: 'Request query is invalid',
-            });
-        }
+        const page = parsePage(
+            query,
+            JSON.stringify(['care-routines', parsedPetId.data, authenticatedAccountId]),
+        );
 
         try {
             return await this.listCareRoutines.execute({
+                ...page,
                 petId: parsedPetId.data,
                 authenticatedAccountId,
             });

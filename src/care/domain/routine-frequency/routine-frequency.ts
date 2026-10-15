@@ -50,6 +50,14 @@ export class RoutineFrequency {
         const suggestedTimes: readonly string[] = input.suggestedTimes ?? [];
         const weekdays: readonly string[] = input.weekdays ?? [];
 
+        if (suggestedTimes.length > 24 || new Set(suggestedTimes).size !== suggestedTimes.length) {
+            throw new TypeError('Routine suggested times must contain at most 24 unique entries');
+        }
+
+        if (weekdays.length > 7 || new Set(weekdays).size !== weekdays.length) {
+            throw new TypeError('Routine weekdays must contain at most 7 unique entries');
+        }
+
         for (const suggestedTime of suggestedTimes) {
             if (
                 typeof suggestedTime !== 'string' ||

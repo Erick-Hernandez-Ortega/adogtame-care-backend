@@ -180,13 +180,16 @@ describe('POST /pets/:petId/restore (e2e)', () => {
                 .set('Authorization', `Bearer ${fixture.token}`)
                 .expect(200);
 
-            expect(list.body).toEqual([expect.objectContaining({ id: petId, status: 'ACTIVE' })]);
+            expect(list.body).toEqual({
+                items: [expect.objectContaining({ id: petId, status: 'ACTIVE' })],
+                nextCursor: null,
+            });
             const members = await request(application.getHttpServer())
                 .get(`/pets/${petId}/members`)
                 .set('Authorization', `Bearer ${fixture.token}`)
                 .expect(200);
 
-            expect((members.body as { members: object[] }).members).toHaveLength(3);
+            expect((members.body as { items: object[] }).items).toHaveLength(3);
         }
     });
 
@@ -300,7 +303,7 @@ describe('POST /pets/:petId/restore (e2e)', () => {
                     .set('Authorization', `Bearer ${fixture.token}`)
                     .expect(200);
 
-                expect(list.body).toEqual([]);
+                expect(list.body).toEqual({ items: [], nextCursor: null });
             }
 
             const missing = await request(application.getHttpServer())

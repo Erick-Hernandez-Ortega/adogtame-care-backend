@@ -54,14 +54,17 @@ describe('ListPetMembers', () => {
         'includes requester %s and composes emails by account ID without changing reader order',
         async (requesterId: string) => {
             await expect(listPetMembers.execute(PET_ID, requesterId)).resolves.toEqual({
-                members: [
+                nextCursor: null,
+                items: [
                     { ...memberships[0], email: 'first-owner@example.com' },
                     { ...memberships[1], email: 'second-owner@example.com' },
                     { ...memberships[2], email: 'first-collaborator@example.com' },
                     { ...memberships[3], email: 'second-collaborator@example.com' },
                 ],
             });
-            expect(repository.findAccessibleMembers.mock.calls).toEqual([[PET_ID, requesterId]]);
+            expect(repository.findAccessibleMembers.mock.calls).toEqual([
+                [PET_ID, requesterId, { limit: 21, after: null }],
+            ]);
             expect(accountLookup.findEmailsByAccountIds.mock.calls).toEqual([
                 [memberships.map((membership): string => membership.accountId)],
             ]);
@@ -73,7 +76,8 @@ describe('ListPetMembers', () => {
     it('returns only the current memberships supplied by the authorized reader', async () => {
         repository.findAccessibleMembers.mockResolvedValue([memberships[0]]);
         await expect(listPetMembers.execute(PET_ID, OWNER_ID)).resolves.toEqual({
-            members: [{ ...memberships[0], email: 'first-owner@example.com' }],
+            nextCursor: null,
+            items: [{ ...memberships[0], email: 'first-owner@example.com' }],
         });
         expect(accountLookup.findEmailsByAccountIds.mock.calls).toEqual([[[OWNER_ID]]]);
     });
@@ -97,7 +101,8 @@ describe('ListPetMembers', () => {
         repository.findAccessibleMembers.mockResolvedValue([]);
         accountLookup.findEmailsByAccountIds.mockResolvedValue([]);
         await expect(listPetMembers.execute(PET_ID, OWNER_ID)).resolves.toEqual({
-            members: [],
+            nextCursor: null,
+            items: [],
         });
     });
 

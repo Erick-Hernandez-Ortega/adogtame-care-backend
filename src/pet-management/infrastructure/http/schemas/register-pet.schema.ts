@@ -1,3 +1,4 @@
+import { boundedString } from '../../../../infrastructure/http/bounded-string';
 import { z } from 'zod';
 import type { BirthDateAccuracy } from '../../../domain/birth-information/birth-information.types';
 import type { BreedKind } from '../../../domain/breed/breed.types';
@@ -22,11 +23,11 @@ export interface RegisterPetRequest {
 
 export const registerPetSchema: z.ZodType<RegisterPetRequest> = z
     .object({
-        name: z.string(),
+        name: boundedString(255),
         species: z.enum(['DOG', 'CAT']),
         breed: z
             .object({
-                name: z.string(),
+                name: boundedString(255),
                 kind: z.enum(['KNOWN', 'CUSTOM']),
             })
             .strict(),
@@ -37,8 +38,8 @@ export const registerPetSchema: z.ZodType<RegisterPetRequest> = z
                 accuracy: z.enum(['EXACT', 'APPROXIMATE']),
             })
             .strict(),
-        color: z.string().optional(),
-        distinctiveMarks: z.string().optional(),
-        microchip: z.string().optional(),
+        color: boundedString(255).optional(),
+        distinctiveMarks: boundedString(2000).optional(),
+        microchip: boundedString(255).optional(),
     })
     .strict();

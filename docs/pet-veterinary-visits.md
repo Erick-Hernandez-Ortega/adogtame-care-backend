@@ -1,5 +1,9 @@
 # Pet veterinary visits
 
+Current pagination, routine suggestion limits and authentication-first parser rules
+are defined in [API security and hardening](api-security.md). The slice descriptions
+below record the earlier contracts where they differ.
+
 ## Record (#42)
 
 `POST /pets/{petId}/health/veterinary-visits` records a visit. A visit reports an encounter; it has independent

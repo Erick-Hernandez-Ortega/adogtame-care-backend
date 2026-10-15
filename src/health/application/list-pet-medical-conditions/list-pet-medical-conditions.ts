@@ -1,15 +1,17 @@
+import { pageRequest, pageResult, type PageQuery } from '../../../shared/application/pagination';
 import type {
     PetMedicalConditionListItem,
     PetMedicalConditionReader,
 } from '../persistence/pet-medical-condition.reader';
 
-export interface ListPetMedicalConditionsQuery {
+export interface ListPetMedicalConditionsQuery extends PageQuery {
     readonly petId: string;
     readonly authenticatedAccountId: string;
 }
 
 export interface PetMedicalConditions {
     readonly items: PetMedicalConditionListItem[];
+    readonly nextCursor: string | null;
 }
 
 export class PetNotFoundError extends Error {
@@ -22,8 +24,15 @@ export class ListPetMedicalConditions {
     constructor(private readonly reader: PetMedicalConditionReader) {}
 
     async execute(query: ListPetMedicalConditionsQuery): Promise<PetMedicalConditions> {
+        const scope: string = JSON.stringify([
+            'pet-medical-conditions',
+            query.petId,
+            query.authenticatedAccountId,
+        ]);
+        const page = pageRequest(query, scope);
         const items: PetMedicalConditionListItem[] | null = await this.reader.findAccessibleByPet({
             petId: query.petId,
+            page,
             accountId: query.authenticatedAccountId,
         });
 
@@ -31,6 +40,6 @@ export class ListPetMedicalConditions {
             throw new PetNotFoundError();
         }
 
-        return { items };
+        return pageResult(items, query, scope);
     }
 }

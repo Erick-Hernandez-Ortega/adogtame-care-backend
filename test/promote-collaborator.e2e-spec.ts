@@ -138,7 +138,7 @@ describe('POST /pets/:petId/members/:membershipId/promote (e2e)', () => {
             .expect(200);
 
         expect(
-            (response.body as { members: { membershipId: string; role: string }[] }).members,
+            (response.body as { items: { membershipId: string; role: string }[] }).items,
         ).toEqual(
             expect.arrayContaining([expect.objectContaining({ membershipId, role: 'OWNER' })]),
         );

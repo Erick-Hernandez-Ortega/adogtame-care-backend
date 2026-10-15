@@ -3,7 +3,7 @@ import type { AuthenticateAccountCommand } from '../../../application/authentica
 
 export const authenticateAccountSchema: z.ZodType<AuthenticateAccountCommand> = z
     .object({
-        email: z.string(),
-        password: z.string(),
+        email: z.string().max(508),
+        password: z.string().max(256),
     })
     .strict();

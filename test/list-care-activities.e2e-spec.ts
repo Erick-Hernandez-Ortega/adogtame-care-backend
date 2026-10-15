@@ -176,7 +176,7 @@ describe('GET /pets/:petId/care/activities (e2e)', () => {
                 .set('Authorization', `Bearer ${requester.token}`)
                 .expect(200);
 
-            expect(response.body).toEqual({ items: [item] });
+            expect(response.body).toEqual({ nextCursor: null, items: [item] });
         },
     );
 
@@ -186,7 +186,7 @@ describe('GET /pets/:petId/care/activities (e2e)', () => {
             .set('Authorization', `Bearer ${owner.token}`)
             .expect(200);
 
-        expect(empty.body).toEqual({ items: [] });
+        expect(empty.body).toEqual({ nextCursor: null, items: [] });
         const item: CareActivityListItem = await record();
 
         await record();
@@ -196,7 +196,7 @@ describe('GET /pets/:petId/care/activities (e2e)', () => {
             .set('Authorization', `Bearer ${owner.token}`)
             .expect(200);
 
-        expect(matching.body).toEqual({ items: [item] });
+        expect(matching.body).toEqual({ nextCursor: null, items: [item] });
         const other: CareActivityListItem = await record(owner, otherPetId);
 
         for (const filters of [
@@ -211,7 +211,7 @@ describe('GET /pets/:petId/care/activities (e2e)', () => {
                 .set('Authorization', `Bearer ${owner.token}`)
                 .expect(200);
 
-            expect(response.body).toEqual({ items: [] });
+            expect(response.body).toEqual({ nextCursor: null, items: [] });
         }
     });
 
@@ -280,7 +280,6 @@ describe('GET /pets/:petId/care/activities (e2e)', () => {
         'routineId=10000000-0000-4000-8000-000000000001&routineId=10000000-0000-4000-8000-000000000002',
         'routineId[nested]=x',
         'from[nested]=2026-03-08',
-        'limit=20',
         'cursor=x',
         'unexpected=x',
     ])('rejects invalid query %s', async (query: string): Promise<void> => {

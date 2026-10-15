@@ -37,6 +37,38 @@ describe('RoutineFrequency', () => {
         ).toBe(Number.MAX_SAFE_INTEGER);
     });
 
+    it('accepts 24 distinct times and all seven distinct weekdays', () => {
+        const suggestedTimes: string[] = Array.from(
+            { length: 24 },
+            (_, hour: number): string => `${String(hour).padStart(2, '0')}:00`,
+        );
+
+        expect(
+            RoutineFrequency.from({
+                period: 'WEEKLY',
+                timesPerPeriod: 1,
+                suggestedTimes,
+                weekdays: Object.values(Weekday),
+            }).suggestedTimes,
+        ).toEqual(suggestedTimes);
+    });
+
+    it.each([
+        { suggestedTimes: ['08:00', '08:00'] },
+        { weekdays: ['MONDAY', 'MONDAY'] },
+        {
+            suggestedTimes: Array.from(
+                { length: 25 },
+                (_, minute: number): string => `08:${String(minute).padStart(2, '0')}`,
+            ),
+        },
+        { weekdays: [...Object.values(Weekday), 'MONDAY'] },
+    ])('rejects duplicate or excessive suggestions %j', (suggestions) => {
+        expect(() =>
+            RoutineFrequency.from({ period: 'WEEKLY', timesPerPeriod: 1, ...suggestions }),
+        ).toThrow(TypeError);
+    });
+
     it('defensively copies and freezes suggestions', () => {
         const suggestedTimes: string[] = ['08:00'];
         const weekdays: string[] = ['MONDAY'];

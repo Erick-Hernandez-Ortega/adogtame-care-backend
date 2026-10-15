@@ -1,5 +1,6 @@
+import { afterPage, paginationKey } from '../../../../infrastructure/database/pagination';
 import { Injectable } from '@nestjs/common';
-import { and, desc, eq, inArray } from 'drizzle-orm';
+import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import { DatabaseService } from '../../../../infrastructure/database/database.service';
 import {
     petMemberships,
@@ -21,8 +22,13 @@ export class DrizzleCareRoutineReader implements CareRoutineReader {
     async findAccessibleByPet(
         request: CareRoutineReadRequest,
     ): Promise<CareRoutineListItem[] | null> {
+        const key = paginationKey([
+            sql`to_char(${careRoutines.createdAt} AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`,
+            sql`${careRoutines.id}::text`,
+        ]);
         const rows = await this.databaseService.connection
             .select({
+                paginationKey: key,
                 routine: {
                     id: careRoutines.id,
                     type: careRoutines.type,
@@ -46,9 +52,13 @@ export class DrizzleCareRoutineReader implements CareRoutineReader {
                     inArray(petMemberships.role, ['OWNER', 'COLLABORATOR']),
                 ),
             )
-            .leftJoin(careRoutines, eq(careRoutines.petId, pets.id))
+            .leftJoin(
+                careRoutines,
+                and(eq(careRoutines.petId, pets.id), afterPage(key, request.page)),
+            )
             .where(and(eq(pets.id, request.petId), inArray(pets.status, ['ACTIVE', 'ARCHIVED'])))
-            .orderBy(desc(careRoutines.createdAt), desc(careRoutines.id));
+            .orderBy(desc(careRoutines.createdAt), desc(careRoutines.id))
+            .limit(request.page?.limit ?? 2147483647);
 
         if (rows.length === 0) {
             return null;
@@ -68,6 +78,7 @@ export class DrizzleCareRoutineReader implements CareRoutineReader {
 
             return [
                 {
+                    ...(request.page === undefined ? {} : { paginationKey: row.paginationKey }),
                     id: row.routine.id,
                     type: CareRoutineType.from(row.routine.type).value,
                     title: row.routine.title,

@@ -1,9 +1,10 @@
+import type { PageRequest, PageRow } from '../../../shared/application/pagination';
 import type { RoutineType } from '../../domain/routine-type/routine-type';
 import type { FrequencyPeriod, Weekday } from '../../domain/routine-frequency/routine-frequency';
 
 export const CARE_ROUTINE_READER: unique symbol = Symbol('CARE_ROUTINE_READER');
 
-export interface CareRoutineListItem {
+export interface CareRoutineListItem extends PageRow {
     readonly id: string;
     readonly type: RoutineType;
     readonly title: string;
@@ -19,6 +20,7 @@ export interface CareRoutineListItem {
 }
 
 export interface CareRoutineReadRequest {
+    readonly page?: PageRequest;
     readonly petId: string;
     readonly accountId: string;
 }

@@ -214,6 +214,6 @@ describe('DeletePetAllergy with PostgreSQL (integration)', () => {
         expect(await rows()).toEqual([]);
         await expect(
             application.get(ListPetAllergies).execute({ petId, authenticatedAccountId: ownerId }),
-        ).resolves.toEqual({ items: [] });
+        ).resolves.toEqual({ nextCursor: null, items: [] });
     });
 });

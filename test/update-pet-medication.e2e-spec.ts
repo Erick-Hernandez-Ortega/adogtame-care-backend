@@ -223,7 +223,7 @@ describe('PATCH /pets/:petId/health/medications/:medicationId (e2e)', () => {
         const { petId: responsePetId, ...item } = response.body as Record<string, unknown>;
 
         expect(responsePetId).toBe(petId);
-        expect(listed.body).toEqual({ items: [item] });
+        expect(listed.body).toEqual({ nextCursor: null, items: [item] });
         await patch().send({ plannedEndDate: null, frequency: null, notes: null }).expect(200);
         expect((await rows())[0]).toMatchObject({
             dosage: null,

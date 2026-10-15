@@ -1,3 +1,4 @@
+import { boundedString } from '../../../../infrastructure/http/bounded-string';
 import { z } from 'zod';
 import { petIdSchema } from './get-pet-detail.schema';
 
@@ -7,11 +8,11 @@ export const updatePetProfileIdSchema = petIdSchema.refine(
 
 export const updatePetProfileSchema = z
     .object({
-        name: z.string().optional(),
+        name: boundedString(255).optional(),
         species: z.enum(['DOG', 'CAT']).optional(),
         breed: z
             .object({
-                name: z.string(),
+                name: boundedString(255),
                 kind: z.enum(['KNOWN', 'CUSTOM']),
             })
             .strict()
@@ -24,9 +25,9 @@ export const updatePetProfileSchema = z
             })
             .strict()
             .optional(),
-        color: z.string().nullable().optional(),
-        distinctiveMarks: z.string().nullable().optional(),
-        microchip: z.string().nullable().optional(),
+        color: boundedString(255).nullable().optional(),
+        distinctiveMarks: boundedString(2000).nullable().optional(),
+        microchip: boundedString(255).nullable().optional(),
     })
     .strict()
     .refine((value) => Object.values(value).some((field) => field !== undefined));

@@ -120,12 +120,12 @@ describe('CareRoutine', () => {
         ).toBe(corrected);
     });
 
-    it('replaces complete frequency, preserving order and duplicates for equality', () => {
+    it('replaces complete frequency, preserving suggestion order for equality', () => {
         const routine: CareRoutine = CareRoutine.create(input());
         const frequency = {
             period: 'WEEKLY',
             timesPerPeriod: 3,
-            suggestedTimes: ['20:00', '08:00', '08:00'],
+            suggestedTimes: ['20:00', '08:00', '09:00'],
             weekdays: ['SUNDAY', 'MONDAY'],
         };
         const corrected: CareRoutine = routine.correct({ frequency });
@@ -134,7 +134,7 @@ describe('CareRoutine', () => {
         expect(corrected.correct({ frequency })).toBe(corrected);
         expect(
             corrected.correct({
-                frequency: { ...frequency, suggestedTimes: ['08:00', '20:00', '08:00'] },
+                frequency: { ...frequency, suggestedTimes: ['08:00', '20:00', '09:00'] },
             }),
         ).not.toBe(corrected);
         expect(

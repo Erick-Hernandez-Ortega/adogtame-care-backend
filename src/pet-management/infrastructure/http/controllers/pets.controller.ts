@@ -1,3 +1,5 @@
+import { ApiPagination, parsePage } from '../../../../infrastructure/http/pagination';
+import type { Page } from '../../../../shared/application/pagination';
 import { RestorePet } from '../../../application/restore-pet/restore-pet';
 import {
     restorePetIdSchema,
@@ -75,10 +77,7 @@ import {
     ListPetMembers,
     type PetMembers,
 } from '../../../application/list-pet-members/list-pet-members';
-import {
-    listPetMembersIdSchema,
-    listPetMembersQuerySchema,
-} from '../schemas/list-pet-members.schema';
+import { listPetMembersIdSchema } from '../schemas/list-pet-members.schema';
 import { ListMyPets } from '../../../application/list-my-pets/list-my-pets';
 import { LeavePet, LastOwnerCannotLeaveError } from '../../../application/leave-pet/leave-pet';
 import type {
@@ -127,6 +126,11 @@ import {
 @Controller('pets')
 @ApiTags('Pets')
 @ApiBearerAuth()
+@ApiResponse({
+    status: 413,
+    description: 'Request body exceeds the 100 KB parser limit; authentication is checked first',
+    schema: errorSchema(['INVALID_REQUEST'], 'Request body is too large'),
+})
 export class PetsController {
     constructor(
         private readonly restorePet: RestorePet,
@@ -401,6 +405,7 @@ export class PetsController {
     }
 
     @Get()
+    @ApiPagination()
     @UseGuards(AuthenticationGuard)
     @ApiOperation({
         summary: 'List pets accessible to the current account',
@@ -410,15 +415,32 @@ export class PetsController {
     @ApiResponse({
         status: 200,
         description: 'Accessible pets',
-        schema: { type: 'array', items: petSummaryResponseSchema },
+        schema: {
+            type: 'object',
+            required: ['items', 'nextCursor'],
+            properties: {
+                items: { type: 'array', maxItems: 100, items: petSummaryResponseSchema },
+                nextCursor: { type: 'string', nullable: true },
+            },
+        },
     })
     @ApiResponse({
         status: 401,
         description: 'Missing or invalid Bearer token',
         schema: errorSchema(['UNAUTHENTICATED'], 'Authentication is required'),
     })
-    list(@CurrentAccountId() accountId: string): Promise<AccessiblePetSummary[]> {
-        return this.listMyPets.execute(accountId);
+    @ApiResponse({
+        status: 400,
+        description: 'Invalid pagination query',
+        schema: errorSchema(['INVALID_REQUEST'], 'Request query is invalid'),
+    })
+    list(
+        @CurrentAccountId() accountId: string,
+        @Query() query: unknown,
+    ): Promise<Page<AccessiblePetSummary>> {
+        const page = parsePage(query, JSON.stringify(['pets', accountId]));
+
+        return this.listMyPets.execute(accountId, page);
     }
 
     @Get(':petId')
@@ -480,11 +502,12 @@ export class PetsController {
     }
 
     @Get(':petId/members')
+    @ApiPagination()
     @UseGuards(AuthenticationGuard)
     @ApiOperation({
         summary: 'List current pet members',
         description:
-            'Active owners and collaborators may read members of active or archived pets. Only active memberships are returned, including the requester. Owners appear first, followed by creation date and membership ID ascending. No query parameters are accepted.',
+            'Active owners and collaborators may read members of active or archived pets. Only active memberships are returned. Owners appear first, followed by creation date and membership ID ascending. Optional limit and cursor paginate results.',
     })
     @ApiParam({
         name: 'petId',
@@ -525,15 +548,10 @@ export class PetsController {
             });
         }
 
-        if (!listPetMembersQuerySchema.safeParse(query).success) {
-            throw new BadRequestException({
-                code: 'INVALID_REQUEST',
-                message: 'Request query is invalid',
-            });
-        }
+        const page = parsePage(query, JSON.stringify(['members', parsedId.data, accountId]));
 
         try {
-            return await this.listPetMembers.execute(parsedId.data, accountId);
+            return await this.listPetMembers.execute(parsedId.data, accountId, page);
         } catch (error: unknown) {
             if (error instanceof PetNotFoundError) {
                 throw new NotFoundException({

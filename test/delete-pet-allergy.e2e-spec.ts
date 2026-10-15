@@ -162,7 +162,7 @@ describe('DELETE /pets/:petId/health/allergies/:allergyId (e2e)', () => {
                 .set('Authorization', `Bearer ${owner.token}`)
                 .expect(200);
 
-            expect(listed.body).toEqual({ items: [] });
+            expect(listed.body).toEqual({ nextCursor: null, items: [] });
             expect((await remove().expect(404)).body).toMatchObject({
                 code: 'PET_ALLERGY_NOT_FOUND',
             });
@@ -190,6 +190,7 @@ describe('DELETE /pets/:petId/health/allergies/:allergyId (e2e)', () => {
             .expect(200);
 
         expect(listed.body).toEqual({
+            nextCursor: null,
             items: [
                 {
                     id: duplicateId,

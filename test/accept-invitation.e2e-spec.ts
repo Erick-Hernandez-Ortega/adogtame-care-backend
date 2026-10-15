@@ -156,11 +156,10 @@ describe('POST /pet-invitations/:invitationId/accept (e2e)', () => {
             .set('Authorization', `Bearer ${recipient.token}`)
             .expect(200);
 
-        expect(list.body).toEqual(
-            expect.arrayContaining([
-                expect.objectContaining({ id: petId, role: 'COLLABORATOR' }) as object,
-            ]),
-        );
+        expect(list.body).toEqual({
+            items: [expect.objectContaining({ id: petId, role: 'COLLABORATOR' })],
+            nextCursor: null,
+        });
         const detail = await request(application.getHttpServer())
             .get(`/pets/${petId}`)
             .set('Authorization', `Bearer ${recipient.token}`)

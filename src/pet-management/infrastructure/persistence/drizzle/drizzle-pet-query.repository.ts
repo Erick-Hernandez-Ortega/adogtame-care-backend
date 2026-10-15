@@ -1,3 +1,5 @@
+import type { PageRequest } from '../../../../shared/application/pagination';
+import { afterPage, paginationKey } from '../../../../infrastructure/database/pagination';
 import { Injectable } from '@nestjs/common';
 import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
@@ -26,10 +28,17 @@ export class DrizzlePetQueryRepository implements PetQueryRepository {
     async findAccessibleMembers(
         petId: string,
         accountId: string,
+        page?: PageRequest,
     ): Promise<PetMemberSummary[] | null> {
+        const key = paginationKey([
+            sql`case when ${petMemberships.role} = 'OWNER' then '0' else '1' end`,
+            sql`to_char(${petMemberships.createdAt} AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`,
+            sql`${petMemberships.id}::text`,
+        ]);
         const requesterMemberships = alias(petMemberships, 'requester_memberships');
         const rows = await this.databaseService.connection
             .select({
+                paginationKey: key,
                 membershipId: petMemberships.id,
                 accountId: petMemberships.accountId,
                 role: petMemberships.role,
@@ -47,11 +56,12 @@ export class DrizzlePetQueryRepository implements PetQueryRepository {
                     ]),
                 ),
             )
-            .innerJoin(
+            .leftJoin(
                 petMemberships,
                 and(
                     eq(petMemberships.petId, pets.id),
                     eq(petMemberships.status, PetMembershipStatus.ACTIVE),
+                    afterPage(key, page, 'ASC'),
                 ),
             )
             .where(
@@ -64,22 +74,35 @@ export class DrizzlePetQueryRepository implements PetQueryRepository {
                 asc(sql`case when ${petMemberships.role} = 'OWNER' then 0 else 1 end`),
                 asc(petMemberships.createdAt),
                 asc(petMemberships.id),
-            );
+            )
+            .limit(page?.limit ?? 2147483647);
 
         if (rows.length === 0) {
             return null;
         }
 
-        return rows.map((row): PetMemberSummary => ({
-            membershipId: row.membershipId,
-            accountId: row.accountId,
-            role: row.role as PetMembershipRole,
-        }));
+        return rows.flatMap((row): PetMemberSummary[] =>
+            row.membershipId === null || row.accountId === null
+                ? []
+                : [
+                      {
+                          ...(page === undefined ? {} : { paginationKey: row.paginationKey }),
+                          membershipId: row.membershipId,
+                          accountId: row.accountId,
+                          role: row.role as PetMembershipRole,
+                      },
+                  ],
+        );
     }
 
-    async findAccessibleByAccountId(accountId: string): Promise<AccessiblePetSummary[]> {
+    async findAccessibleByAccountId(
+        accountId: string,
+        page?: PageRequest,
+    ): Promise<AccessiblePetSummary[]> {
+        const key = paginationKey([sql`${pets.name}::text`, sql`${pets.id}::text`]);
         const rows = await this.databaseService.connection
             .select({
+                paginationKey: key,
                 id: pets.id,
                 name: pets.name,
                 species: pets.species,
@@ -94,13 +117,16 @@ export class DrizzlePetQueryRepository implements PetQueryRepository {
             .where(
                 and(
                     eq(petMemberships.accountId, accountId),
+                    afterPage(key, page, 'ASC'),
                     eq(petMemberships.status, PetMembershipStatus.ACTIVE),
                     inArray(pets.status, [PetStatus.ACTIVE, PetStatus.ARCHIVED]),
                 ),
             )
-            .orderBy(asc(pets.name), asc(pets.id));
+            .orderBy(asc(pets.name), asc(pets.id))
+            .limit(page?.limit ?? 2147483647);
 
         return rows.map((row): AccessiblePetSummary => ({
+            ...(page === undefined ? {} : { paginationKey: row.paginationKey }),
             id: row.id,
             name: row.name,
             species: row.species as PetSpecies,

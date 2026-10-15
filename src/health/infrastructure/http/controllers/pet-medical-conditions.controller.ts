@@ -1,3 +1,4 @@
+import { ApiPagination, parsePage } from '../../../../infrastructure/http/pagination';
 import { DeletePetMedicalCondition } from '../../../application/delete-pet-medical-condition/delete-pet-medical-condition';
 import { deletePetMedicalConditionSchema } from '../schemas/delete-pet-medical-condition.schema';
 import { ReopenPetMedicalCondition } from '../../../application/reopen-pet-medical-condition/reopen-pet-medical-condition';
@@ -43,7 +44,6 @@ import {
     PetNotFoundError as ListPetMedicalConditionsPetNotFoundError,
     type PetMedicalConditions,
 } from '../../../application/list-pet-medical-conditions/list-pet-medical-conditions';
-import { listPetMedicalConditionsQuerySchema } from '../schemas/list-pet-medical-conditions.schema';
 import { AuthenticationGuard } from '../../../../identity/infrastructure/http/authentication/authentication.guard';
 import { CurrentAccountId } from '../../../../identity/infrastructure/http/decorators/current-account-id.decorator';
 import { errorSchema } from '../../../../infrastructure/http/openapi-error.schema';
@@ -74,6 +74,11 @@ import {
 @Controller('pets/:petId/health/medical-conditions')
 @ApiTags('Health')
 @ApiBearerAuth()
+@ApiResponse({
+    status: 413,
+    description: 'Request body exceeds the 100 KB parser limit; authentication is checked first',
+    schema: errorSchema(['INVALID_REQUEST'], 'Request body is too large'),
+})
 export class PetMedicalConditionsController {
     constructor(
         private readonly deletePetMedicalCondition: DeletePetMedicalCondition,
@@ -558,11 +563,12 @@ export class PetMedicalConditionsController {
     }
 
     @Get()
+    @ApiPagination()
     @UseGuards(AuthenticationGuard)
     @ApiOperation({
         summary: 'List registered pet medical conditions',
         description:
-            'Active owners and collaborators may read all ACTIVE and RESOLVED conditions of active or archived pets. Known diagnosis dates appear newest first, unknown dates last; ties use technical creation timestamp and condition ID descending. Technical timestamps are not clinical dates. An accessible pet without conditions returns an empty items array. No query parameters are accepted.',
+            'Active owners and collaborators may read all ACTIVE and RESOLVED conditions of active or archived pets. Known diagnosis dates appear newest first, unknown dates last; ties use technical creation timestamp and condition ID descending. Technical timestamps are not clinical dates. An accessible pet without conditions returns an empty items array. Optional limit (default 20, maximum 100) and opaque cursor paginate results.',
     })
     @ApiParam({
         name: 'petId',
@@ -603,15 +609,14 @@ export class PetMedicalConditionsController {
             });
         }
 
-        if (!listPetMedicalConditionsQuerySchema.safeParse(query).success) {
-            throw new BadRequestException({
-                code: 'INVALID_REQUEST',
-                message: 'Request query is invalid',
-            });
-        }
+        const page = parsePage(
+            query,
+            JSON.stringify(['pet-medical-conditions', parsedPetId.data, authenticatedAccountId]),
+        );
 
         try {
             return await this.listPetMedicalConditions.execute({
+                ...page,
                 petId: parsedPetId.data,
                 authenticatedAccountId,
             });

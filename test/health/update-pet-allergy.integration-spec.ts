@@ -307,6 +307,7 @@ describe('UpdatePetAllergy with PostgreSQL (integration)', () => {
                     .get(ListPetAllergies)
                     .execute({ petId, authenticatedAccountId: ownerId }),
             ).resolves.toEqual({
+                nextCursor: null,
                 items: [
                     {
                         id: created.id,

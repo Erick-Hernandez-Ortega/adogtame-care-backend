@@ -1,6 +1,7 @@
+import type { PageRequest, PageRow } from '../../../shared/application/pagination';
 export const PET_VETERINARY_VISIT_READER: unique symbol = Symbol('PET_VETERINARY_VISIT_READER');
 
-export interface PetVeterinaryVisitListItem {
+export interface PetVeterinaryVisitListItem extends PageRow {
     readonly id: string;
     readonly visitDate: string;
     readonly reason: string;
@@ -10,6 +11,7 @@ export interface PetVeterinaryVisitListItem {
 }
 
 export interface PetVeterinaryVisitReadRequest {
+    readonly page?: PageRequest;
     readonly petId: string;
     readonly accountId: string;
 }

@@ -1,5 +1,9 @@
 # Pet member reads
 
+Current pagination, routine suggestion limits and authentication-first parser rules
+are defined in [API security and hardening](api-security.md). The slice descriptions
+below record the earlier contracts where they differ.
+
 `GET /pets/:petId/members` uses the existing Application read boundary,
 `PetQueryRepository.findAccessibleMembers`. Its SQL statement checks the pet
 status and requester access while selecting only active memberships. It returns

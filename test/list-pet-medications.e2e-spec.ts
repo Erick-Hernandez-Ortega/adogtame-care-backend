@@ -166,7 +166,7 @@ describe('GET /pets/:petId/health/medications (e2e)', () => {
                 .set('Authorization', `Bearer ${requester.token}`)
                 .expect(200);
 
-            expect(response.body).toEqual({ items: [item] });
+            expect(response.body).toEqual({ nextCursor: null, items: [item] });
         },
     );
 
@@ -186,7 +186,7 @@ describe('GET /pets/:petId/health/medications (e2e)', () => {
                     .set('Authorization', `Bearer ${requester.token}`)
                     .expect(200);
 
-                expect(response.body).toEqual({ items: [] });
+                expect(response.body).toEqual({ nextCursor: null, items: [] });
             }
         },
     );
@@ -255,10 +255,13 @@ describe('GET /pets/:petId/health/medications (e2e)', () => {
             .set('Authorization', `Bearer ${owner.token}`)
             .expect(200);
 
-        expect(response.body).toEqual({ items: [newer, tiedHigh, tiedLow, older] });
+        expect(response.body).toEqual({
+            nextCursor: null,
+            items: [newer, tiedHigh, tiedLow, older],
+        });
     });
 
-    it('returns all entries beyond the history default page size', async (): Promise<void> => {
+    it('paginates independent entries with the default limit and an opaque cursor', async (): Promise<void> => {
         const items: ListedPetMedication[] = Array.from(
             { length: 25 },
             (): ListedPetMedication => ({
@@ -291,7 +294,22 @@ describe('GET /pets/:petId/health/medications (e2e)', () => {
             .set('Authorization', `Bearer ${owner.token}`)
             .expect(200);
 
-        expect(response.body).toEqual({ items });
+        const firstPage = response.body as { items: typeof items; nextCursor: string };
+
+        expect(firstPage.items).toEqual(items.slice(0, 20));
+        expect(typeof firstPage.nextCursor).toBe('string');
+        const continuation = await request(application.getHttpServer())
+            .get(path())
+            .query({ cursor: firstPage.nextCursor })
+            .set('Authorization', `Bearer ${owner.token}`)
+            .expect(200);
+
+        expect(continuation.body).toEqual({ items: items.slice(20), nextCursor: null });
+        await request(application.getHttpServer())
+            .get(path(otherPetId))
+            .query({ cursor: firstPage.nextCursor })
+            .set('Authorization', `Bearer ${owner.token}`)
+            .expect(400);
     });
 
     it('hides missing pets, inactive authors of both roles and accounts without membership', async (): Promise<void> => {
@@ -364,27 +382,21 @@ describe('GET /pets/:petId/health/medications (e2e)', () => {
         },
     );
 
-    it.each([
-        'status',
-        'active',
-        'medicationName',
-        'startDate',
-        'endDate',
-        'cursor',
-        'limit',
-        'unexpected',
-    ])('rejects unsupported query parameter %s', async (parameter: string): Promise<void> => {
-        const response = await request(application.getHttpServer())
-            .get(path())
-            .query({ [parameter]: '1' })
-            .set('Authorization', `Bearer ${owner.token}`)
-            .expect(400);
+    it.each(['status', 'active', 'medicationName', 'startDate', 'endDate', 'unexpected'])(
+        'rejects unsupported query parameter %s',
+        async (parameter: string): Promise<void> => {
+            const response = await request(application.getHttpServer())
+                .get(path())
+                .query({ [parameter]: '1' })
+                .set('Authorization', `Bearer ${owner.token}`)
+                .expect(400);
 
-        expect(response.body).toEqual({
-            code: 'INVALID_REQUEST',
-            message: 'Request query is invalid',
-        });
-    });
+            expect(response.body).toEqual({
+                code: 'INVALID_REQUEST',
+                message: 'Request query is invalid',
+            });
+        },
+    );
     it('authenticates before path and query validation', async (): Promise<void> => {
         const response = await request(application.getHttpServer())
             .get(path('invalid-id'))
@@ -425,7 +437,7 @@ describe('GET /pets/:petId/health/medications (e2e)', () => {
             .send({ status: 'ACTIVE', limit: 1 })
             .expect(200);
 
-        expect(response.body).toEqual({ items: [item] });
+        expect(response.body).toEqual({ nextCursor: null, items: [item] });
     });
 
     it('lists a minimally recorded medication with every nullable field explicitly present', async (): Promise<void> => {
@@ -440,6 +452,7 @@ describe('GET /pets/:petId/health/medications (e2e)', () => {
             .expect(200);
 
         expect(response.body).toEqual({
+            nextCursor: null,
             items: [
                 {
                     id: (recorded.body as { id: string }).id,

@@ -107,9 +107,10 @@ describe('POST /pets/:petId/leave (e2e)', () => {
             .set('Authorization', `Bearer ${collaborator.token}`)
             .expect(200);
 
-        expect(beforeList.body).toEqual(
-            expect.arrayContaining([expect.objectContaining({ id: petId })]),
-        );
+        expect(beforeList.body).toEqual({
+            items: [expect.objectContaining({ id: petId })],
+            nextCursor: null,
+        });
         const first = await request(application.getHttpServer())
             .post(path)
             .set('Authorization', `Bearer ${collaborator.token}`)
@@ -142,9 +143,7 @@ describe('POST /pets/:petId/leave (e2e)', () => {
             .set('Authorization', `Bearer ${collaborator.token}`)
             .expect(200);
 
-        expect(afterList.body).not.toEqual(
-            expect.arrayContaining([expect.objectContaining({ id: petId })]),
-        );
+        expect(afterList.body).toEqual({ items: [], nextCursor: null });
         const detail = await request(application.getHttpServer())
             .get(`/pets/${petId}`)
             .set('Authorization', `Bearer ${collaborator.token}`)
@@ -256,7 +255,7 @@ describe('POST /pets/:petId/leave (e2e)', () => {
                 .expect(200);
 
             expect(
-                (members.body as { members: { membershipId: string }[] }).members.map(
+                (members.body as { items: { membershipId: string }[] }).items.map(
                     (member) => member.membershipId,
                 ),
             ).not.toContain(membershipId);

@@ -211,10 +211,12 @@ export const cancelledInvitationResponseSchema: SchemaObject = {
 export const petMembersResponseSchema: SchemaObject = {
     type: 'object',
     additionalProperties: false,
-    required: ['members'],
+    required: ['items', 'nextCursor'],
     properties: {
-        members: {
+        nextCursor: { type: 'string', nullable: true },
+        items: {
             type: 'array',
+            maxItems: 100,
             items: {
                 type: 'object',
                 additionalProperties: false,

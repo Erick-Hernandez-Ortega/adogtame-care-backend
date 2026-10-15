@@ -218,7 +218,7 @@ describe('POST /pets/:petId/health/medical-conditions/:conditionId/reopen (e2e)'
                         .set('Authorization', `Bearer ${account.token}`)
                         .expect(200)
                 ).body,
-            ).toEqual({ items: [item] });
+            ).toEqual({ nextCursor: null, items: [item] });
             expect(
                 (
                     await patch({

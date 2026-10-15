@@ -218,10 +218,10 @@ describe('PromoteCollaboratorToOwner with PostgreSQL (integration)', () => {
         );
         const members = await listMembers.execute(pet.id.value, ownerId);
 
-        expect(members.members.find((member) => member.membershipId === membershipId)?.role).toBe(
+        expect(members.items.find((member) => member.membershipId === membershipId)?.role).toBe(
             'OWNER',
         );
-        expect(members.members.filter((member) => member.role === 'OWNER')).toHaveLength(2);
+        expect(members.items.filter((member) => member.role === 'OWNER')).toHaveLength(2);
         await database.connection.execute(
             sql`ALTER TABLE pet_memberships ADD CONSTRAINT test_promote_retry_no_update CHECK (role <> 'OWNER') NOT VALID`,
         );

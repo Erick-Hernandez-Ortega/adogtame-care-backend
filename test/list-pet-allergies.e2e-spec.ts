@@ -159,7 +159,7 @@ describe('GET /pets/:petId/health/allergies (e2e)', () => {
                 .set('Authorization', `Bearer ${requester.token}`)
                 .expect(200);
 
-            expect(response.body).toEqual({ items: [item] });
+            expect(response.body).toEqual({ nextCursor: null, items: [item] });
         },
     );
 
@@ -179,7 +179,7 @@ describe('GET /pets/:petId/health/allergies (e2e)', () => {
                     .set('Authorization', `Bearer ${requester.token}`)
                     .expect(200);
 
-                expect(response.body).toEqual({ items: [] });
+                expect(response.body).toEqual({ nextCursor: null, items: [] });
             }
         },
     );
@@ -238,10 +238,13 @@ describe('GET /pets/:petId/health/allergies (e2e)', () => {
             .set('Authorization', `Bearer ${owner.token}`)
             .expect(200);
 
-        expect(response.body).toEqual({ items: [newer, tiedHigh, tiedLow, older] });
+        expect(response.body).toEqual({
+            nextCursor: null,
+            items: [newer, tiedHigh, tiedLow, older],
+        });
     });
 
-    it('returns all entries beyond the history default page size', async (): Promise<void> => {
+    it('paginates independent entries with the default limit and an opaque cursor', async (): Promise<void> => {
         const items: PetAllergyListItem[] = Array.from({ length: 25 }, (): PetAllergyListItem => ({
             id: randomUUID(),
             allergen: 'Chicken',
@@ -266,7 +269,22 @@ describe('GET /pets/:petId/health/allergies (e2e)', () => {
             .set('Authorization', `Bearer ${owner.token}`)
             .expect(200);
 
-        expect(response.body).toEqual({ items });
+        const firstPage = response.body as { items: typeof items; nextCursor: string };
+
+        expect(firstPage.items).toEqual(items.slice(0, 20));
+        expect(typeof firstPage.nextCursor).toBe('string');
+        const continuation = await request(application.getHttpServer())
+            .get(path())
+            .query({ cursor: firstPage.nextCursor })
+            .set('Authorization', `Bearer ${owner.token}`)
+            .expect(200);
+
+        expect(continuation.body).toEqual({ items: items.slice(20), nextCursor: null });
+        await request(application.getHttpServer())
+            .get(path(otherPetId))
+            .query({ cursor: firstPage.nextCursor })
+            .set('Authorization', `Bearer ${owner.token}`)
+            .expect(400);
     });
 
     it('hides missing pets, inactive authors of both roles and accounts without membership', async (): Promise<void> => {
@@ -339,7 +357,7 @@ describe('GET /pets/:petId/health/allergies (e2e)', () => {
         },
     );
 
-    it.each(['limit', 'cursor', 'category', 'severity', 'q', 'sort', 'order', 'unexpected'])(
+    it.each(['category', 'severity', 'q', 'sort', 'order', 'unexpected'])(
         'rejects unsupported query parameter %s',
         async (parameter: string): Promise<void> => {
             const response = await request(application.getHttpServer())

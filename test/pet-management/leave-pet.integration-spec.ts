@@ -410,7 +410,7 @@ describe('LeavePet with PostgreSQL (integration)', () => {
 
         await leave.execute(pet.id.value, secondOwner.accountId);
         expect(
-            (await listMembers.execute(pet.id.value, owner.accountId)).members.map(
+            (await listMembers.execute(pet.id.value, owner.accountId)).items.map(
                 (member): string => member.membershipId,
             ),
         ).toEqual([owner.membershipId]);

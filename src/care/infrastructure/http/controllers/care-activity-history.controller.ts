@@ -1,3 +1,4 @@
+import { ApiPagination, validatePage } from '../../../../infrastructure/http/pagination';
 import {
     BadRequestException,
     Controller,
@@ -30,15 +31,21 @@ import { careActivitiesResponseSchema } from '../schemas/openapi.schemas';
 @Controller('pets/:petId/care/activities')
 @ApiTags('Care')
 @ApiBearerAuth()
+@ApiResponse({
+    status: 413,
+    description: 'Request body exceeds the 100 KB parser limit; authentication is checked first',
+    schema: errorSchema(['INVALID_REQUEST'], 'Request body is too large'),
+})
 export class CareActivityHistoryController {
     constructor(private readonly listCareActivities: ListCareActivities) {}
 
     @Get()
+    @ApiPagination()
     @UseGuards(AuthenticationGuard)
     @ApiOperation({
         summary: 'List care activity history',
         description:
-            'ACTIVE owners and collaborators may read ACTIVE or ARCHIVED pets. Optional from/to are inclusive local calendar dates in each activity’s recorded timezone, independent of the routine timezone. from must not exceed to. Optional routineId filters within the pet; unknown or wrong-pet routines return empty items after pet authorization. All matching activities are returned ordered by completedAt, creation timestamp (including microseconds), then ID descending. Pet identity and technical timestamps are omitted. No pagination or daily expected/completed summary is provided. Authentication precedes validation, including JSON parser failures. Reads take no row locks and never store missed activities.',
+            'ACTIVE owners and collaborators may read ACTIVE or ARCHIVED pets. Optional from/to are inclusive local calendar dates in each activity’s recorded timezone, independent of the routine timezone. from must not exceed to. Optional routineId filters within the pet; unknown or wrong-pet routines return empty items after pet authorization. Matching activities are returned in pages ordered by completedAt, creation timestamp (including microseconds), then ID descending. Pet identity and technical timestamps are omitted. Results are paginated; no daily expected/completed summary is provided. Authentication precedes validation, including JSON parser failures. Reads take no row locks and never store missed activities.',
     })
     @ApiParam({
         name: 'petId',
@@ -106,6 +113,18 @@ export class CareActivityHistoryController {
                 message: 'Request query is invalid',
             });
         }
+
+        validatePage(
+            parsedQuery.data,
+            JSON.stringify([
+                'care-activities',
+                parsedPetId.data,
+                authenticatedAccountId,
+                parsedQuery.data.from ?? null,
+                parsedQuery.data.to ?? null,
+                parsedQuery.data.routineId ?? null,
+            ]),
+        );
 
         try {
             return await this.listCareActivities.execute({

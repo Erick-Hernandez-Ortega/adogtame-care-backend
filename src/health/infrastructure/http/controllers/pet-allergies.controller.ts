@@ -1,3 +1,4 @@
+import { ApiPagination, parsePage } from '../../../../infrastructure/http/pagination';
 import {
     BadRequestException,
     Body,
@@ -31,7 +32,6 @@ import {
     PetNotFoundError as ListPetAllergiesPetNotFoundError,
     type PetAllergies,
 } from '../../../application/list-pet-allergies/list-pet-allergies';
-import { listPetAllergiesQuerySchema } from '../schemas/list-pet-allergies.schema';
 import {
     RecordPetAllergy,
     PetNotFoundError,
@@ -63,6 +63,11 @@ import { allergyIdSchema, updatePetAllergySchema } from '../schemas/update-pet-a
 @Controller('pets/:petId/health/allergies')
 @ApiTags('Health')
 @ApiBearerAuth()
+@ApiResponse({
+    status: 413,
+    description: 'Request body exceeds the 100 KB parser limit; authentication is checked first',
+    schema: errorSchema(['INVALID_REQUEST'], 'Request body is too large'),
+})
 export class PetAllergiesController {
     constructor(
         private readonly recordPetAllergy: RecordPetAllergy,
@@ -72,11 +77,12 @@ export class PetAllergiesController {
     ) {}
 
     @Get()
+    @ApiPagination()
     @UseGuards(AuthenticationGuard)
     @ApiOperation({
         summary: 'List known pet allergies',
         description:
-            'Active owners and collaborators may read all registered allergies of active or archived pets. Results are ordered by technical creation timestamp and allergy ID descending, not by a clinical date. An accessible pet without allergies returns an empty items array. No query parameters are accepted.',
+            'Active owners and collaborators may read registered allergies of active or archived pets. Results are ordered by technical creation timestamp and allergy ID descending, not by a clinical date. An accessible pet without allergies returns an empty items array. Optional limit (default 20, maximum 100) and opaque cursor paginate results.',
     })
     @ApiParam({
         name: 'petId',
@@ -117,15 +123,14 @@ export class PetAllergiesController {
             });
         }
 
-        if (!listPetAllergiesQuerySchema.safeParse(query).success) {
-            throw new BadRequestException({
-                code: 'INVALID_REQUEST',
-                message: 'Request query is invalid',
-            });
-        }
+        const page = parsePage(
+            query,
+            JSON.stringify(['pet-allergies', parsedPetId.data, authenticatedAccountId]),
+        );
 
         try {
             return await this.listPetAllergies.execute({
+                ...page,
                 petId: parsedPetId.data,
                 authenticatedAccountId,
             });
@@ -308,7 +313,7 @@ export class PetAllergiesController {
             });
         }
 
-        if (!listPetAllergiesQuerySchema.safeParse(query).success) {
+        if (!deletePetAllergySchema.safeParse(query).success) {
             throw new BadRequestException({
                 code: 'INVALID_REQUEST',
                 message: 'Request query is invalid',
@@ -394,7 +399,7 @@ export class PetAllergiesController {
             });
         }
 
-        if (!listPetAllergiesQuerySchema.safeParse(query).success) {
+        if (!deletePetAllergySchema.safeParse(query).success) {
             throw new BadRequestException({
                 code: 'INVALID_REQUEST',
                 message: 'Request query is invalid',

@@ -212,7 +212,7 @@ describe('POST /pets/:petId/health/medical-conditions/:conditionId/resolve (e2e)
                         .set('Authorization', `Bearer ${owner.token}`)
                         .expect(200)
                 ).body,
-            ).toEqual({ items: [item] });
+            ).toEqual({ nextCursor: null, items: [item] });
             expect((await patch({ notes: 'Corrected' }).expect(200)).body).toEqual({
                 ...expected,
                 notes: 'Corrected',

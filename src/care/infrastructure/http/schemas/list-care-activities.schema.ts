@@ -1,3 +1,4 @@
+import { paginationQueryShape } from '../../../../infrastructure/http/pagination';
 import { z } from 'zod';
 import { isValidCivilDate } from '../../../../shared/domain/civil-date';
 import { careRoutineIdSchema } from './update-care-routine.schema';
@@ -6,6 +7,7 @@ const localDateSchema = z.string().refine(isValidCivilDate);
 
 export const listCareActivitiesQuerySchema = z
     .object({
+        ...paginationQueryShape,
         from: localDateSchema.optional(),
         to: localDateSchema.optional(),
         routineId: careRoutineIdSchema.optional(),

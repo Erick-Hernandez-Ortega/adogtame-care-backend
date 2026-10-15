@@ -1,5 +1,6 @@
+import { afterPage, paginationKey } from '../../../../infrastructure/database/pagination';
 import { Injectable } from '@nestjs/common';
-import { and, desc, eq, inArray } from 'drizzle-orm';
+import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import { DatabaseService } from '../../../../infrastructure/database/database.service';
 import {
     petMemberships,
@@ -28,8 +29,13 @@ export class DrizzleCareActivityReader implements CareActivityReader {
     async findAccessibleByPet(
         request: CareActivityReadRequest,
     ): Promise<CareActivityListItem[] | null> {
+        const key = paginationKey([
+            sql`to_char(${careActivities.completedAt} AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`,
+            sql`to_char(${careActivities.createdAt} AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`,
+            sql`${careActivities.id}::text`,
+        ]);
         const rows = await this.databaseService.connection
-            .select({ activity: careActivities })
+            .select({ activity: careActivities, paginationKey: key })
             .from(pets)
             .innerJoin(
                 petMemberships,
@@ -44,6 +50,13 @@ export class DrizzleCareActivityReader implements CareActivityReader {
                 careActivities,
                 and(
                     eq(careActivities.petId, pets.id),
+                    afterPage(key, request.page),
+                    request.from === undefined
+                        ? undefined
+                        : sql`(${careActivities.completedAt} AT TIME ZONE ${careActivities.timezone})::date >= ${request.from}::date`,
+                    request.to === undefined
+                        ? undefined
+                        : sql`(${careActivities.completedAt} AT TIME ZONE ${careActivities.timezone})::date <= ${request.to}::date`,
                     request.routineId === undefined
                         ? undefined
                         : eq(careActivities.routineId, request.routineId),
@@ -54,7 +67,8 @@ export class DrizzleCareActivityReader implements CareActivityReader {
                 desc(careActivities.completedAt),
                 desc(careActivities.createdAt),
                 desc(careActivities.id),
-            );
+            )
+            .limit(request.page?.limit ?? 2147483647);
 
         if (rows.length === 0) {
             return null;
@@ -87,6 +101,7 @@ export class DrizzleCareActivityReader implements CareActivityReader {
 
             return [
                 {
+                    ...(request.page === undefined ? {} : { paginationKey: row.paginationKey }),
                     id: activity.id.value,
                     routineId: activity.routineId.value,
                     completedAt: activity.completedAt.value,

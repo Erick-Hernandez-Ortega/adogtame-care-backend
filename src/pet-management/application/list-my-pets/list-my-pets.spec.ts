@@ -68,7 +68,10 @@ describe('ListMyPets', () => {
         const repository = new InMemoryPetQueryRepository(summaries);
         const listMyPets = new ListMyPets(repository);
 
-        await expect(listMyPets.execute(ACCOUNT_ID)).resolves.toBe(summaries);
+        await expect(listMyPets.execute(ACCOUNT_ID)).resolves.toEqual({
+            items: summaries,
+            nextCursor: null,
+        });
         expect(repository.requestedAccountIds).toEqual([ACCOUNT_ID]);
     });
 
@@ -76,7 +79,10 @@ describe('ListMyPets', () => {
         const repository = new InMemoryPetQueryRepository([]);
         const listMyPets = new ListMyPets(repository);
 
-        await expect(listMyPets.execute(ACCOUNT_ID)).resolves.toEqual([]);
+        await expect(listMyPets.execute(ACCOUNT_ID)).resolves.toEqual({
+            items: [],
+            nextCursor: null,
+        });
         expect(repository.requestedAccountIds).toEqual([ACCOUNT_ID]);
     });
 

@@ -1,3 +1,4 @@
+import type { PageRequest, PageRow } from '../../../shared/application/pagination';
 import type { BirthDateAccuracy } from '../../domain/birth-information/birth-information.types';
 import type { BreedKind } from '../../domain/breed/breed.types';
 import type { PetMembershipRole } from '../../domain/pet-membership/pet-membership.types';
@@ -5,7 +6,7 @@ import type { PetSex, PetSpecies, PetStatus } from '../../domain/pet/pet.types';
 
 export const PET_QUERY_REPOSITORY: unique symbol = Symbol('PET_QUERY_REPOSITORY');
 
-export interface AccessiblePetSummary {
+export interface AccessiblePetSummary extends PageRow {
     readonly status: PetStatus;
     readonly id: string;
     readonly name: string;
@@ -38,15 +39,22 @@ export interface PetDetail {
     readonly role: PetMembershipRole;
 }
 
-export interface PetMemberSummary {
+export interface PetMemberSummary extends PageRow {
     readonly membershipId: string;
     readonly accountId: string;
     readonly role: PetMembershipRole;
 }
 
 export interface PetQueryRepository {
-    findAccessibleMembers(petId: string, accountId: string): Promise<PetMemberSummary[] | null>;
-    findAccessibleByAccountId(accountId: string): Promise<AccessiblePetSummary[]>;
+    findAccessibleMembers(
+        petId: string,
+        accountId: string,
+        page?: PageRequest,
+    ): Promise<PetMemberSummary[] | null>;
+    findAccessibleByAccountId(
+        accountId: string,
+        page?: PageRequest,
+    ): Promise<AccessiblePetSummary[]>;
     findAccessibleDetailById(petId: string, accountId: string): Promise<PetDetail | null>;
     hasActiveOwnerAccess(petId: string, accountId: string): Promise<boolean>;
     hasActiveMembership(petId: string, accountId: string): Promise<boolean>;

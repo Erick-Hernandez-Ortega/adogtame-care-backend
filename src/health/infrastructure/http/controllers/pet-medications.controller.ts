@@ -1,3 +1,4 @@
+import { ApiPagination, parsePage } from '../../../../infrastructure/http/pagination';
 import {
     CompletePetMedication,
     InvalidMedicationEndedDateError,
@@ -43,7 +44,6 @@ import {
     PetNotFoundError as ListPetMedicationsPetNotFoundError,
     type PetMedications,
 } from '../../../application/list-pet-medications/list-pet-medications';
-import { listPetMedicationsQuerySchema } from '../schemas/list-pet-medications.schema';
 import {
     RecordPetMedication,
     PetNotFoundError,
@@ -99,11 +99,12 @@ export class PetMedicationsController {
     ) {}
 
     @Get()
+    @ApiPagination()
     @UseGuards(AuthenticationGuard)
     @ApiOperation({
         summary: 'List registered pet medications',
         description:
-            'Active owners and collaborators may read all registered medications of active or archived pets regardless of authorship. All lifecycle states are included; OPEN means no closure recorded and closed states are reports, not clinical confirmation. Results are ordered by technical creation timestamp and medication ID descending, not by start date or planned end date. An accessible pet without medications returns an empty items array. All nullable fields are always present as null when unknown. There are no filters or pagination, and no query parameters are accepted. Dosage and frequency remain reported free text; dates do not infer clinical status or dose administration.',
+            'Active owners and collaborators may read registered medications of active or archived pets regardless of authorship. All lifecycle states are included; OPEN means no closure recorded and closed states are reports, not clinical confirmation. Results are ordered by technical creation timestamp and medication ID descending, not by start date or planned end date. An accessible pet without medications returns an empty items array. All nullable fields are always present as null when unknown. Optional limit and cursor paginate results; no other query parameters are accepted. Dosage and frequency remain reported free text; dates do not infer clinical status or dose administration.',
     })
     @ApiParam({
         name: 'petId',
@@ -144,15 +145,14 @@ export class PetMedicationsController {
             });
         }
 
-        if (!listPetMedicationsQuerySchema.safeParse(query).success) {
-            throw new BadRequestException({
-                code: 'INVALID_REQUEST',
-                message: 'Request query is invalid',
-            });
-        }
+        const page = parsePage(
+            query,
+            JSON.stringify(['pet-medications', parsedPetId.data, authenticatedAccountId]),
+        );
 
         try {
             return await this.listPetMedications.execute({
+                ...page,
                 petId: parsedPetId.data,
                 authenticatedAccountId,
             });

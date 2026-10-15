@@ -39,9 +39,10 @@ describe('ListPetMedicalConditions', () => {
 
         await expect(
             useCase.execute({ petId: PET_ID, authenticatedAccountId: ACCOUNT_ID }),
-        ).resolves.toEqual({ items: [first, second] });
+        ).resolves.toEqual({ nextCursor: null, items: [first, second] });
         expect(findAccessibleByPet).toHaveBeenCalledTimes(1);
         expect(findAccessibleByPet).toHaveBeenCalledWith({
+            page: { limit: 21, after: null },
             petId: PET_ID,
             accountId: ACCOUNT_ID,
         });
@@ -52,7 +53,7 @@ describe('ListPetMedicalConditions', () => {
 
         await expect(
             useCase.execute({ petId: PET_ID, authenticatedAccountId: ACCOUNT_ID }),
-        ).resolves.toEqual({ items: [] });
+        ).resolves.toEqual({ nextCursor: null, items: [] });
     });
 
     it('translates inaccessible pets to PetNotFoundError', async () => {

@@ -5,5 +5,5 @@ export interface InviteCollaboratorRequest {
 }
 
 export const inviteCollaboratorSchema: z.ZodType<InviteCollaboratorRequest> = z
-    .object({ email: z.string() })
+    .object({ email: z.string().max(508) })
     .strict();

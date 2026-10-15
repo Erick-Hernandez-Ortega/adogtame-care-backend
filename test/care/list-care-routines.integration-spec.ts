@@ -175,7 +175,7 @@ describe('ListCareRoutines with PostgreSQL (integration)', () => {
             frequency: {
                 period: 'DAILY',
                 timesPerPeriod: 1,
-                suggestedTimes: ['08:00', '08:00'],
+                suggestedTimes: ['08:00', '09:00'],
                 weekdays: [],
             },
             timezone: 'America/Mexico_City',
@@ -217,7 +217,7 @@ describe('ListCareRoutines with PostgreSQL (integration)', () => {
             await database.connection.update(pets).set({ status }).where(eq(pets.id, petId));
             const accountId: string = role === 'OWNER' ? ownerId : collaboratorId;
 
-            await expect(list(accountId)).resolves.toEqual({ items: [item] });
+            await expect(list(accountId)).resolves.toEqual({ nextCursor: null, items: [item] });
         },
     );
 
@@ -227,7 +227,7 @@ describe('ListCareRoutines with PostgreSQL (integration)', () => {
             await database.connection.update(pets).set({ status }).where(eq(pets.id, petId));
 
             for (const accountId of [ownerId, collaboratorId]) {
-                await expect(list(accountId)).resolves.toEqual({ items: [] });
+                await expect(list(accountId)).resolves.toEqual({ nextCursor: null, items: [] });
             }
         },
     );
@@ -276,11 +276,12 @@ describe('ListCareRoutines with PostgreSQL (integration)', () => {
 
         await insertRoutine({ petId: otherPetId });
         await expect(list()).resolves.toEqual({
+            nextCursor: null,
             items: [newestTimestamp, tiedHigh, tiedLow, oldestRoutine],
         });
     });
 
-    it('returns duplicates independently and never applies a hidden page limit', async (): Promise<void> => {
+    it('returns duplicates independently and supports an explicit larger page', async (): Promise<void> => {
         const items: CareRoutineListItem[] = [];
 
         for (let itemIndex: number = 0; itemIndex < 25; itemIndex += 1) {
@@ -290,7 +291,28 @@ describe('ListCareRoutines with PostgreSQL (integration)', () => {
         items.sort((firstItem: CareRoutineListItem, secondItem: CareRoutineListItem): number =>
             secondItem.id.localeCompare(firstItem.id),
         );
-        await expect(list()).resolves.toEqual({ items });
+        const page = await list();
+
+        expect(page.items).toEqual(items.slice(0, 20));
+        expect(page.nextCursor).not.toBeNull();
+        const continuation = await listCareRoutines.execute({
+            petId,
+            authenticatedAccountId: ownerId,
+            cursor: page.nextCursor,
+        });
+
+        expect(continuation).toEqual({ items: items.slice(20), nextCursor: null });
+        await database.connection
+            .update(petMemberships)
+            .set({ status: 'INACTIVE' })
+            .where(and(eq(petMemberships.petId, petId), eq(petMemberships.accountId, ownerId)));
+        await expect(
+            listCareRoutines.execute({
+                petId,
+                authenticatedAccountId: ownerId,
+                cursor: page.nextCursor,
+            }),
+        ).rejects.toThrow(PetNotFoundError);
     });
 
     it('preserves the read result through real Archive and Restore use cases', async (): Promise<void> => {
@@ -396,7 +418,7 @@ describe('ListCareRoutines with PostgreSQL (integration)', () => {
             ]);
 
             expect(result.error).toBeUndefined();
-            expect(result.value).toEqual({ items: [original] });
+            expect(result.value).toEqual({ nextCursor: null, items: [original] });
         } finally {
             if (timeout !== undefined) {
                 clearTimeout(timeout);
@@ -411,7 +433,7 @@ describe('ListCareRoutines with PostgreSQL (integration)', () => {
         }
 
         expect((await writer).error).toBeUndefined();
-        await expect(list()).resolves.toEqual({ items: [original, pending] });
+        await expect(list()).resolves.toEqual({ nextCursor: null, items: [original, pending] });
     });
 
     it('does not change routine, pet, or membership timestamps', async (): Promise<void> => {

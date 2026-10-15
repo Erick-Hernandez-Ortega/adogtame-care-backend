@@ -1,3 +1,4 @@
+import { afterPage, paginationKey } from '../../../../infrastructure/database/pagination';
 import { Injectable } from '@nestjs/common';
 import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import { DatabaseService } from '../../../../infrastructure/database/database.service';
@@ -20,8 +21,14 @@ export class DrizzlePetMedicalConditionReader implements PetMedicalConditionRead
     async findAccessibleByPet(
         request: PetMedicalConditionReadRequest,
     ): Promise<PetMedicalConditionListItem[] | null> {
+        const key = paginationKey([
+            sql`coalesce(${healthPetMedicalConditions.diagnosedDate}::text, '0000-00-00')`,
+            sql`to_char(${healthPetMedicalConditions.createdAt} AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`,
+            sql`${healthPetMedicalConditions.id}::text`,
+        ]);
         const rows = await this.databaseService.connection
             .select({
+                paginationKey: key,
                 condition: {
                     id: healthPetMedicalConditions.id,
                     name: healthPetMedicalConditions.name,
@@ -42,13 +49,17 @@ export class DrizzlePetMedicalConditionReader implements PetMedicalConditionRead
                     inArray(petMemberships.role, ['OWNER', 'COLLABORATOR']),
                 ),
             )
-            .leftJoin(healthPetMedicalConditions, eq(healthPetMedicalConditions.petId, pets.id))
+            .leftJoin(
+                healthPetMedicalConditions,
+                and(eq(healthPetMedicalConditions.petId, pets.id), afterPage(key, request.page)),
+            )
             .where(and(eq(pets.id, request.petId), inArray(pets.status, ['ACTIVE', 'ARCHIVED'])))
             .orderBy(
                 sql`${healthPetMedicalConditions.diagnosedDate} DESC NULLS LAST`,
                 desc(healthPetMedicalConditions.createdAt),
                 desc(healthPetMedicalConditions.id),
-            );
+            )
+            .limit(request.page?.limit ?? 2147483647);
 
         if (rows.length === 0) {
             return null;
@@ -61,6 +72,7 @@ export class DrizzlePetMedicalConditionReader implements PetMedicalConditionRead
 
             return [
                 {
+                    ...(request.page === undefined ? {} : { paginationKey: row.paginationKey }),
                     id: row.condition.id,
                     name: row.condition.name,
                     status: row.condition.status as MedicalConditionStatus,

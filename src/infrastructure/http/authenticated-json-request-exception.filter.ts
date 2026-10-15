@@ -1,10 +1,10 @@
-import { ArgumentsHost, BadRequestException, Catch } from '@nestjs/common';
+import { ArgumentsHost, Catch, HttpException } from '@nestjs/common';
 import { BaseExceptionFilter, HttpAdapterHost } from '@nestjs/core';
 import { ExecutionContextHost } from '@nestjs/core/helpers/execution-context-host';
 import type { Request } from 'express';
 import { AuthenticationGuard } from '../../identity/infrastructure/http/authentication/authentication.guard';
 
-@Catch(BadRequestException)
+@Catch()
 export class AuthenticatedJsonRequestExceptionFilter extends BaseExceptionFilter<unknown> {
     constructor(
         adapterHost: HttpAdapterHost,
@@ -13,53 +13,83 @@ export class AuthenticatedJsonRequestExceptionFilter extends BaseExceptionFilter
         super(adapterHost.httpAdapter);
     }
 
-    override catch(exception: BadRequestException, host: ArgumentsHost): void {
+    override catch(exception: unknown, host: ArgumentsHost): void {
         const request: Request = host.switchToHttp().getRequest<Request>();
-        const response: string | object = exception.getResponse();
+        const response: string | object | null =
+            exception instanceof HttpException ? exception.getResponse() : null;
+        const status: unknown =
+            exception instanceof HttpException
+                ? exception.getStatus()
+                : typeof exception === 'object' && exception !== null && 'status' in exception
+                  ? exception.status
+                  : null;
+        const isParserFailure: boolean =
+            (status === 400 || status === 413) &&
+            !(typeof response === 'object' && response !== null && 'code' in response);
 
-        if (
-            !this.hasAuthenticationFirstParserContract(request) ||
-            (typeof response === 'object' && 'code' in response)
-        ) {
+        if (!isParserFailure || !this.hasAuthenticationFirstParserContract(request)) {
             super.catch(exception, host);
 
             return;
         }
 
-        void this.rejectParserFailure(host);
+        void this.rejectParserFailure(host, status === 413);
     }
 
     private hasAuthenticationFirstParserContract(request: Request): boolean {
-        return (
-            (request.method === 'GET' &&
-                /^\/pets\/[^/]+\/care\/activities\/?$/i.test(request.path)) ||
-            (request.method === 'POST' &&
-                /^\/pets\/[^/]+\/care\/routines\/[^/]+\/activities\/?$/i.test(request.path)) ||
-            (request.method === 'PATCH' &&
-                /^\/pets\/[^/]+\/care\/routines\/[^/]+\/?$/i.test(request.path)) ||
-            ((request.method === 'POST' || request.method === 'GET') &&
-                /^\/pets\/[^/]+\/care\/routines\/?$/i.test(request.path)) ||
-            ((request.method === 'PATCH' || request.method === 'DELETE') &&
-                /^\/pets\/[^/]+\/health\/veterinary-visits\/[^/]+\/?$/i.test(request.path)) ||
-            (request.method === 'POST' &&
-                /^\/pets\/[^/]+\/health\/veterinary-visits\/?$/i.test(request.path)) ||
-            ((request.method === 'PATCH' || request.method === 'DELETE') &&
-                /^\/pets\/[^/]+\/health\/medical-conditions\/[^/]+\/?$/i.test(request.path)) ||
-            (request.method === 'POST' &&
-                /^\/pets\/[^/]+\/health\/medical-conditions(?:\/[^/]+\/(?:resolve|reopen))?\/?$/i.test(
-                    request.path,
-                )) ||
-            ((request.method === 'PATCH' || request.method === 'DELETE') &&
-                /^\/pets\/[^/]+\/health\/medications\/[^/]+\/?$/i.test(request.path)) ||
-            (request.method === 'POST' &&
-                /^\/pets\/[^/]+\/health\/medications\/?$/i.test(request.path)) ||
-            (request.method === 'POST' && /^\/pets\/[^/]+\/restore\/?$/i.test(request.path)) ||
-            ((request.method === 'PATCH' || request.method === 'DELETE') &&
-                /^\/pets\/[^/]+\/health\/allergies\/[^/]+\/?$/i.test(request.path))
-        );
+        const path: string = request.path;
+
+        if (/^\/pets\/?$/i.test(path)) {
+            return request.method === 'GET' || request.method === 'POST';
+        }
+
+        if (/^\/pets\/[^/]+\/?$/i.test(path)) {
+            return request.method === 'GET' || request.method === 'PATCH';
+        }
+
+        if (/^\/pet-invitations\/[^/]+\/(accept|reject|cancel)\/?$/i.test(path)) {
+            return request.method === 'POST';
+        }
+
+        if (
+            /^\/pets\/[^/]+\/(archive|restore|leave|invitations|members\/[^/]+\/promote|care\/routines\/[^/]+\/activities|health\/medications\/[^/]+\/(complete|discontinue|reopen)|health\/medical-conditions\/[^/]+\/(resolve|reopen))\/?$/i.test(
+                path,
+            )
+        ) {
+            return request.method === 'POST';
+        }
+
+        if (/^\/pets\/[^/]+\/(members|care\/activities)\/?$/i.test(path)) {
+            return request.method === 'GET';
+        }
+
+        if (/^\/pets\/[^/]+\/members\/[^/]+\/?$/i.test(path)) {
+            return request.method === 'DELETE';
+        }
+
+        if (
+            /^\/pets\/[^/]+\/(care\/routines|health\/(weight-records|vaccination-records|allergies|medical-conditions|medications|veterinary-visits))\/?$/i.test(
+                path,
+            )
+        ) {
+            return request.method === 'GET' || request.method === 'POST';
+        }
+
+        if (
+            /^\/pets\/[^/]+\/(care\/routines|health\/(weight-records|vaccination-records|allergies|medical-conditions|medications|veterinary-visits))\/[^/]+\/?$/i.test(
+                path,
+            )
+        ) {
+            return (
+                request.method === 'PATCH' ||
+                (request.method === 'DELETE' && !path.includes('/care/'))
+            );
+        }
+
+        return false;
     }
 
-    private async rejectParserFailure(host: ArgumentsHost): Promise<void> {
+    private async rejectParserFailure(host: ArgumentsHost, isTooLarge: boolean): Promise<void> {
         // JSON parser failures precede route guards; these routes require authentication first.
         try {
             await this.authenticationGuard.canActivate(
@@ -72,10 +102,13 @@ export class AuthenticatedJsonRequestExceptionFilter extends BaseExceptionFilter
         }
 
         super.catch(
-            new BadRequestException({
-                code: 'INVALID_REQUEST',
-                message: 'Request body is invalid',
-            }),
+            new HttpException(
+                {
+                    code: 'INVALID_REQUEST',
+                    message: isTooLarge ? 'Request body is too large' : 'Request body is invalid',
+                },
+                isTooLarge ? 413 : 400,
+            ),
             host,
         );
     }

@@ -200,9 +200,30 @@ describe('GET /pets/:petId/members (e2e)', () => {
                 .set('Authorization', `Bearer ${accountFixtures[requesterIndex].accessToken}`)
                 .expect(200);
 
-            expect(response.body).toEqual({ members: expectedMembers });
+            expect(response.body).toEqual({ items: expectedMembers, nextCursor: null });
         },
     );
+
+    it('pages through owner and collaborator ordering with one item per page', async (): Promise<void> => {
+        const collected: PetMember[] = [];
+        let cursor: string | null = null;
+
+        for (let pageIndex: number = 0; pageIndex < expectedMembers.length; pageIndex += 1) {
+            const response = await request(application.getHttpServer())
+                .get(path())
+                .query({ limit: '1', ...(cursor === null ? {} : { cursor }) })
+                .set('Authorization', `Bearer ${accountFixtures[0].accessToken}`)
+                .expect(200);
+            const page = response.body as { items: PetMember[]; nextCursor: string | null };
+
+            expect(page.items).toHaveLength(1);
+            collected.push(...page.items);
+            cursor = page.nextCursor;
+        }
+
+        expect(collected).toEqual(expectedMembers);
+        expect(cursor).toBeNull();
+    });
 
     it.each(['ACTIVE', 'ARCHIVED'] as const)(
         'returns PET_NOT_FOUND for an %s pet to inactive members and a pending invitee',
@@ -287,7 +308,7 @@ describe('GET /pets/:petId/members (e2e)', () => {
         },
     );
 
-    it.each(['limit', 'cursor', 'offset', 'page', 'unexpected'])(
+    it.each(['offset', 'page', 'unexpected'])(
         'rejects unsupported query parameter %s',
         async (parameter: string) => {
             const response = await request(application.getHttpServer())

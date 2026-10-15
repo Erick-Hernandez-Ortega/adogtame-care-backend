@@ -337,7 +337,7 @@ describe('DeletePetMedication with PostgreSQL (integration)', () => {
                 application
                     .get(ListPetMedications)
                     .execute({ petId, authenticatedAccountId: ownerId }),
-            ).resolves.toEqual({ items: [] });
+            ).resolves.toEqual({ nextCursor: null, items: [] });
         },
     );
 

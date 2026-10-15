@@ -174,7 +174,7 @@ describe('POST /pets/:petId/care/routines (e2e)', () => {
                     frequency: {
                         period: 'WEEKLY',
                         timesPerPeriod: 3,
-                        suggestedTimes: ['23:59', '00:00', '00:00'],
+                        suggestedTimes: ['23:59', '00:00', '00:01'],
                         weekdays: ['MONDAY', 'SUNDAY'],
                     },
                     timezone: 'America/Mexico_City',
@@ -219,6 +219,36 @@ describe('POST /pets/:petId/care/routines (e2e)', () => {
 
         expect(new Set(identifiers).size).toBe(2);
         expect(await rows()).toHaveLength(6);
+    });
+
+    it.each([
+        { suggestedTimes: ['08:00', '08:00'] },
+        { weekdays: ['MONDAY', 'MONDAY'] },
+        {
+            suggestedTimes: Array.from(
+                { length: 25 },
+                (_, minute: number): string => `08:${String(minute).padStart(2, '0')}`,
+            ),
+        },
+        {
+            weekdays: [
+                'MONDAY',
+                'TUESDAY',
+                'WEDNESDAY',
+                'THURSDAY',
+                'FRIDAY',
+                'SATURDAY',
+                'SUNDAY',
+                'MONDAY',
+            ],
+        },
+    ])('rejects excessive or duplicate frequency suggestions %j', async (suggestions) => {
+        const response = await post()
+            .send({ ...body(), frequency: { period: 'WEEKLY', timesPerPeriod: 1, ...suggestions } })
+            .expect(400);
+
+        expect(response.body).toMatchObject({ code: 'INVALID_ROUTINE_FREQUENCY' });
+        expect(await rows()).toHaveLength(0);
     });
 
     it.each([

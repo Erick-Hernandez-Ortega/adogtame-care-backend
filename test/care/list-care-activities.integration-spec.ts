@@ -217,6 +217,7 @@ describe('ListCareActivities with PostgreSQL (integration)', () => {
             await expect(
                 list({ accountId: account === 'owner' ? ownerId : collaboratorId }),
             ).resolves.toEqual({
+                nextCursor: null,
                 items: [
                     {
                         id,
@@ -233,7 +234,7 @@ describe('ListCareActivities with PostgreSQL (integration)', () => {
     );
 
     it('keeps empty history distinct from denied access for every filter', async (): Promise<void> => {
-        await expect(list()).resolves.toEqual({ items: [] });
+        await expect(list()).resolves.toEqual({ nextCursor: null, items: [] });
         await insertActivity();
 
         for (const filters of [
@@ -241,7 +242,7 @@ describe('ListCareActivities with PostgreSQL (integration)', () => {
             { from: '2026-10-10' },
             { to: '2026-10-08' },
         ]) {
-            await expect(list(filters)).resolves.toEqual({ items: [] });
+            await expect(list(filters)).resolves.toEqual({ nextCursor: null, items: [] });
             await expect(list({ ...filters, accountId: outsiderId })).rejects.toThrow(
                 PetNotFoundError,
             );
@@ -297,6 +298,7 @@ describe('ListCareActivities with PostgreSQL (integration)', () => {
             (await list({ routineId, from: '2026-03-09' })).items.map((item): string => item.id),
         ).toEqual([after]);
         await expect(list({ routineId: await routine(otherPetId) })).resolves.toEqual({
+            nextCursor: null,
             items: [],
         });
     });
@@ -336,7 +338,21 @@ describe('ListCareActivities with PostgreSQL (integration)', () => {
             await insertActivity({ routineId });
         }
 
-        expect((await list()).items).toHaveLength(26);
+        const page = await list();
+
+        expect(page.items).toHaveLength(20);
+        expect(page.nextCursor).not.toBeNull();
+        const continuation = await listCareActivities.execute({
+            petId,
+            authenticatedAccountId: ownerId,
+            cursor: page.nextCursor,
+        });
+
+        expect(continuation.items).toHaveLength(6);
+        expect(continuation.nextCursor).toBeNull();
+        expect(
+            new Set([...page.items, ...continuation.items].map((item): string => item.id)).size,
+        ).toBe(26);
     });
 
     it.each(['leave', 'remove'] as const)(

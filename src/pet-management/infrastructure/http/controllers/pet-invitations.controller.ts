@@ -60,6 +60,11 @@ import {
 @Controller('pet-invitations')
 @ApiTags('Pet Invitations')
 @ApiBearerAuth()
+@ApiResponse({
+    status: 413,
+    description: 'Request body exceeds the 100 KB parser limit; authentication is checked first',
+    schema: errorSchema(['INVALID_REQUEST'], 'Request body is too large'),
+})
 export class PetInvitationsController {
     constructor(
         private readonly acceptInvitation: AcceptInvitation,

@@ -1,5 +1,6 @@
 import { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
+import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import type { OpenAPIObject, OperationObject, ResponseObject, SchemaObject } from '@nestjs/swagger';
 import request from 'supertest';
 import { App } from 'supertest/types';
@@ -33,15 +34,38 @@ describe('OpenAPI documentation (e2e)', () => {
         await application.close();
     });
 
-    it('serves Swagger UI and documents all fifty-one operations and their contracts', async () => {
-        const htmlResponse = await request(application.getHttpServer()).get('/docs').expect(200);
+    it('serves Swagger UI and JSON', async () => {
+        const response = await request(application.getHttpServer()).get('/docs').expect(200);
 
-        expect(htmlResponse.text).toContain('swagger-ui');
+        expect(response.text).toContain('swagger-ui');
+        await request(application.getHttpServer()).get('/docs-json').expect(200);
+    });
 
-        const jsonResponse = await request(application.getHttpServer())
-            .get('/docs-json')
-            .expect(200);
-        const document: OpenAPIObject = jsonResponse.body as OpenAPIObject;
+    it('documents all fifty-one operations and their contracts', () => {
+        const document: OpenAPIObject = SwaggerModule.createDocument(
+            application,
+            new DocumentBuilder().addBearerAuth().build(),
+        );
+
+        for (const [path, entry] of Object.entries(document.paths)) {
+            if (entry?.get?.security?.length && (path === '/pets' || path.split('/').length > 3)) {
+                expect(entry.get.parameters).toEqual(
+                    expect.arrayContaining([
+                        expect.objectContaining({
+                            name: 'limit',
+                            in: 'query',
+                            schema: expect.objectContaining({
+                                minimum: 1,
+                                maximum: 100,
+                                default: 20,
+                            }) as object,
+                        }) as object,
+                        expect.objectContaining({ name: 'cursor', in: 'query' }) as object,
+                    ]),
+                );
+                expect(responseSchema(entry.get, '200')?.required).toEqual(['items', 'nextCursor']);
+            }
+        }
 
         expect(JSON.stringify(document)).not.toContain('OWNER_REMOVAL_NOT_SUPPORTED');
 
@@ -123,12 +147,11 @@ describe('OpenAPI documentation (e2e)', () => {
 
         expect(activityHistory?.tags).toEqual(['Care']);
         expect(activityHistory?.security).toEqual([{ bearer: [] }]);
-        expect(Object.keys(activityHistory?.responses ?? {}).sort()).toEqual([
-            '200',
-            '400',
-            '401',
-            '404',
-        ]);
+        expect(
+            Object.keys(activityHistory?.responses ?? {})
+                .filter((status: string): boolean => status !== '413')
+                .sort(),
+        ).toEqual(['200', '400', '401', '404']);
         expect(activityHistory?.parameters).toEqual(
             expect.arrayContaining([
                 expect.objectContaining({
@@ -157,13 +180,13 @@ describe('OpenAPI documentation (e2e)', () => {
                 }),
             ]),
         );
-        expect(activityHistory?.parameters).toHaveLength(4);
+        expect(activityHistory?.parameters).toHaveLength(6);
         const activityHistoryResponse = activityHistory?.responses['200'] as ResponseObject;
 
         expect(activityHistoryResponse.content?.['application/json'].schema).toMatchObject({
             type: 'object',
             additionalProperties: false,
-            required: ['items'],
+            required: ['items', 'nextCursor'],
             properties: {
                 items: {
                     type: 'array',
@@ -223,7 +246,11 @@ describe('OpenAPI documentation (e2e)', () => {
 
         expect(activity?.security).toEqual([{ bearer: [] }]);
         expect(activity?.tags).toEqual(['Care']);
-        expect(Object.keys(activity?.responses ?? {}).sort()).toEqual(['201', '400', '401', '404']);
+        expect(
+            Object.keys(activity?.responses ?? {})
+                .filter((status: string): boolean => status !== '413')
+                .sort(),
+        ).toEqual(['201', '400', '401', '404']);
         expect(activity?.parameters).toEqual(
             ['petId', 'routineId'].map((name: string): unknown =>
                 expect.objectContaining({
@@ -296,7 +323,11 @@ describe('OpenAPI documentation (e2e)', () => {
 
         expect(routine?.security).toEqual([{ bearer: [] }]);
         expect(routine?.tags).toEqual(['Care']);
-        expect(Object.keys(routine?.responses ?? {}).sort()).toEqual(['201', '400', '401', '404']);
+        expect(
+            Object.keys(routine?.responses ?? {})
+                .filter((status: string): boolean => status !== '413')
+                .sort(),
+        ).toEqual(['201', '400', '401', '404']);
         expect(routine?.parameters).toEqual([
             expect.objectContaining({
                 name: 'petId',
@@ -410,12 +441,11 @@ describe('OpenAPI documentation (e2e)', () => {
 
         expect(routineUpdate?.security).toEqual([{ bearer: [] }]);
         expect(routineUpdate?.tags).toEqual(['Care']);
-        expect(Object.keys(routineUpdate?.responses ?? {}).sort()).toEqual([
-            '200',
-            '400',
-            '401',
-            '404',
-        ]);
+        expect(
+            Object.keys(routineUpdate?.responses ?? {})
+                .filter((status: string): boolean => status !== '413')
+                .sort(),
+        ).toEqual(['200', '400', '401', '404']);
         expect(routineUpdate?.parameters).toEqual(
             ['petId', 'routineId'].map((name: string): unknown =>
                 expect.objectContaining({
@@ -451,21 +481,20 @@ describe('OpenAPI documentation (e2e)', () => {
         expect(routineList?.security).toEqual([{ bearer: [] }]);
         expect(routineList?.tags).toEqual(['Care']);
         expect(routineList?.requestBody).toBeUndefined();
-        expect(routineList?.parameters).toEqual(routine?.parameters);
-        expect(Object.keys(routineList?.responses ?? {}).sort()).toEqual([
-            '200',
-            '400',
-            '401',
-            '404',
-        ]);
+        expect(routineList?.parameters).toEqual(expect.arrayContaining(routine?.parameters ?? []));
+        expect(
+            Object.keys(routineList?.responses ?? {})
+                .filter((status: string): boolean => status !== '413')
+                .sort(),
+        ).toEqual(['200', '400', '401', '404']);
         const routineListSchema = responseSchema(routineList, '200');
 
         expect(routineListSchema).toMatchObject({
             type: 'object',
             additionalProperties: false,
-            required: ['items'],
+            required: ['items', 'nextCursor'],
         });
-        expect(Object.keys(routineListSchema?.properties ?? {})).toEqual(['items']);
+        expect(Object.keys(routineListSchema?.properties ?? {})).toEqual(['nextCursor', 'items']);
         const routineItemsSchema = routineListSchema?.properties?.items as SchemaObject;
         const routineItemSchema = routineItemsSchema.items as SchemaObject;
         const routineItemFields: string[] = [
@@ -502,12 +531,11 @@ describe('OpenAPI documentation (e2e)', () => {
         const veterinaryVisit = document.paths['/pets/{petId}/health/veterinary-visits']?.post;
 
         expect(veterinaryVisit?.security).toEqual([{ bearer: [] }]);
-        expect(Object.keys(veterinaryVisit?.responses ?? {}).sort()).toEqual([
-            '201',
-            '400',
-            '401',
-            '404',
-        ]);
+        expect(
+            Object.keys(veterinaryVisit?.responses ?? {})
+                .filter((status: string): boolean => status !== '413')
+                .sort(),
+        ).toEqual(['201', '400', '401', '404']);
         expect(veterinaryVisit?.parameters).toEqual([
             expect.objectContaining({
                 name: 'petId',
@@ -577,12 +605,11 @@ describe('OpenAPI documentation (e2e)', () => {
             document.paths['/pets/{petId}/health/veterinary-visits/{visitId}']?.patch;
 
         expect(visitUpdate?.security).toEqual([{ bearer: [] }]);
-        expect(Object.keys(visitUpdate?.responses ?? {}).sort()).toEqual([
-            '200',
-            '400',
-            '401',
-            '404',
-        ]);
+        expect(
+            Object.keys(visitUpdate?.responses ?? {})
+                .filter((status: string): boolean => status !== '413')
+                .sort(),
+        ).toEqual(['200', '400', '401', '404']);
         expect(visitUpdate?.parameters).toHaveLength(2);
         const visitUpdateRequest = (
             visitUpdate?.requestBody as {
@@ -627,12 +654,11 @@ describe('OpenAPI documentation (e2e)', () => {
             document.paths['/pets/{petId}/health/veterinary-visits/{visitId}']?.delete;
 
         expect(visitDelete?.security).toEqual([{ bearer: [] }]);
-        expect(Object.keys(visitDelete?.responses ?? {}).sort()).toEqual([
-            '204',
-            '400',
-            '401',
-            '404',
-        ]);
+        expect(
+            Object.keys(visitDelete?.responses ?? {})
+                .filter((status: string): boolean => status !== '413')
+                .sort(),
+        ).toEqual(['204', '400', '401', '404']);
         expect(visitDelete?.parameters).toMatchObject([
             {
                 name: 'petId',
@@ -672,21 +698,22 @@ describe('OpenAPI documentation (e2e)', () => {
 
         expect(veterinaryVisitList?.security).toEqual([{ bearer: [] }]);
         expect(veterinaryVisitList?.requestBody).toBeUndefined();
-        expect(veterinaryVisitList?.parameters).toEqual(veterinaryVisit?.parameters);
-        expect(Object.keys(veterinaryVisitList?.responses ?? {}).sort()).toEqual([
-            '200',
-            '400',
-            '401',
-            '404',
-        ]);
+        expect(veterinaryVisitList?.parameters).toEqual(
+            expect.arrayContaining(veterinaryVisit?.parameters ?? []),
+        );
+        expect(
+            Object.keys(veterinaryVisitList?.responses ?? {})
+                .filter((status: string): boolean => status !== '413')
+                .sort(),
+        ).toEqual(['200', '400', '401', '404']);
         const visitListSchema = responseSchema(veterinaryVisitList, '200');
 
         expect(visitListSchema).toMatchObject({
             type: 'object',
             additionalProperties: false,
-            required: ['items'],
+            required: ['items', 'nextCursor'],
         });
-        expect(Object.keys(visitListSchema?.properties ?? {})).toEqual(['items']);
+        expect(Object.keys(visitListSchema?.properties ?? {})).toEqual(['nextCursor', 'items']);
         const visitItemsSchema = visitListSchema?.properties?.items as SchemaObject;
         const visitItemSchema = visitItemsSchema.items as SchemaObject;
 
@@ -726,12 +753,11 @@ describe('OpenAPI documentation (e2e)', () => {
         const medication = medicationPath?.post;
 
         expect(medication?.security).toEqual([{ bearer: [] }]);
-        expect(Object.keys(medication?.responses ?? {}).sort()).toEqual([
-            '201',
-            '400',
-            '401',
-            '404',
-        ]);
+        expect(
+            Object.keys(medication?.responses ?? {})
+                .filter((status: string): boolean => status !== '413')
+                .sort(),
+        ).toEqual(['201', '400', '401', '404']);
         expect(medication?.parameters).toEqual([
             expect.objectContaining({
                 name: 'petId',
@@ -743,28 +769,29 @@ describe('OpenAPI documentation (e2e)', () => {
         const medicationList = medicationPath?.get;
 
         expect(medicationList?.security).toEqual([{ bearer: [] }]);
-        expect(Object.keys(medicationList?.responses ?? {}).sort()).toEqual([
-            '200',
-            '400',
-            '401',
-            '404',
-        ]);
+        expect(
+            Object.keys(medicationList?.responses ?? {})
+                .filter((status: string): boolean => status !== '413')
+                .sort(),
+        ).toEqual(['200', '400', '401', '404']);
         expect(medicationList?.requestBody).toBeUndefined();
-        expect(medicationList?.parameters).toEqual(medication?.parameters);
+        expect(medicationList?.parameters).toEqual(
+            expect.arrayContaining(medication?.parameters ?? []),
+        );
         expect(medicationList?.description).toContain('active or archived pets');
         expect(medicationList?.description).toContain(
             'creation timestamp and medication ID descending',
         );
-        expect(medicationList?.description).toContain('no filters or pagination');
+        expect(medicationList?.description).toContain('cursor');
         expect(medicationList?.description).toContain('always present as null');
         const listResponse = responseSchema(medicationList, '200');
 
         expect(listResponse).toMatchObject({
             type: 'object',
             additionalProperties: false,
-            required: ['items'],
+            required: ['items', 'nextCursor'],
         });
-        expect(Object.keys(listResponse?.properties ?? {})).toEqual(['items']);
+        expect(Object.keys(listResponse?.properties ?? {})).toEqual(['nextCursor', 'items']);
         const listedMedication = listResponse?.properties?.items as SchemaObject | undefined;
 
         expect(listedMedication?.type).toBe('array');
@@ -809,13 +836,11 @@ describe('OpenAPI documentation (e2e)', () => {
             document.paths['/pets/{petId}/health/medications/{medicationId}']?.patch;
 
         expect(medicationUpdate?.security).toEqual([{ bearer: [] }]);
-        expect(Object.keys(medicationUpdate?.responses ?? {}).sort()).toEqual([
-            '200',
-            '400',
-            '401',
-            '404',
-            '409',
-        ]);
+        expect(
+            Object.keys(medicationUpdate?.responses ?? {})
+                .filter((status: string): boolean => status !== '413')
+                .sort(),
+        ).toEqual(['200', '400', '401', '404', '409']);
         expect(medicationUpdate?.parameters).toEqual(
             expect.arrayContaining([
                 expect.objectContaining({
@@ -946,12 +971,11 @@ describe('OpenAPI documentation (e2e)', () => {
             document.paths['/pets/{petId}/health/medications/{medicationId}']?.delete;
 
         expect(medicationDelete?.security).toEqual([{ bearer: [] }]);
-        expect(Object.keys(medicationDelete?.responses ?? {}).sort()).toEqual([
-            '204',
-            '400',
-            '401',
-            '404',
-        ]);
+        expect(
+            Object.keys(medicationDelete?.responses ?? {})
+                .filter((status: string): boolean => status !== '413')
+                .sort(),
+        ).toEqual(['204', '400', '401', '404']);
         expect(medicationDelete?.parameters).toEqual(medicationUpdate?.parameters);
         expect(medicationDelete?.requestBody).toBeUndefined();
         expect((medicationDelete?.responses['204'] as ResponseObject).content).toBeUndefined();
@@ -1079,12 +1103,11 @@ describe('OpenAPI documentation (e2e)', () => {
             document.paths['/pets/{petId}/health/medical-conditions']?.post;
 
         expect(medicalCondition?.security).toEqual([{ bearer: [] }]);
-        expect(Object.keys(medicalCondition?.responses ?? {}).sort()).toEqual([
-            '201',
-            '400',
-            '401',
-            '404',
-        ]);
+        expect(
+            Object.keys(medicalCondition?.responses ?? {})
+                .filter((status: string): boolean => status !== '413')
+                .sort(),
+        ).toEqual(['201', '400', '401', '404']);
         expect(medicalCondition?.parameters).toEqual([
             expect.objectContaining({
                 name: 'petId',
@@ -1192,12 +1215,11 @@ describe('OpenAPI documentation (e2e)', () => {
             document.paths['/pets/{petId}/health/medical-conditions/{conditionId}']?.patch;
 
         expect(medicalConditionUpdate?.security).toEqual([{ bearer: [] }]);
-        expect(Object.keys(medicalConditionUpdate?.responses ?? {}).sort()).toEqual([
-            '200',
-            '400',
-            '401',
-            '404',
-        ]);
+        expect(
+            Object.keys(medicalConditionUpdate?.responses ?? {})
+                .filter((status: string): boolean => status !== '413')
+                .sort(),
+        ).toEqual(['200', '400', '401', '404']);
         expect(medicalConditionUpdate?.parameters).toEqual(
             expect.arrayContaining([
                 expect.objectContaining({
@@ -1276,12 +1298,11 @@ describe('OpenAPI documentation (e2e)', () => {
         const conditionDelete: OperationObject | undefined = conditionDetailPath?.delete;
 
         expect(conditionDelete?.security).toEqual([{ bearer: [] }]);
-        expect(Object.keys(conditionDelete?.responses ?? {}).sort()).toEqual([
-            '204',
-            '400',
-            '401',
-            '404',
-        ]);
+        expect(
+            Object.keys(conditionDelete?.responses ?? {})
+                .filter((status: string): boolean => status !== '413')
+                .sort(),
+        ).toEqual(['204', '400', '401', '404']);
         expect(conditionDelete?.requestBody).toBeUndefined();
         expect(conditionDelete?.parameters).toEqual(medicalConditionUpdate?.parameters);
         expect(conditionDelete?.responses['204']).not.toHaveProperty('content');
@@ -1309,12 +1330,11 @@ describe('OpenAPI documentation (e2e)', () => {
 
         expect(medicalConditionReopen?.security).toEqual([{ bearer: [] }]);
         expect(medicalConditionReopen?.requestBody).toBeUndefined();
-        expect(Object.keys(medicalConditionReopen?.responses ?? {}).sort()).toEqual([
-            '200',
-            '400',
-            '401',
-            '404',
-        ]);
+        expect(
+            Object.keys(medicalConditionReopen?.responses ?? {})
+                .filter((status: string): boolean => status !== '413')
+                .sort(),
+        ).toEqual(['200', '400', '401', '404']);
         expect(medicalConditionReopen?.parameters).toEqual(medicalConditionUpdate?.parameters);
         const reopenResponse = responseSchema(medicalConditionReopen, '200');
 
@@ -1355,12 +1375,11 @@ describe('OpenAPI documentation (e2e)', () => {
             document.paths['/pets/{petId}/health/medical-conditions/{conditionId}/resolve']?.post;
 
         expect(medicalConditionResolve?.security).toEqual([{ bearer: [] }]);
-        expect(Object.keys(medicalConditionResolve?.responses ?? {}).sort()).toEqual([
-            '200',
-            '400',
-            '401',
-            '404',
-        ]);
+        expect(
+            Object.keys(medicalConditionResolve?.responses ?? {})
+                .filter((status: string): boolean => status !== '413')
+                .sort(),
+        ).toEqual(['200', '400', '401', '404']);
         expect(medicalConditionResolve?.parameters).toHaveLength(2);
         const resolveBody = medicalConditionResolve?.requestBody as {
             required: boolean;
@@ -1397,29 +1416,33 @@ describe('OpenAPI documentation (e2e)', () => {
             document.paths['/pets/{petId}/health/medical-conditions']?.get;
 
         expect(medicalConditionList?.security).toEqual([{ bearer: [] }]);
-        expect(Object.keys(medicalConditionList?.responses ?? {}).sort()).toEqual([
-            '200',
-            '400',
-            '401',
-            '404',
-        ]);
+        expect(
+            Object.keys(medicalConditionList?.responses ?? {})
+                .filter((status: string): boolean => status !== '413')
+                .sort(),
+        ).toEqual(['200', '400', '401', '404']);
         expect(medicalConditionList?.requestBody).toBeUndefined();
-        expect(medicalConditionList?.parameters).toEqual([
-            expect.objectContaining({
-                name: 'petId',
-                in: 'path',
-                required: true,
-                schema: { type: 'string', format: 'uuid' },
-            }),
-        ]);
+        expect(medicalConditionList?.parameters).toEqual(
+            expect.arrayContaining([
+                expect.objectContaining({
+                    name: 'petId',
+                    in: 'path',
+                    required: true,
+                    schema: { type: 'string', format: 'uuid' },
+                }),
+            ]),
+        );
         const medicalConditionListResponse: SchemaObject | undefined = responseSchema(
             medicalConditionList,
             '200',
         );
 
-        expect(medicalConditionListResponse?.required).toEqual(['items']);
+        expect(medicalConditionListResponse?.required).toEqual(['items', 'nextCursor']);
         expect(medicalConditionListResponse?.additionalProperties).toBe(false);
-        expect(Object.keys(medicalConditionListResponse?.properties ?? {})).toEqual(['items']);
+        expect(Object.keys(medicalConditionListResponse?.properties ?? {})).toEqual([
+            'nextCursor',
+            'items',
+        ]);
         const medicalConditionListItems: SchemaObject = medicalConditionListResponse?.properties
             ?.items as SchemaObject;
 
@@ -1480,12 +1503,11 @@ describe('OpenAPI documentation (e2e)', () => {
             document.paths['/pets/{petId}/health/allergies/{allergyId}']?.patch;
 
         expect(allergyUpdate?.security).toEqual([{ bearer: [] }]);
-        expect(Object.keys(allergyUpdate?.responses ?? {}).sort()).toEqual([
-            '200',
-            '400',
-            '401',
-            '404',
-        ]);
+        expect(
+            Object.keys(allergyUpdate?.responses ?? {})
+                .filter((status: string): boolean => status !== '413')
+                .sort(),
+        ).toEqual(['200', '400', '401', '404']);
         expect(allergyUpdate?.parameters).toEqual([
             expect.objectContaining({
                 name: 'petId',
@@ -1551,12 +1573,11 @@ describe('OpenAPI documentation (e2e)', () => {
             document.paths['/pets/{petId}/health/allergies/{allergyId}']?.delete;
 
         expect(allergyDelete?.security).toEqual([{ bearer: [] }]);
-        expect(Object.keys(allergyDelete?.responses ?? {}).sort()).toEqual([
-            '204',
-            '400',
-            '401',
-            '404',
-        ]);
+        expect(
+            Object.keys(allergyDelete?.responses ?? {})
+                .filter((status: string): boolean => status !== '413')
+                .sort(),
+        ).toEqual(['204', '400', '401', '404']);
         expect(allergyDelete?.requestBody).toBeUndefined();
         expect(allergyDelete?.parameters).toEqual(allergyUpdate?.parameters);
         expect(allergyDelete?.responses['204']).not.toHaveProperty('content');
@@ -1579,7 +1600,11 @@ describe('OpenAPI documentation (e2e)', () => {
         const allergy: OperationObject | undefined =
             document.paths['/pets/{petId}/health/allergies']?.post;
 
-        expect(Object.keys(allergy?.responses ?? {}).sort()).toEqual(['201', '400', '401', '404']);
+        expect(
+            Object.keys(allergy?.responses ?? {})
+                .filter((status: string): boolean => status !== '413')
+                .sort(),
+        ).toEqual(['201', '400', '401', '404']);
         expect(allergy?.security).toEqual([{ bearer: [] }]);
         const allergyRequest = (
             allergy?.requestBody as {
@@ -1646,27 +1671,28 @@ describe('OpenAPI documentation (e2e)', () => {
         const allergyList: OperationObject | undefined =
             document.paths['/pets/{petId}/health/allergies']?.get;
 
-        expect(Object.keys(allergyList?.responses ?? {}).sort()).toEqual([
-            '200',
-            '400',
-            '401',
-            '404',
-        ]);
+        expect(
+            Object.keys(allergyList?.responses ?? {})
+                .filter((status: string): boolean => status !== '413')
+                .sort(),
+        ).toEqual(['200', '400', '401', '404']);
         expect(allergyList?.security).toEqual([{ bearer: [] }]);
         expect(allergyList?.requestBody).toBeUndefined();
-        expect(allergyList?.parameters).toEqual([
-            {
-                name: 'petId',
-                in: 'path',
-                required: true,
-                description: 'Non-nil pet UUID',
-                schema: { type: 'string', format: 'uuid' },
-            },
-        ]);
+        expect(allergyList?.parameters).toEqual(
+            expect.arrayContaining([
+                {
+                    name: 'petId',
+                    in: 'path',
+                    required: true,
+                    description: 'Non-nil pet UUID',
+                    schema: { type: 'string', format: 'uuid' },
+                },
+            ]),
+        );
         const allergyListResponse: SchemaObject | undefined = responseSchema(allergyList, '200');
 
-        expect(allergyListResponse?.required).toEqual(['items']);
-        expect(Object.keys(allergyListResponse?.properties ?? {})).toEqual(['items']);
+        expect(allergyListResponse?.required).toEqual(['items', 'nextCursor']);
+        expect(Object.keys(allergyListResponse?.properties ?? {})).toEqual(['nextCursor', 'items']);
         const allergyListItems: SchemaObject = allergyListResponse?.properties
             ?.items as SchemaObject;
 
@@ -1714,7 +1740,11 @@ describe('OpenAPI documentation (e2e)', () => {
 
         const archive: OperationObject | undefined = document.paths['/pets/{petId}/archive']?.post;
 
-        expect(Object.keys(archive?.responses ?? {}).sort()).toEqual(['204', '400', '401', '404']);
+        expect(
+            Object.keys(archive?.responses ?? {})
+                .filter((status: string): boolean => status !== '413')
+                .sort(),
+        ).toEqual(['204', '400', '401', '404']);
         expect((archive?.responses['204'] as ResponseObject).content).toBeUndefined();
         expect(archive?.requestBody).toBeUndefined();
         expect(archive?.security).toEqual([{ bearer: [] }]);
@@ -1739,7 +1769,11 @@ describe('OpenAPI documentation (e2e)', () => {
 
         const restore: OperationObject | undefined = document.paths['/pets/{petId}/restore']?.post;
 
-        expect(Object.keys(restore?.responses ?? {}).sort()).toEqual(['204', '400', '401', '404']);
+        expect(
+            Object.keys(restore?.responses ?? {})
+                .filter((status: string): boolean => status !== '413')
+                .sort(),
+        ).toEqual(['204', '400', '401', '404']);
         expect((restore?.responses['204'] as ResponseObject).content).toBeUndefined();
         expect(restore?.requestBody).toBeUndefined();
         expect(restore?.security).toEqual([{ bearer: [] }]);
@@ -1762,7 +1796,9 @@ describe('OpenAPI documentation (e2e)', () => {
             });
         }
 
-        const summary = responseSchema(document.paths['/pets']?.get, '200')?.items as SchemaObject;
+        const summary = (
+            responseSchema(document.paths['/pets']?.get, '200')?.properties?.items as SchemaObject
+        )?.items as SchemaObject;
 
         expect(summary.required).toContain('status');
         expect(summary.properties?.status).toMatchObject({
@@ -1772,13 +1808,11 @@ describe('OpenAPI documentation (e2e)', () => {
         const promotion: OperationObject | undefined =
             document.paths['/pets/{petId}/members/{membershipId}/promote']?.post;
 
-        expect(Object.keys(promotion?.responses ?? {}).sort()).toEqual([
-            '204',
-            '400',
-            '401',
-            '404',
-            '409',
-        ]);
+        expect(
+            Object.keys(promotion?.responses ?? {})
+                .filter((status: string): boolean => status !== '413')
+                .sort(),
+        ).toEqual(['204', '400', '401', '404', '409']);
         expect((promotion?.responses['204'] as ResponseObject).content).toBeUndefined();
         expect(promotion?.security).toEqual([{ bearer: [] }]);
         expect(promotion?.parameters).toEqual(
@@ -1798,13 +1832,11 @@ describe('OpenAPI documentation (e2e)', () => {
         const removal: OperationObject | undefined =
             document.paths['/pets/{petId}/members/{membershipId}']?.delete;
 
-        expect(Object.keys(removal?.responses ?? {}).sort()).toEqual([
-            '204',
-            '400',
-            '401',
-            '404',
-            '409',
-        ]);
+        expect(
+            Object.keys(removal?.responses ?? {})
+                .filter((status: string): boolean => status !== '413')
+                .sort(),
+        ).toEqual(['204', '400', '401', '404', '409']);
         expect((removal?.responses['204'] as ResponseObject).content).toBeUndefined();
         expect(removal?.parameters).toEqual(
             expect.arrayContaining([
@@ -1850,23 +1882,31 @@ describe('OpenAPI documentation (e2e)', () => {
         const detail = document.paths['/pets/{petId}']?.get;
         const members = document.paths['/pets/{petId}/members']?.get;
 
-        expect(Object.keys(members?.responses ?? {}).sort()).toEqual(['200', '400', '401', '404']);
+        expect(
+            Object.keys(members?.responses ?? {})
+                .filter((status: string): boolean => status !== '413')
+                .sort(),
+        ).toEqual(['200', '400', '401', '404']);
         expect(members?.requestBody).toBeUndefined();
-        expect(members?.parameters).toEqual([
-            expect.objectContaining({
-                name: 'petId',
-                in: 'path',
-                required: true,
-                schema: { type: 'string', format: 'uuid' },
-            }),
-        ]);
+        expect(members?.parameters).toEqual(
+            expect.arrayContaining([
+                expect.objectContaining({
+                    name: 'petId',
+                    in: 'path',
+                    required: true,
+                    schema: { type: 'string', format: 'uuid' },
+                }),
+            ]),
+        );
         expect(responseSchema(members, '200')).toEqual({
             type: 'object',
             additionalProperties: false,
-            required: ['members'],
+            required: ['items', 'nextCursor'],
             properties: {
-                members: {
+                nextCursor: { type: 'string', nullable: true },
+                items: {
                     type: 'array',
+                    maxItems: 100,
                     items: {
                         type: 'object',
                         additionalProperties: false,
@@ -2220,7 +2260,10 @@ describe('OpenAPI documentation (e2e)', () => {
 
         expect(responseSchema(account, '201')?.required).toEqual(['id', 'email']);
         expect(responseSchema(login, '200')?.required).toEqual(['accessToken']);
-        expect(responseSchema(list, '200')).toMatchObject({ type: 'array' });
+        expect(responseSchema(list, '200')).toMatchObject({
+            type: 'object',
+            required: ['items', 'nextCursor'],
+        });
         expect(responseSchema(detail, '200')?.required).toContain('role');
         expect(responseSchema(create, '201')?.required).toContain('memberships');
         expect(responseSchema(invite, '201')?.required).toEqual(

@@ -1,5 +1,6 @@
+import { afterPage, paginationKey } from '../../../../infrastructure/database/pagination';
 import { Injectable } from '@nestjs/common';
-import { and, desc, eq, inArray } from 'drizzle-orm';
+import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import { DatabaseService } from '../../../../infrastructure/database/database.service';
 import {
     petMemberships,
@@ -20,8 +21,13 @@ export class DrizzlePetAllergyReader implements PetAllergyReader {
     async findAccessibleByPet(
         request: PetAllergyReadRequest,
     ): Promise<PetAllergyListItem[] | null> {
+        const key = paginationKey([
+            sql`to_char(${healthPetAllergies.createdAt} AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`,
+            sql`${healthPetAllergies.id}::text`,
+        ]);
         const rows = await this.databaseService.connection
             .select({
+                paginationKey: key,
                 allergy: {
                     id: healthPetAllergies.id,
                     allergen: healthPetAllergies.allergen,
@@ -41,9 +47,13 @@ export class DrizzlePetAllergyReader implements PetAllergyReader {
                     inArray(petMemberships.role, ['OWNER', 'COLLABORATOR']),
                 ),
             )
-            .leftJoin(healthPetAllergies, eq(healthPetAllergies.petId, pets.id))
+            .leftJoin(
+                healthPetAllergies,
+                and(eq(healthPetAllergies.petId, pets.id), afterPage(key, request.page)),
+            )
             .where(and(eq(pets.id, request.petId), inArray(pets.status, ['ACTIVE', 'ARCHIVED'])))
-            .orderBy(desc(healthPetAllergies.createdAt), desc(healthPetAllergies.id));
+            .orderBy(desc(healthPetAllergies.createdAt), desc(healthPetAllergies.id))
+            .limit(request.page?.limit ?? 2147483647);
 
         if (rows.length === 0) {
             return null;
@@ -56,6 +66,7 @@ export class DrizzlePetAllergyReader implements PetAllergyReader {
 
             return [
                 {
+                    ...(request.page === undefined ? {} : { paginationKey: row.paginationKey }),
                     id: row.allergy.id,
                     allergen: row.allergy.allergen,
                     category: row.allergy.category as AllergyCategory,

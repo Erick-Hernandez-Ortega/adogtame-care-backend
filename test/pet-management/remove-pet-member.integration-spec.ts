@@ -369,7 +369,7 @@ describe('RemovePetMember with PostgreSQL (integration)', () => {
                 expect(await physicalRow(target)).toEqual(physicalBefore);
             });
             expect(
-                (await listMembers.execute(pet.id.value, owner.accountId)).members.map(
+                (await listMembers.execute(pet.id.value, owner.accountId)).items.map(
                     (member): string => member.membershipId,
                 ),
             ).not.toContain(target.membershipId);

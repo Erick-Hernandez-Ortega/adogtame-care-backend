@@ -173,7 +173,7 @@ describe('ListPetAllergies with PostgreSQL (integration)', () => {
             await database.connection.update(pets).set({ status }).where(eq(pets.id, petId));
             const accountId: string = role === 'OWNER' ? ownerId : collaboratorId;
 
-            await expect(list(accountId)).resolves.toEqual({ items: [item] });
+            await expect(list(accountId)).resolves.toEqual({ nextCursor: null, items: [item] });
         },
     );
 
@@ -183,7 +183,7 @@ describe('ListPetAllergies with PostgreSQL (integration)', () => {
             await database.connection.update(pets).set({ status }).where(eq(pets.id, petId));
 
             for (const accountId of [ownerId, collaboratorId]) {
-                await expect(list(accountId)).resolves.toEqual({ items: [] });
+                await expect(list(accountId)).resolves.toEqual({ nextCursor: null, items: [] });
             }
         },
     );
@@ -240,11 +240,12 @@ describe('ListPetAllergies with PostgreSQL (integration)', () => {
             createdAt: '2026-10-02T12:00:00Z',
         });
         await expect(list()).resolves.toEqual({
+            nextCursor: null,
             items: [newest, tiedHigh, tiedLow, oldest],
         });
     });
 
-    it('returns duplicates independently and never applies a hidden page limit', async (): Promise<void> => {
+    it('returns duplicates independently and supports an explicit larger page', async (): Promise<void> => {
         const items: PetAllergyListItem[] = [];
 
         for (let itemIndex: number = 0; itemIndex < 25; itemIndex += 1) {
@@ -254,7 +255,28 @@ describe('ListPetAllergies with PostgreSQL (integration)', () => {
         items.sort((firstItem: PetAllergyListItem, secondItem: PetAllergyListItem): number =>
             secondItem.id.localeCompare(firstItem.id),
         );
-        await expect(list()).resolves.toEqual({ items });
+        const page = await list();
+
+        expect(page.items).toEqual(items.slice(0, 20));
+        expect(page.nextCursor).not.toBeNull();
+        const continuation = await listPetAllergies.execute({
+            petId,
+            authenticatedAccountId: ownerId,
+            cursor: page.nextCursor,
+        });
+
+        expect(continuation).toEqual({ items: items.slice(20), nextCursor: null });
+        await database.connection
+            .update(petMemberships)
+            .set({ status: 'INACTIVE' })
+            .where(and(eq(petMemberships.petId, petId), eq(petMemberships.accountId, ownerId)));
+        await expect(
+            listPetAllergies.execute({
+                petId,
+                authenticatedAccountId: ownerId,
+                cursor: page.nextCursor,
+            }),
+        ).rejects.toThrow(PetNotFoundError);
     });
 
     it('preserves the read result through real Archive and Restore use cases', async (): Promise<void> => {

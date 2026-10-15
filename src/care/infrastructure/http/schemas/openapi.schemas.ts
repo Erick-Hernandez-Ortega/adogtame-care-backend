@@ -9,13 +9,17 @@ const frequencyProperties: Record<string, SchemaObject> = {
     timesPerPeriod: { type: 'integer', minimum: 1, maximum: Number.MAX_SAFE_INTEGER },
     suggestedTimes: {
         type: 'array',
+        maxItems: 24,
+        uniqueItems: true,
         nullable: true,
         items: { type: 'string', pattern: '^([01][0-9]|2[0-3]):[0-5][0-9]$' },
         description:
-            'Local wall-clock HH:mm suggestions. Omission/null becomes an empty array. Order and duplicates are preserved.',
+            'Local wall-clock HH:mm suggestions. Omission/null becomes an empty array. Order is preserved; duplicates are rejected.',
     },
     weekdays: {
         type: 'array',
+        maxItems: 7,
+        uniqueItems: true,
         nullable: true,
         items: { type: 'string', enum: Object.values(Weekday) },
         description:
@@ -106,10 +110,12 @@ const routineListProperties = Object.fromEntries(
 export const careRoutinesResponseSchema: SchemaObject = {
     type: 'object',
     additionalProperties: false,
-    required: ['items'],
+    required: ['items', 'nextCursor'],
     properties: {
+        nextCursor: { type: 'string', nullable: true },
         items: {
             type: 'array',
+            maxItems: 100,
             items: {
                 type: 'object',
                 additionalProperties: false,
@@ -188,10 +194,12 @@ const activityListProperties = Object.fromEntries(
 export const careActivitiesResponseSchema: SchemaObject = {
     type: 'object',
     additionalProperties: false,
-    required: ['items'],
+    required: ['items', 'nextCursor'],
     properties: {
+        nextCursor: { type: 'string', nullable: true },
         items: {
             type: 'array',
+            maxItems: 100,
             items: {
                 type: 'object',
                 additionalProperties: false,

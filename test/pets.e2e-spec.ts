@@ -486,7 +486,9 @@ describe('GET /pets (e2e)', () => {
                 .get('/pets')
                 .set('Authorization', `Bearer ${accountA.accessToken}`)
                 .expect(200);
-            const summaries: AccessiblePetSummary[] = response.body as AccessiblePetSummary[];
+            const summaries: AccessiblePetSummary[] = (
+                response.body as { items: AccessiblePetSummary[] }
+            ).items;
 
             expect(summaries).toEqual([
                 {
@@ -509,20 +511,39 @@ describe('GET /pets (e2e)', () => {
                 },
             ]);
 
+            const firstPageResponse = await request(application.getHttpServer())
+                .get('/pets')
+                .query({ limit: '1' })
+                .set('Authorization', `Bearer ${accountA.accessToken}`)
+                .expect(200);
+            const firstPage = firstPageResponse.body as {
+                items: AccessiblePetSummary[];
+                nextCursor: string;
+            };
+
+            expect(firstPage.items).toEqual([summaries[0]]);
+            const continuation = await request(application.getHttpServer())
+                .get('/pets')
+                .query({ limit: '1', cursor: firstPage.nextCursor })
+                .set('Authorization', `Bearer ${accountA.accessToken}`)
+                .expect(200);
+
+            expect(continuation.body).toEqual({ items: [summaries[1]], nextCursor: null });
+
             const ignoredAccountIdResponse = await request(application.getHttpServer())
                 .get('/pets')
                 .query({ accountId: accountB.accountId })
                 .set('Authorization', `Bearer ${accountA.accessToken}`)
-                .expect(200);
+                .expect(400);
 
-            expect(ignoredAccountIdResponse.body).toEqual(summaries);
+            expect(ignoredAccountIdResponse.body).toMatchObject({ code: 'INVALID_REQUEST' });
 
             const otherAccountResponse = await request(application.getHttpServer())
                 .get('/pets')
                 .set('Authorization', `Bearer ${accountB.accessToken}`)
                 .expect(200);
 
-            expect(otherAccountResponse.body).toEqual([]);
+            expect(otherAccountResponse.body).toEqual({ items: [], nextCursor: null });
 
             await databaseService.connection
                 .update(pets)
@@ -534,10 +555,10 @@ describe('GET /pets (e2e)', () => {
                 .set('Authorization', `Bearer ${accountA.accessToken}`)
                 .expect(200);
 
-            expect(activeResponse.body).toEqual([
-                summaries[0],
-                { ...summaries[1], status: 'ARCHIVED' },
-            ]);
+            expect(activeResponse.body).toEqual({
+                items: [summaries[0], { ...summaries[1], status: 'ARCHIVED' }],
+                nextCursor: null,
+            });
         } finally {
             for (const petId of createdPetIds) {
                 await databaseService.connection
@@ -567,7 +588,7 @@ describe('GET /pets (e2e)', () => {
                 .set('Authorization', `Bearer ${fixture.accessToken}`)
                 .expect(200);
 
-            expect(response.body).toEqual([]);
+            expect(response.body).toEqual({ items: [], nextCursor: null });
         } finally {
             await databaseService.connection
                 .delete(accounts)
@@ -731,8 +752,9 @@ describe('GET /pets/:petId (e2e)', () => {
                 .get('/pets')
                 .set('Authorization', `Bearer ${account.accessToken}`)
                 .expect(200);
-            const activeSummaries: AccessiblePetSummary[] =
-                activeListResponse.body as AccessiblePetSummary[];
+            const activeSummaries: AccessiblePetSummary[] = (
+                activeListResponse.body as { items: AccessiblePetSummary[] }
+            ).items;
 
             expect(activeSummaries.map((summary) => summary.id)).toEqual([petId]);
 
@@ -756,7 +778,7 @@ describe('GET /pets/:petId (e2e)', () => {
                 .set('Authorization', `Bearer ${account.accessToken}`)
                 .expect(200);
 
-            expect(inactiveListResponse.body).toEqual([]);
+            expect(inactiveListResponse.body).toEqual({ items: [], nextCursor: null });
 
             const inactiveDetailResponse = await request(application.getHttpServer())
                 .get(`/pets/${petId}`)

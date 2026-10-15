@@ -1,7 +1,8 @@
+import type { PageRequest, PageRow } from '../../../shared/application/pagination';
 import type { MedicationStatus } from '../../domain/pet-medication/pet-medication';
 export const PET_MEDICATION_READER: unique symbol = Symbol('PET_MEDICATION_READER');
 
-export interface ListedPetMedication {
+export interface ListedPetMedication extends PageRow {
     readonly status: MedicationStatus;
     readonly endedDate: string | null;
     readonly discontinuationReason: string | null;
@@ -16,6 +17,7 @@ export interface ListedPetMedication {
 }
 
 export interface PetMedicationReadRequest {
+    readonly page?: PageRequest;
     readonly petId: string;
     readonly authenticatedAccountId: string;
 }

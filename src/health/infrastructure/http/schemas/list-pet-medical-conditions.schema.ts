@@ -1,3 +1,3 @@
-import { z } from 'zod';
+import { paginationQuerySchema } from '../../../../infrastructure/http/pagination';
 
-export const listPetMedicalConditionsQuerySchema = z.object({}).strict();
+export const listPetMedicalConditionsQuerySchema = paginationQuerySchema;

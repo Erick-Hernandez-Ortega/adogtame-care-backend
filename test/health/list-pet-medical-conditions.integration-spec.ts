@@ -203,7 +203,7 @@ describe('ListPetMedicalConditions with PostgreSQL (integration)', () => {
             await database.connection.update(pets).set({ status }).where(eq(pets.id, petId));
             const accountId: string = role === 'OWNER' ? ownerId : collaboratorId;
 
-            await expect(list(accountId)).resolves.toEqual({ items: [item] });
+            await expect(list(accountId)).resolves.toEqual({ nextCursor: null, items: [item] });
         },
     );
 
@@ -213,7 +213,7 @@ describe('ListPetMedicalConditions with PostgreSQL (integration)', () => {
             await database.connection.update(pets).set({ status }).where(eq(pets.id, petId));
 
             for (const accountId of [ownerId, collaboratorId]) {
-                await expect(list(accountId)).resolves.toEqual({ items: [] });
+                await expect(list(accountId)).resolves.toEqual({ nextCursor: null, items: [] });
             }
         },
     );
@@ -278,6 +278,7 @@ describe('ListPetMedicalConditions with PostgreSQL (integration)', () => {
 
         await insertCondition({ petId: otherPetId, diagnosedDate: '2026-10-01' });
         await expect(list()).resolves.toEqual({
+            nextCursor: null,
             items: [
                 newestTimestamp,
                 tiedHigh,
@@ -290,7 +291,7 @@ describe('ListPetMedicalConditions with PostgreSQL (integration)', () => {
         });
     });
 
-    it('returns duplicates independently and never applies a hidden page limit', async (): Promise<void> => {
+    it('returns duplicates independently and supports an explicit larger page', async (): Promise<void> => {
         const items: PetMedicalConditionListItem[] = [];
 
         for (let itemIndex: number = 0; itemIndex < 25; itemIndex += 1) {
@@ -303,7 +304,28 @@ describe('ListPetMedicalConditions with PostgreSQL (integration)', () => {
                 secondItem: PetMedicalConditionListItem,
             ): number => secondItem.id.localeCompare(firstItem.id),
         );
-        await expect(list()).resolves.toEqual({ items });
+        const page = await list();
+
+        expect(page.items).toEqual(items.slice(0, 20));
+        expect(page.nextCursor).not.toBeNull();
+        const continuation = await listPetMedicalConditions.execute({
+            petId,
+            authenticatedAccountId: ownerId,
+            cursor: page.nextCursor,
+        });
+
+        expect(continuation).toEqual({ items: items.slice(20), nextCursor: null });
+        await database.connection
+            .update(petMemberships)
+            .set({ status: 'INACTIVE' })
+            .where(and(eq(petMemberships.petId, petId), eq(petMemberships.accountId, ownerId)));
+        await expect(
+            listPetMedicalConditions.execute({
+                petId,
+                authenticatedAccountId: ownerId,
+                cursor: page.nextCursor,
+            }),
+        ).rejects.toThrow(PetNotFoundError);
     });
 
     it('preserves the read result through real Archive and Restore use cases', async (): Promise<void> => {
@@ -400,7 +422,7 @@ describe('ListPetMedicalConditions with PostgreSQL (integration)', () => {
             ]);
 
             expect(result.error).toBeUndefined();
-            expect(result.value).toEqual({ items: [original] });
+            expect(result.value).toEqual({ nextCursor: null, items: [original] });
         } finally {
             if (timeout !== undefined) {
                 clearTimeout(timeout);
@@ -415,7 +437,7 @@ describe('ListPetMedicalConditions with PostgreSQL (integration)', () => {
         }
 
         expect((await writer).error).toBeUndefined();
-        await expect(list()).resolves.toEqual({ items: [original, pending] });
+        await expect(list()).resolves.toEqual({ nextCursor: null, items: [original, pending] });
     });
 
     it('has only the primary key and a simple non-unique pet index', async (): Promise<void> => {

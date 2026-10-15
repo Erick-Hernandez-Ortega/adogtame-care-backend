@@ -136,7 +136,7 @@ describe('DELETE /pets/:petId/members/:membershipId (e2e)', () => {
             .expect(200);
 
         expect(
-            (before.body as { members: { membershipId: string }[] }).members.map(
+            (before.body as { items: { membershipId: string }[] }).items.map(
                 (member): string => member.membershipId,
             ),
         ).toContain(membershipId);
@@ -152,7 +152,7 @@ describe('DELETE /pets/:petId/members/:membershipId (e2e)', () => {
             .expect(200);
 
         expect(
-            (after.body as { members: { membershipId: string }[] }).members.map(
+            (after.body as { items: { membershipId: string }[] }).items.map(
                 (member): string => member.membershipId,
             ),
         ).not.toContain(membershipId);
@@ -272,7 +272,7 @@ describe('DELETE /pets/:petId/members/:membershipId (e2e)', () => {
                 .expect(200);
 
             expect(
-                (after.body as { members: { membershipId: string }[] }).members.map(
+                (after.body as { items: { membershipId: string }[] }).items.map(
                     (member): string => member.membershipId,
                 ),
             ).not.toContain(membershipId);

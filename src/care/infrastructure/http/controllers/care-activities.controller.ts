@@ -42,6 +42,11 @@ import {
 @Controller('pets/:petId/care/routines/:routineId/activities')
 @ApiTags('Care')
 @ApiBearerAuth()
+@ApiResponse({
+    status: 413,
+    description: 'Request body exceeds the 100 KB parser limit; authentication is checked first',
+    schema: errorSchema(['INVALID_REQUEST'], 'Request body is too large'),
+})
 export class CareActivitiesController {
     constructor(private readonly completeCareActivity: CompleteCareActivity) {}
 

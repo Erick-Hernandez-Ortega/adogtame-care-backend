@@ -189,6 +189,7 @@ describe('PATCH /pets/:petId/health/allergies/:allergyId (e2e)', () => {
                 .expect(200);
 
             expect(list.body).toEqual({
+                nextCursor: null,
                 items: [
                     {
                         id: allergyId,

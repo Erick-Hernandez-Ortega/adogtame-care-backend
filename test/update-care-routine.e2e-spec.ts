@@ -167,7 +167,7 @@ describe('PATCH /pets/:petId/care/routines/:routineId (e2e)', () => {
             const { petId: omittedPetId, ...item } = response.body as Record<string, unknown>;
 
             expect(omittedPetId).toBe(petId);
-            expect(list.body).toEqual({ items: [item] });
+            expect(list.body).toEqual({ nextCursor: null, items: [item] });
             const before = await rows();
 
             await patch(original.id, account).send({ title: ' Evening meal ' }).expect(200);
@@ -185,7 +185,7 @@ describe('PATCH /pets/:petId/care/routines/:routineId (e2e)', () => {
                 frequency: {
                     period: 'WEEKLY',
                     timesPerPeriod: 3,
-                    suggestedTimes: ['23:59', '00:00', '00:00'],
+                    suggestedTimes: ['23:59', '00:00', '00:01'],
                     weekdays: ['MONDAY'],
                 },
                 timezone: 'Etc/UTC',
@@ -195,7 +195,7 @@ describe('PATCH /pets/:petId/care/routines/:routineId (e2e)', () => {
         expect(response.body).toMatchObject({
             type: 'OTHER',
             timezone: 'UTC',
-            frequency: { suggestedTimes: ['23:59', '00:00', '00:00'], weekdays: ['MONDAY'] },
+            frequency: { suggestedTimes: ['23:59', '00:00', '00:01'], weekdays: ['MONDAY'] },
             recordedByAccountId: owner.id,
         });
         const replacement = await patch(original.id)

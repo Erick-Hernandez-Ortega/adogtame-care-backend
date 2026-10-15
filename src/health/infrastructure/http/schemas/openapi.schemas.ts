@@ -126,10 +126,12 @@ export const updatedPetMedicalConditionResponseSchema: SchemaObject = {
 export const petMedicalConditionsResponseSchema: SchemaObject = {
     type: 'object',
     additionalProperties: false,
-    required: ['items'],
+    required: ['items', 'nextCursor'],
     properties: {
+        nextCursor: { type: 'string', nullable: true },
         items: {
             type: 'array',
+            maxItems: 100,
             items: {
                 type: 'object',
                 additionalProperties: false,
@@ -222,6 +224,7 @@ export const petVaccinationHistoryResponseSchema: SchemaObject = {
     properties: {
         items: {
             type: 'array',
+            maxItems: 100,
             items: {
                 type: 'object',
                 required: [
@@ -277,6 +280,7 @@ export const petWeightHistoryResponseSchema: SchemaObject = {
     properties: {
         items: {
             type: 'array',
+            maxItems: 100,
             items: {
                 type: 'object',
                 required: ['id', 'weightKg', 'measuredDate', 'recordedByAccountId'],
@@ -342,10 +346,12 @@ export const recordedPetAllergyResponseSchema: SchemaObject = {
 
 export const petAllergiesResponseSchema: SchemaObject = {
     type: 'object',
-    required: ['items'],
+    required: ['items', 'nextCursor'],
     properties: {
+        nextCursor: { type: 'string', nullable: true },
         items: {
             type: 'array',
+            maxItems: 100,
             items: {
                 type: 'object',
                 required: [
@@ -661,9 +667,10 @@ export const listedPetMedicationResponseSchema: SchemaObject = {
 export const petMedicationsResponseSchema: SchemaObject = {
     type: 'object',
     additionalProperties: false,
-    required: ['items'],
+    required: ['items', 'nextCursor'],
     properties: {
-        items: { type: 'array', items: listedPetMedicationResponseSchema },
+        nextCursor: { type: 'string', nullable: true },
+        items: { type: 'array', maxItems: 100, items: listedPetMedicationResponseSchema },
     },
 };
 
@@ -731,10 +738,12 @@ export const recordedPetVeterinaryVisitResponseSchema: SchemaObject = {
 export const petVeterinaryVisitsResponseSchema: SchemaObject = {
     type: 'object',
     additionalProperties: false,
-    required: ['items'],
+    required: ['items', 'nextCursor'],
     properties: {
+        nextCursor: { type: 'string', nullable: true },
         items: {
             type: 'array',
+            maxItems: 100,
             items: {
                 type: 'object',
                 additionalProperties: false,

@@ -1,5 +1,9 @@
 # Pet archive
 
+Current pagination, routine suggestion limits and authentication-first parser rules
+are defined in [API security and hardening](api-security.md). The slice descriptions
+below record the earlier contracts where they differ.
+
 `POST /pets/{petId}/archive` requires a Bearer token, a valid non-nil pet UUID,
 no query parameters, and an absent body or `{}`. Authentication precedes HTTP
 validation. Persistence checks pet existence and active owner authorization

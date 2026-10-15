@@ -1,6 +1,7 @@
+import { afterPage, paginationKey } from '../../../../infrastructure/database/pagination';
 import { MedicationStatus } from '../../../domain/pet-medication/pet-medication';
 import { Injectable } from '@nestjs/common';
-import { and, desc, eq, inArray } from 'drizzle-orm';
+import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import { DatabaseService } from '../../../../infrastructure/database/database.service';
 import {
     petMemberships,
@@ -20,8 +21,13 @@ export class DrizzlePetMedicationReader implements PetMedicationReader {
     async listIfPetReadable(
         request: PetMedicationReadRequest,
     ): Promise<ListedPetMedication[] | null> {
+        const key = paginationKey([
+            sql`to_char(${healthPetMedications.createdAt} AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`,
+            sql`${healthPetMedications.id}::text`,
+        ]);
         const rows = await this.databaseService.connection
             .select({
+                paginationKey: key,
                 medication: {
                     id: healthPetMedications.id,
                     name: healthPetMedications.name,
@@ -46,9 +52,13 @@ export class DrizzlePetMedicationReader implements PetMedicationReader {
                     inArray(petMemberships.role, ['OWNER', 'COLLABORATOR']),
                 ),
             )
-            .leftJoin(healthPetMedications, eq(healthPetMedications.petId, pets.id))
+            .leftJoin(
+                healthPetMedications,
+                and(eq(healthPetMedications.petId, pets.id), afterPage(key, request.page)),
+            )
             .where(and(eq(pets.id, request.petId), inArray(pets.status, ['ACTIVE', 'ARCHIVED'])))
-            .orderBy(desc(healthPetMedications.createdAt), desc(healthPetMedications.id));
+            .orderBy(desc(healthPetMedications.createdAt), desc(healthPetMedications.id))
+            .limit(request.page?.limit ?? 2147483647);
 
         if (rows.length === 0) {
             return null;
@@ -71,6 +81,7 @@ export class DrizzlePetMedicationReader implements PetMedicationReader {
 
             return [
                 {
+                    ...(request.page === undefined ? {} : { paginationKey: row.paginationKey }),
                     id: row.medication.id,
                     name: row.medication.name,
                     dosage: row.medication.dosage,
