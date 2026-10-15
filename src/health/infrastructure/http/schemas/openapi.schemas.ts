@@ -727,3 +727,34 @@ export const recordedPetVeterinaryVisitResponseSchema: SchemaObject = {
         recordedByAccountId: { type: 'string', format: 'uuid' },
     },
 };
+
+export const petVeterinaryVisitsResponseSchema: SchemaObject = {
+    type: 'object',
+    additionalProperties: false,
+    required: ['items'],
+    properties: {
+        items: {
+            type: 'array',
+            items: {
+                type: 'object',
+                additionalProperties: false,
+                required: [
+                    'id',
+                    'visitDate',
+                    'reason',
+                    'diagnosis',
+                    'observations',
+                    'recordedByAccountId',
+                ],
+                properties: {
+                    id: { type: 'string', format: 'uuid' },
+                    visitDate: { type: 'string', format: 'date' },
+                    reason: { type: 'string', minLength: 1, maxLength: 255 },
+                    diagnosis: { type: 'string', minLength: 1, maxLength: 2000, nullable: true },
+                    observations: { type: 'string', minLength: 1, maxLength: 5000, nullable: true },
+                    recordedByAccountId: { type: 'string', format: 'uuid' },
+                },
+            },
+        },
+    },
+};

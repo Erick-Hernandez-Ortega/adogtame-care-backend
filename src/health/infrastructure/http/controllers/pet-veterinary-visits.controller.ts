@@ -1,7 +1,15 @@
 import {
+    ListPetVeterinaryVisits,
+    PetNotFoundError as ListPetVeterinaryVisitsPetNotFoundError,
+    type PetVeterinaryVisits,
+} from '../../../application/list-pet-veterinary-visits/list-pet-veterinary-visits';
+import { listPetVeterinaryVisitsQuerySchema } from '../schemas/list-pet-veterinary-visits.schema';
+import { petVeterinaryVisitsResponseSchema } from '../schemas/openapi.schemas';
+import {
     BadRequestException,
     Body,
     Controller,
+    Get,
     NotFoundException,
     Param,
     Post,
@@ -42,7 +50,80 @@ import {
 @ApiTags('Health')
 @ApiBearerAuth()
 export class PetVeterinaryVisitsController {
-    constructor(private readonly recordPetVeterinaryVisit: RecordPetVeterinaryVisit) {}
+    constructor(
+        private readonly recordPetVeterinaryVisit: RecordPetVeterinaryVisit,
+        private readonly listPetVeterinaryVisits: ListPetVeterinaryVisits,
+    ) {}
+
+    @Get()
+    @UseGuards(AuthenticationGuard)
+    @ApiOperation({
+        summary: 'List registered pet veterinary visits',
+        description:
+            'Active owners and collaborators may read all visits of ACTIVE or ARCHIVED pets. Visit dates appear newest first; ties use technical creation timestamp and visit ID descending. Technical timestamps are not clinical dates. An accessible pet without visits returns an empty items array. No query parameters are accepted. Authentication precedes HTTP validation.',
+    })
+    @ApiParam({
+        name: 'petId',
+        description: 'Non-nil pet UUID',
+        schema: { type: 'string', format: 'uuid' },
+    })
+    @ApiResponse({
+        status: 200,
+        description: 'All registered pet veterinary visits',
+        schema: petVeterinaryVisitsResponseSchema,
+    })
+    @ApiResponse({
+        status: 400,
+        description: 'Invalid pet UUID or unexpected query parameters',
+        schema: errorSchema(['INVALID_REQUEST'], 'Request query is invalid'),
+    })
+    @ApiResponse({
+        status: 401,
+        description: 'Missing or invalid Bearer token',
+        schema: errorSchema(['UNAUTHENTICATED'], 'Authentication is required'),
+    })
+    @ApiResponse({
+        status: 404,
+        description: 'Pet is missing or inaccessible',
+        schema: errorSchema(['PET_NOT_FOUND'], 'Pet was not found'),
+    })
+    async list(
+        @CurrentAccountId() authenticatedAccountId: string,
+        @Param('petId') petId: string,
+        @Query() query: unknown,
+    ): Promise<PetVeterinaryVisits> {
+        const parsedPetId = veterinaryVisitPetIdSchema.safeParse(petId);
+
+        if (!parsedPetId.success) {
+            throw new BadRequestException({
+                code: 'INVALID_REQUEST',
+                message: 'Pet id is invalid',
+            });
+        }
+
+        if (!listPetVeterinaryVisitsQuerySchema.safeParse(query).success) {
+            throw new BadRequestException({
+                code: 'INVALID_REQUEST',
+                message: 'Request query is invalid',
+            });
+        }
+
+        try {
+            return await this.listPetVeterinaryVisits.execute({
+                petId: parsedPetId.data,
+                authenticatedAccountId,
+            });
+        } catch (error: unknown) {
+            if (error instanceof ListPetVeterinaryVisitsPetNotFoundError) {
+                throw new NotFoundException({
+                    code: 'PET_NOT_FOUND',
+                    message: error.message,
+                });
+            }
+
+            throw error;
+        }
+    }
 
     @Post()
     @UseGuards(AuthenticationGuard)

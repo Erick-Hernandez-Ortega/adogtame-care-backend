@@ -1,3 +1,9 @@
+import { ListPetVeterinaryVisits } from '../application/list-pet-veterinary-visits/list-pet-veterinary-visits';
+import {
+    PET_VETERINARY_VISIT_READER,
+    type PetVeterinaryVisitReader,
+} from '../application/persistence/pet-veterinary-visit.reader';
+import { DrizzlePetVeterinaryVisitReader } from './persistence/drizzle/drizzle-pet-veterinary-visit.reader';
 import { RecordPetVeterinaryVisit } from '../application/record-pet-veterinary-visit/record-pet-veterinary-visit';
 import {
     PET_VETERINARY_VISIT_REPOSITORY,
@@ -101,6 +107,14 @@ import { DrizzleVaccinationHistoryReader } from './persistence/drizzle/drizzle-v
         PetAllergiesController,
     ],
     providers: [
+        DrizzlePetVeterinaryVisitReader,
+        { provide: PET_VETERINARY_VISIT_READER, useExisting: DrizzlePetVeterinaryVisitReader },
+        {
+            provide: ListPetVeterinaryVisits,
+            inject: [PET_VETERINARY_VISIT_READER],
+            useFactory: (reader: PetVeterinaryVisitReader): ListPetVeterinaryVisits =>
+                new ListPetVeterinaryVisits(reader),
+        },
         DrizzlePetVeterinaryVisitRepository,
         {
             provide: PET_VETERINARY_VISIT_REPOSITORY,
