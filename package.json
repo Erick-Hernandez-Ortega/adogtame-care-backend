@@ -87,5 +87,13 @@
         ],
         "coverageDirectory": "../coverage",
         "testEnvironment": "node"
+    },
+    "pnpm": {
+        "overrides": {
+            "multer@<2.4.0": "^2.4.0",
+            "js-yaml@>=5.0.0 <5.4.1": "^5.4.1",
+            "handlebars@<4.7.10": "^4.7.10",
+            "esbuild@<0.25.0": "^0.25.0"
+        }
     }
 }
