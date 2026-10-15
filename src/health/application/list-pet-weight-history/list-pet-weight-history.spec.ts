@@ -93,6 +93,27 @@ describe('ListPetWeightHistory', () => {
         expect(result.nextCursor).toBeNull();
     });
 
+    it.each([
+        { measuredDate: '0000-01-01' },
+        { measuredDate: '2026-02-29' },
+        { measuredDate: '2026-09-26\n' },
+        { createdAt: '0000-01-01T00:00:00.000000Z' },
+        { id: '\u0000' },
+    ])('rejects tampered cursor fields before querying: %j', async (overrides) => {
+        const { useCase, findAccessiblePage } = setup();
+        const cursor: string = encodeWeightHistoryCursor(PET_ID, { ...first, ...overrides });
+
+        await expect(
+            useCase.execute({
+                petId: PET_ID,
+                authenticatedAccountId: ACCOUNT_ID,
+                limit: 20,
+                cursor,
+            }),
+        ).rejects.toThrow(InvalidWeightHistoryCursorError);
+        expect(findAccessiblePage).not.toHaveBeenCalled();
+    });
+
     it('returns an empty page with no cursor', async () => {
         const { useCase } = setup([]);
 
@@ -166,6 +187,25 @@ describe('weight history cursor', () => {
             InvalidWeightHistoryCursorError,
         );
     });
+
+    it.each(['0001-01-01', '0099-12-31', '2000-02-29', '9999-12-31'])(
+        'accepts supported civil date %s and preserves microseconds',
+        (measuredDate: string) => {
+            const position = {
+                ...first,
+                measuredDate,
+                createdAt: `${measuredDate}T12:00:00.123456Z`,
+            };
+
+            expect(
+                decodeWeightHistoryCursor(encodeWeightHistoryCursor(PET_ID, position), PET_ID),
+            ).toEqual({
+                id: FIRST_ID,
+                measuredDate,
+                createdAt: position.createdAt,
+            });
+        },
+    );
 
     it('rejects a cursor from another pet', () => {
         const token: string = encodeWeightHistoryCursor(OTHER_PET_ID, first);

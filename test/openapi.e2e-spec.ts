@@ -391,6 +391,9 @@ describe('OpenAPI documentation (e2e)', () => {
             timezone: { type: 'string' },
             notes: { type: 'string', nullable: true, minLength: 1, maxLength: 2000 },
         });
+        expect((activityRequest.properties?.completedAt as SchemaObject).description).toContain(
+            'local date within years 0001–9999',
+        );
         const activityResponse = responseSchema(activity, '201');
         const activityFields: string[] = [
             'completedAt',
@@ -2320,24 +2323,18 @@ describe('OpenAPI documentation (e2e)', () => {
                 }) as object,
             ]),
         );
-        const cancellationNotFound = responseSchema(cancel, '404');
 
-        expect(cancellationNotFound?.oneOf).toMatchObject([
-            {
+        for (const operation of [accept, reject, cancel]) {
+            expect(responseSchema(operation, '404')).toMatchObject({
                 required: ['code', 'message'],
                 properties: {
                     code: { enum: ['INVITATION_NOT_FOUND'] },
                     message: { example: 'Invitation was not found' },
                 },
-            },
-            {
-                required: ['code', 'message'],
-                properties: {
-                    code: { enum: ['PET_NOT_FOUND'] },
-                    message: { example: 'Pet was not found' },
-                },
-            },
-        ]);
+            });
+            expect(responseSchema(operation, '404')?.oneOf).toBeUndefined();
+        }
+
         expect(responseSchema(reject, '200')?.properties?.status).toMatchObject({
             enum: ['REJECTED'],
         });

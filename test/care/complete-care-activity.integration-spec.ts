@@ -1,4 +1,5 @@
 import { UpdateCareRoutine } from '../../src/care/application/update-care-routine/update-care-routine';
+import { ListCareActivities } from '../../src/care/application/list-care-activities/list-care-activities';
 import { INestApplicationContext } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { eq, sql } from 'drizzle-orm';
@@ -6,6 +7,7 @@ import { randomUUID } from 'node:crypto';
 import { AppModule } from '../../src/app.module';
 import {
     CompleteCareActivity,
+    InvalidActivityCompletedAtError,
     PetNotFoundError,
     CareRoutineNotFoundError,
 } from '../../src/care/application/complete-care-activity/complete-care-activity';
@@ -304,6 +306,66 @@ describe('CompleteCareActivity with PostgreSQL (integration)', () => {
                 .where(eq(petMemberships.petId, petId)),
         ).toEqual(membershipsBefore);
     });
+
+    it('rejects local dates outside the civil range and persists the first supported local day', async () => {
+        const boundary = {
+            ...command(),
+            completedAt: '0001-01-01T00:00:00Z',
+            timezone: 'Etc/GMT+1',
+        };
+
+        await expect(completeCareActivity.execute(boundary)).rejects.toThrow(
+            InvalidActivityCompletedAtError,
+        );
+        expect(await rows()).toEqual([]);
+        const result = await completeCareActivity.execute({
+            ...boundary,
+            completedAt: '0001-01-01T01:00:00Z',
+        });
+        const persisted = await database.connection.execute(sql`
+            SELECT (completed_at AT TIME ZONE timezone)::date::text AS local_day,
+                   to_char(completed_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS completed_at
+            FROM care_activities WHERE id = ${result.id}
+        `);
+
+        expect(persisted[0]?.local_day).toBe('0001-01-01');
+        expect(persisted[0]?.completed_at).toBe('0001-01-01T01:00:00.000Z');
+        expect(
+            await application.get(ListCareActivities).execute({
+                petId,
+                authenticatedAccountId: ownerId,
+                from: '0001-01-01',
+                to: '0001-01-01',
+            }),
+        ).toMatchObject({
+            items: [{ id: result.id, completedAt: result.completedAt, localDay: '0001-01-01' }],
+            nextCursor: null,
+        });
+    });
+
+    it.each(['0001', '0009', '0049', '0050', '0099', '0100', '0999', '1000'])(
+        'round-trips year %s through completion and filtered history with milliseconds',
+        async (year: string): Promise<void> => {
+            const completedAt: string = `${year}-01-01T01:00:00.123Z`;
+            const localDay: string = `${year}-01-01`;
+            const result = await completeCareActivity.execute({
+                ...command(),
+                completedAt,
+                timezone: 'Etc/GMT+1',
+            });
+            const history = await application.get(ListCareActivities).execute({
+                petId,
+                authenticatedAccountId: ownerId,
+                from: localDay,
+                to: localDay,
+            });
+
+            expect(history).toMatchObject({
+                items: [{ id: result.id, completedAt, localDay }],
+                nextCursor: null,
+            });
+        },
+    );
 
     it('hides pet access before checking missing or wrong-pet routines', async () => {
         await expect(create(outsiderId)).rejects.toThrow(PetNotFoundError);

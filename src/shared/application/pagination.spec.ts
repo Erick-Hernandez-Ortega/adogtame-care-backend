@@ -31,6 +31,26 @@ describe('Pagination', () => {
         expect(pageResult([], {}, 'scope')).toEqual({ items: [], nextCursor: null });
     });
 
+    it.each(['\u0000', 'prefix\u0000suffix', '\uD800', '\uDC00', 'prefix\uD800suffix'])(
+        'rejects cursor keys PostgreSQL text cannot represent: %j',
+        (key: string) => {
+            const cursor: string = Buffer.from(
+                JSON.stringify({ v: 1, scope: 'scope', after: [key] }),
+            ).toString('base64url');
+
+            expect(() => pageRequest({ cursor }, 'scope')).toThrow(InvalidCursorError);
+        },
+    );
+
+    it('preserves valid Unicode including surrogate pairs in cursor keys', () => {
+        const after: string[] = ['Luna 🐕', 'line\nbreak', '\u0001'];
+        const cursor: string = Buffer.from(
+            JSON.stringify({ v: 1, scope: 'scope', after }),
+        ).toString('base64url');
+
+        expect(pageRequest({ cursor }, 'scope').after).toEqual(after);
+    });
+
     it.each([
         '',
         '!',

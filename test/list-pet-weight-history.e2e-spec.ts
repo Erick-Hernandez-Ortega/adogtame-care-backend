@@ -269,6 +269,31 @@ describe('GET /pets/:petId/health/weight-records (e2e)', () => {
         }
     });
 
+    it.each([
+        { measuredDate: '0000-01-01' },
+        { createdAt: '0000-01-01T00:00:00.000000Z' },
+        { measuredDate: '2026-09-26\u0000' },
+        { id: '\uD800' },
+    ])('returns controlled validation for tampered cursor fields %j', async (overrides) => {
+        const cursor: string = Buffer.from(
+            JSON.stringify({
+                v: 1,
+                petId,
+                id: randomUUID(),
+                measuredDate: '2020-01-01',
+                createdAt: '2020-01-01T00:00:00.000000Z',
+                ...overrides,
+            }),
+        ).toString('base64url');
+        const response = await request(application.getHttpServer())
+            .get(path())
+            .query({ cursor })
+            .set('Authorization', `Bearer ${owner.token}`)
+            .expect(400);
+
+        expect(response.body).toEqual({ code: 'INVALID_REQUEST', message: 'Cursor is invalid' });
+    });
+
     it('requires JWT and validates path and strict query parameters', async () => {
         await request(application.getHttpServer()).get(path()).expect(401);
         const badPath = await request(application.getHttpServer())

@@ -213,6 +213,51 @@ describe('POST /pets/:petId/care/routines (e2e)', () => {
         expect(await rows()).toHaveLength(0);
     });
 
+    it.each(['America/New_York', 'America/Mexico_City', 'Etc/GMT+1'])(
+        'rejects a year-0001 instant whose local date is outside the civil range in %s',
+        async (timezone: string) => {
+            const response = await post()
+                .send({
+                    ...body(),
+                    completedAt: '0001-01-01T00:00:00Z',
+                    timezone,
+                })
+                .expect(400);
+
+            expect(response.body).toEqual({
+                code: 'INVALID_ACTIVITY_COMPLETED_AT',
+                message: 'Activity local date must be within years 0001-9999',
+            });
+            expect(await rows()).toHaveLength(0);
+        },
+    );
+
+    it('records and lists the first supported local day after a negative offset', async () => {
+        await post()
+            .send({
+                ...body(),
+                completedAt: '0001-01-01T01:00:00Z',
+                timezone: 'Etc/GMT+1',
+            })
+            .expect(201);
+        const history = await request(application.getHttpServer())
+            .get(`/pets/${petId}/care/activities`)
+            .query({ from: '0001-01-01', to: '0001-01-01' })
+            .set('Authorization', `Bearer ${owner.token}`)
+            .expect(200);
+
+        expect(history.body).toMatchObject({
+            items: [
+                expect.objectContaining({
+                    completedAt: '0001-01-01T01:00:00.000Z',
+                    localDay: '0001-01-01',
+                }),
+            ],
+            nextCursor: null,
+        });
+        expect(await rows()).toHaveLength(1);
+    });
+
     it('rejects missing fields, invalid structures and client supplied authorship', async () => {
         for (const payload of [
             {},

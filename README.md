@@ -140,6 +140,15 @@ limit is retained. See [API security](docs/api-security.md) for limits, authoriz
 error handling, security headers and rate limiting.
 
 
+Invitation cancellation returns the same `404 INVITATION_NOT_FOUND` code and
+`Invitation was not found` message for missing invitations and inaccessible or archived
+pets. Accept/reject use that same response for invitations addressed to another account.
+Tampered pagination cursors return `400 INVALID_REQUEST` before querying; weight
+cursor dates require years 0001–9999 and shared ordering keys reject NUL and unpaired
+surrogates. Activity completion also requires the date in the recorder's timezone
+to remain within years 0001–9999; an out-of-range local date returns
+`400 INVALID_ACTIVITY_COMPLETED_AT`. See [API security](docs/api-security.md).
+
 | Route                                         | Description             | Bearer token |
 | --------------------------------------------- | ----------------------- | ------------ |
 | `GET /`                                       | Welcome message         | No           |

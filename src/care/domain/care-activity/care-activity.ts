@@ -1,3 +1,4 @@
+import { isValidCivilDate } from '../../../shared/domain/civil-date';
 import { generateUuid, normalizeUuid } from '../../../shared/domain/uuid';
 import { CareRoutineId, PetId } from '../care-routine/care-routine';
 import { ActivityCompletedAt } from '../activity-completed-at/activity-completed-at';
@@ -46,6 +47,7 @@ export class CareActivity {
         readonly completedBy: CompletedByAccountId,
         readonly timezone: ActivityTimezone,
         readonly notes: ActivityNotes | null,
+        readonly localDay: string,
     ) {}
 
     static create(input: CreateCareActivityInput): CareActivity {
@@ -73,19 +75,31 @@ export class CareActivity {
             input.completedBy,
             input.timezone,
             input.notes ?? null,
+            CareActivity.localDayIn(input.completedAt, input.timezone),
         );
     }
 
-    get localDay(): string {
+    private static localDayIn(
+        completedAt: ActivityCompletedAt,
+        timezone: ActivityTimezone,
+    ): string {
         const parts: Intl.DateTimeFormatPart[] = new Intl.DateTimeFormat('en', {
-            timeZone: this.timezone.value,
+            timeZone: timezone.value,
+            calendar: 'gregory',
+            era: 'short',
             year: 'numeric',
             month: '2-digit',
             day: '2-digit',
-        }).formatToParts(new Date(this.completedAt.value));
+        }).formatToParts(new Date(completedAt.value));
         const part = (name: string): string =>
             parts.find((item): boolean => item.type === name)?.value ?? '';
 
-        return `${part('year').padStart(4, '0')}-${part('month')}-${part('day')}`;
+        const localDay: string = `${part('year').padStart(4, '0')}-${part('month')}-${part('day')}`;
+
+        if (part('era') !== 'AD' || !isValidCivilDate(localDay)) {
+            throw new RangeError('Activity local date must be within years 0001-9999');
+        }
+
+        return localDay;
     }
 }

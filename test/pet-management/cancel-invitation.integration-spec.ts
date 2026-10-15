@@ -15,7 +15,6 @@ import {
     CancelInvitationNotPendingError,
     CancelInvitationNotFoundError,
 } from '../../src/pet-management/application/cancel-invitation/cancel-invitation';
-import { PetNotFoundError } from '../../src/pet-management/application/errors/pet-not-found.error';
 import {
     RejectInvitation,
     RejectInvitationNotPendingError,
@@ -219,11 +218,15 @@ describe('CancelInvitation with PostgreSQL (integration)', () => {
             .where(
                 and(eq(petMemberships.petId, pet.id.value), eq(petMemberships.accountId, ownerId)),
             );
-        await expect(cancel.execute(value.id.value, ownerId)).rejects.toThrow(PetNotFoundError);
+        await expect(cancel.execute(value.id.value, ownerId)).rejects.toThrow(
+            CancelInvitationNotFoundError,
+        );
         await expect(cancel.execute(value.id.value, otherOwnerId)).resolves.toMatchObject({
             status: 'CANCELLED',
         });
-        await expect(cancel.execute(value.id.value, ownerId)).rejects.toThrow(PetNotFoundError);
+        await expect(cancel.execute(value.id.value, ownerId)).rejects.toThrow(
+            CancelInvitationNotFoundError,
+        );
     });
 
     it('hides invitation status from collaborators, inactive owners, and nonmembers', async () => {
@@ -237,7 +240,7 @@ describe('CancelInvitation with PostgreSQL (integration)', () => {
             status: 'ACTIVE',
         });
         await expect(cancel.execute(value.id.value, otherOwnerId)).rejects.toThrow(
-            PetNotFoundError,
+            CancelInvitationNotFoundError,
         );
         await database.connection
             .update(petMemberships)
@@ -249,15 +252,15 @@ describe('CancelInvitation with PostgreSQL (integration)', () => {
                 ),
             );
         await expect(cancel.execute(value.id.value, otherOwnerId)).rejects.toThrow(
-            PetNotFoundError,
+            CancelInvitationNotFoundError,
         );
         await expect(cancel.execute(value.id.value, randomUUID())).rejects.toThrow(
-            PetNotFoundError,
+            CancelInvitationNotFoundError,
         );
         expect(await statusOf(value.id.value)).toBe('PENDING');
     });
 
-    it('returns invitation missing before pet authorization and hides archived pets on retries', async () => {
+    it('hides missing invitations and archived pets on retries with the same error', async () => {
         await expect(cancel.execute(randomUUID(), randomUUID())).rejects.toThrow(
             CancelInvitationNotFoundError,
         );
@@ -268,7 +271,9 @@ describe('CancelInvitation with PostgreSQL (integration)', () => {
             .update(pets)
             .set({ status: 'ARCHIVED' })
             .where(eq(pets.id, pet.id.value));
-        await expect(cancel.execute(value.id.value, ownerId)).rejects.toThrow(PetNotFoundError);
+        await expect(cancel.execute(value.id.value, ownerId)).rejects.toThrow(
+            CancelInvitationNotFoundError,
+        );
     });
 
     it('persists expiry and returns a conflict for accepted and rejected invitations', async () => {
@@ -374,7 +379,7 @@ describe('CancelInvitation with PostgreSQL (integration)', () => {
                 await blocker;
             }
 
-            await expect(cancellation).rejects.toThrow(PetNotFoundError);
+            await expect(cancellation).rejects.toThrow(CancelInvitationNotFoundError);
             expect(await statusOf(value.id.value)).toBe('PENDING');
         },
     );

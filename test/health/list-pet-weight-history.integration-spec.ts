@@ -8,6 +8,9 @@ import {
     PetNotFoundError,
     type PetWeightHistory,
 } from '../../src/health/application/list-pet-weight-history/list-pet-weight-history';
+import { InvalidWeightHistoryCursorError } from '../../src/health/application/list-pet-weight-history/weight-history-cursor';
+import { ListMyPets } from '../../src/pet-management/application/list-my-pets/list-my-pets';
+import { InvalidCursorError } from '../../src/shared/application/pagination';
 import { healthWeightRecords } from '../../src/health/infrastructure/persistence/drizzle/health.schema';
 import { accounts } from '../../src/identity/infrastructure/persistence/drizzle/identity.schema';
 import { DatabaseService } from '../../src/infrastructure/database/database.service';
@@ -141,6 +144,52 @@ describe('ListPetWeightHistory with PostgreSQL (integration)', () => {
             cursor,
         });
     }
+
+    it.each([
+        { measuredDate: '0000-01-01' },
+        { createdAt: '0000-01-01T00:00:00.000000Z' },
+        { id: '\u0000' },
+    ])(
+        'rejects tampered weight cursor fields through the wired use case: %j',
+        async (overrides) => {
+            const cursor: string = Buffer.from(
+                JSON.stringify({
+                    v: 1,
+                    petId,
+                    id: FIRST_ID,
+                    measuredDate: '2020-01-01',
+                    createdAt: '2020-01-01T00:00:00.000000Z',
+                    ...overrides,
+                }),
+            ).toString('base64url');
+
+            await expect(
+                listPetWeightHistory.execute({
+                    petId,
+                    authenticatedAccountId: ownerId,
+                    limit: 20,
+                    cursor,
+                }),
+            ).rejects.toThrow(InvalidWeightHistoryCursorError);
+        },
+    );
+
+    it.each(['\u0000', '\uD800', '\uDC00'])(
+        'rejects shared cursor keys PostgreSQL cannot represent: %j',
+        async (key: string) => {
+            const cursor: string = Buffer.from(
+                JSON.stringify({
+                    v: 1,
+                    scope: JSON.stringify(['pets', ownerId]),
+                    after: [key, petId],
+                }),
+            ).toString('base64url');
+
+            await expect(application.get(ListMyPets).execute(ownerId, { cursor })).rejects.toThrow(
+                InvalidCursorError,
+            );
+        },
+    );
 
     it('returns an empty history for active owner and collaborator and archived members', async () => {
         for (const accountId of [ownerId, collaboratorId]) {

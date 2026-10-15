@@ -70,6 +70,29 @@ describe('API security (e2e)', () => {
         await application.close();
     });
 
+    it.each(['\u0000', 'prefix\u0000suffix', '\uD800', '\uDC00'])(
+        'rejects PostgreSQL-incompatible shared cursor keys %j',
+        async (key: string): Promise<void> => {
+            const cursor: string = Buffer.from(
+                JSON.stringify({
+                    v: 1,
+                    scope: JSON.stringify(['pets', accountId]),
+                    after: [key, randomUUID()],
+                }),
+            ).toString('base64url');
+            const response = await request(application.getHttpServer())
+                .get('/pets')
+                .query({ cursor })
+                .set('Authorization', `Bearer ${token}`)
+                .expect(400);
+
+            expect(response.body).toEqual({
+                code: 'INVALID_REQUEST',
+                message: 'Request query is invalid',
+            });
+        },
+    );
+
     it('authenticates before malformed, scalar and oversized JSON on every protected operation', async (): Promise<void> => {
         expect(operations).toHaveLength(49);
 

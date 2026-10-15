@@ -1,4 +1,3 @@
-import { PetNotFoundError } from '../errors/pet-not-found.error';
 import type { PetInvitationRepository } from '../persistence/pet-invitation.repository';
 import { PetInvitation, PetInvitationStatus } from '../../domain/pet-invitation/pet-invitation';
 
@@ -63,9 +62,8 @@ export class CancelInvitation {
 
         switch (result.outcome) {
             case 'NOT_FOUND':
-                throw new CancelInvitationNotFoundError();
             case 'PET_NOT_FOUND':
-                throw new PetNotFoundError();
+                throw new CancelInvitationNotFoundError();
             case 'EXPIRED':
                 throw new CancelInvitationExpiredError();
             case 'NOT_PENDING':

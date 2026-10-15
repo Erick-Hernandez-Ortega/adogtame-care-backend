@@ -153,7 +153,7 @@ describe('POST /pet-invitations/:invitationId/cancel (e2e)', () => {
         expect(rows[0]).toMatchObject({ role: 'COLLABORATOR', status: 'INACTIVE' });
     });
 
-    it('distinguishes a missing invitation from an inaccessible pet', async () => {
+    it('returns the same response for missing invitations and inaccessible or archived pets', async () => {
         const id = await invitation();
         const missing = await request(application.getHttpServer())
             .post(`/pet-invitations/${randomUUID()}/cancel`)
@@ -169,10 +169,7 @@ describe('POST /pet-invitations/:invitationId/cancel (e2e)', () => {
             .set('Authorization', `Bearer ${outsider.token}`)
             .expect(404);
 
-        expect(hidden.body).toMatchObject({
-            code: 'PET_NOT_FOUND',
-            message: 'Pet was not found',
-        });
+        expect(hidden.body).toEqual(missing.body);
         await database.connection
             .update(pets)
             .set({ status: 'ARCHIVED' })
@@ -182,7 +179,7 @@ describe('POST /pet-invitations/:invitationId/cancel (e2e)', () => {
             .set('Authorization', `Bearer ${owner.token}`)
             .expect(404);
 
-        expect(archived.body).toMatchObject({ code: 'PET_NOT_FOUND' });
+        expect(archived.body).toEqual(missing.body);
     });
 
     it('returns conflict for accepted and rejected invitations and gone for expired', async () => {

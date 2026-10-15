@@ -1,3 +1,4 @@
+import { isValidCivilDate } from '../../../shared/domain/civil-date';
 import type { WeightHistoryPosition } from '../persistence/weight-history.reader';
 
 interface WeightHistoryCursor extends WeightHistoryPosition {
@@ -7,7 +8,6 @@ interface WeightHistoryCursor extends WeightHistoryPosition {
 
 const uuidPattern: RegExp =
     /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
-const datePattern: RegExp = /^\d{4}-\d{2}-\d{2}$/;
 const timestampPattern: RegExp = /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2}:\d{2})\.(\d{6})Z$/;
 const base64UrlPattern: RegExp = /^[A-Za-z0-9_-]+$/;
 
@@ -17,20 +17,10 @@ export class InvalidWeightHistoryCursorError extends Error {
     }
 }
 
-function isValidDate(value: string): boolean {
-    if (!datePattern.test(value)) {
-        return false;
-    }
-
-    const parsed: Date = new Date(`${value}T00:00:00.000Z`);
-
-    return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
-}
-
 function isValidTimestamp(value: string): boolean {
     const match: RegExpMatchArray | null = value.match(timestampPattern);
 
-    if (match === null || !isValidDate(match[1])) {
+    if (match === null || !isValidCivilDate(match[1])) {
         return false;
     }
 
@@ -59,7 +49,7 @@ function isCursor(value: unknown, petId: string): value is WeightHistoryCursor {
         typeof fields.petId === 'string' &&
         uuidPattern.test(fields.petId) &&
         typeof fields.measuredDate === 'string' &&
-        isValidDate(fields.measuredDate) &&
+        isValidCivilDate(fields.measuredDate) &&
         typeof fields.createdAt === 'string' &&
         isValidTimestamp(fields.createdAt) &&
         typeof fields.id === 'string' &&

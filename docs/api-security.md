@@ -27,6 +27,47 @@ Invitation operations retain their documented Invitation-first ordering where ap
 see [Pet archive](pet-archive.md). No locking, timestamp, authorship or no-op write
 behavior changes. Domain remains independent of NestJS, HTTP and Drizzle.
 
+## Invitation visibility and date/cursor hardening (L-01–L-03)
+
+Cancellation returns exactly `404 { "code": "INVITATION_NOT_FOUND", "message":
+"Invitation was not found" }` for both a missing invitation and one whose pet is
+missing, archived or inaccessible to the requester. This includes collaborators,
+inactive owners, nonmembers and unauthorized retries, regardless of invitation
+status. Application maps both persistence outcomes to the same invitation error;
+the existing authorization checks and Invitation → Pet → Membership locks remain.
+Accept/Reject already scope lookup to the authenticated recipient email before
+lifecycle evaluation and return the same missing-invitation response for a mismatch.
+Their recipient-visible conflicts, expiry and idempotent outcomes remain unchanged.
+Pet-scoped invitation creation retains PET_NOT_FOUND for inaccessible pets.
+
+Weight-history cursor measurement dates and timestamp dates now reuse the shared
+Gregorian civil-date validator (years 0001–9999). Year zero, impossible dates and
+extra characters are rejected before reader access. Microsecond precision and the
+existing opaque format are preserved. Shared pagination rejects NUL and unpaired
+UTF-16 surrogates in every ordering key before querying PostgreSQL; valid Unicode
+pairs and other PostgreSQL-compatible text remain accepted. Tampered values return
+the existing 400 INVALID_REQUEST: `Cursor is invalid` for weight history and
+`Request query is invalid` for shared pagination. Cursors remain unsigned positions.
+
+CareActivity validates the timezone-converted local date on creation and
+reconstitution, explicitly requesting the Gregorian calendar and era from Intl.
+BC dates and dates beyond 9999 are rejected instead of losing their era or returning
+an unsupported day. Recording returns 400 INVALID_ACTIVITY_COMPLETED_AT with
+`Activity local date must be within years 0001-9999`, before persistence access.
+For example, `0001-01-01T00:00:00Z` is invalid in America/New_York, while
+`0001-01-01T01:00:00Z` is valid in Etc/GMT+1 and has local day `0001-01-01`.
+UTC parsing, future-instant rejection and ordinary DST behavior remain unchanged.
+No persisted rows are rewritten; previously invalid stored combinations fail domain
+reconstitution and require explicit data correction outside this slice.
+
+Unit tests cover missing/inaccessible outcome mapping, pre-reader rejection,
+Unicode preservation, civil boundaries, era handling and application error mapping.
+PostgreSQL integration tests cover invitation access outcomes, rejected activity
+inserts and agreement with SQL local dates at the first supported day. HTTP tests
+compare exact invitation responses, reject tampered cursors with controlled errors,
+and record/filter year-0001 local activity dates. OpenAPI retains 55 operations and
+specifies the uniform invitation 404 and local-date requirement.
+
 ## Account enumeration (M-05)
 
 Login performs exactly one Argon2 verification after looking up a syntactically
@@ -256,7 +297,7 @@ Database tests require migrated PostgreSQL; HTTP tests require permission to bin
 local sockets. A sandbox without those capabilities cannot verify their runtime results.
 
 M-01 through M-04 were addressed by earlier slices. M-05 login verification is
-addressed; the registration oracle remains known/pending as described above. H-01,
-low findings and informational items are unchanged. No domain, persistence schema,
-aggregate, locking or timestamp behavior changes. Readiness and login defaults are the bounded policies requested
-for this slice; deployment ingress, CORS, retention and new dependencies remain pending.
+addressed; the registration oracle remains known/pending as described above. H-01 and
+informational items remain unchanged. L-01 through L-03 are addressed above.
+There are no persistence schema, aggregate boundary, locking or timestamp changes.
+Readiness and login defaults are the bounded policies requested for this slice; deployment ingress, CORS, retention and new dependencies remain pending.

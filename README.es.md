@@ -143,6 +143,16 @@ para límites, autorización, errores, encabezados de seguridad y control de fre
 
 
 
+La cancelación de invitaciones devuelve el mismo código `404 INVITATION_NOT_FOUND`
+y mensaje `Invitation was not found` para invitaciones inexistentes y mascotas
+inaccesibles o archivadas. Aceptar/rechazar usa esa misma respuesta para invitaciones
+dirigidas a otra cuenta. Los cursores alterados devuelven `400 INVALID_REQUEST` antes
+de consultar; las fechas de cursores de peso requieren años 0001–9999 y las claves
+compartidas rechazan NUL y sustitutos Unicode sin pareja. La fecha de una actividad
+en la zona del registrador también debe permanecer entre los años 0001–9999;
+una fecha local fuera del rango devuelve `400 INVALID_ACTIVITY_COMPLETED_AT`.
+Consulta [seguridad de la API](docs/api-security.md).
+
 | Ruta                                          | Descripción                 | Token Bearer |
 | --------------------------------------------- | --------------------------- | ------------ |
 | `GET /`                                       | Mensaje de bienvenida       | No           |

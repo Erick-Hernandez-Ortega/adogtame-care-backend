@@ -42,6 +42,48 @@ describe('CareActivity', () => {
         expect(activity.localDay).toBe(day);
     });
 
+    it.each(['America/New_York', 'America/Mexico_City', 'Etc/GMT+1'])(
+        'rejects a local date in the preceding era in %s on creation and reconstitution',
+        (timezone: string) => {
+            const facts = {
+                ...input(),
+                completedAt: ActivityCompletedAt.reconstitute('0001-01-01T00:00:00Z'),
+                timezone: ActivityTimezone.from(timezone),
+            };
+
+            expect(() => CareActivity.create(facts)).toThrow(RangeError);
+            expect(() =>
+                CareActivity.reconstitute({ ...facts, id: CareActivityId.from(identifier) }),
+            ).toThrow(RangeError);
+        },
+    );
+
+    it.each([
+        ['0001-01-01T00:00:00Z', 'UTC', '0001-01-01'],
+        ['0001-01-01T00:00:00Z', 'Asia/Tokyo', '0001-01-01'],
+        ['0001-01-01T00:59:59.999Z', 'Etc/GMT+1', null],
+        ['0001-01-01T01:00:00Z', 'Etc/GMT+1', '0001-01-01'],
+        ['0001-01-01T12:00:00Z', 'America/New_York', '0001-01-01'],
+        ['9999-12-31T23:59:59.999Z', 'Asia/Tokyo', null],
+        ['9999-12-31T23:59:59.999Z', 'UTC', '9999-12-31'],
+    ])(
+        'validates local civil boundaries for %s in %s',
+        (instant: string, timezone: string, localDay: string | null) => {
+            const create = (): CareActivity =>
+                CareActivity.create({
+                    ...input(),
+                    completedAt: ActivityCompletedAt.reconstitute(instant),
+                    timezone: ActivityTimezone.from(timezone),
+                });
+
+            if (localDay === null) {
+                expect(create).toThrow(RangeError);
+            } else {
+                expect(create().localDay).toBe(localDay);
+            }
+        },
+    );
+
     it('uses timezone rules across daylight saving transitions', () => {
         for (const completedAt of ['2026-11-01T05:30:00Z', '2026-11-01T06:30:00Z']) {
             expect(

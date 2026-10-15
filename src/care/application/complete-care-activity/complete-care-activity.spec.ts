@@ -61,6 +61,10 @@ describe('CompleteCareActivity', () => {
     it.each([
         [{ completedAt: '2026-10-15T01:00:00.001Z' }, InvalidActivityCompletedAtError],
         [{ completedAt: 'bad' }, InvalidActivityCompletedAtError],
+        [
+            { completedAt: '0001-01-01T00:00:00Z', timezone: 'America/New_York' },
+            InvalidActivityCompletedAtError,
+        ],
         [{ timezone: 'Mars/Olympus' }, InvalidActivityTimezoneError],
         [{ notes: ' ' }, InvalidActivityNotesError],
     ] as const)('maps invalid domain facts before persistence', async (overrides, errorClass) => {

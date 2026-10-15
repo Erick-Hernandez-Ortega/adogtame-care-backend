@@ -365,7 +365,10 @@ describe('POST /pets/:petId/archive (e2e)', () => {
             .set('Authorization', authorization)
             .expect(404);
 
-        expect(cancel.body).toMatchObject({ code: 'PET_NOT_FOUND' });
+        expect(cancel.body).toEqual({
+            code: 'INVITATION_NOT_FOUND',
+            message: 'Invitation was not found',
+        });
         interface WriteRequest {
             method: 'post' | 'patch' | 'delete';
             path: string;

@@ -55,7 +55,7 @@ export class CareActivitiesController {
     @ApiOperation({
         summary: 'Record a completed care activity',
         description:
-            'Active owners and collaborators may record activities on ACTIVE pets regardless of routine authorship. Archived pets are read-only. Supply a completedAt UTC instant no later than now and the recorder’s IANA timezone. completedBy comes from authentication. Optional notes accept omission/null. Identical requests create independent activities. No query parameters are accepted. Authentication precedes HTTP validation, including parser failures; domain validation precedes transactional access. Pet access is checked before pet-scoped routine lookup. Technical timestamps are omitted. Local day is computed from completedAt in the recorded timezone; no missed activities or schedule evaluation are stored.',
+            'Active owners and collaborators may record activities on ACTIVE pets regardless of routine authorship. Archived pets are read-only. Supply a completedAt UTC instant no later than now and the recorder’s IANA timezone. completedBy comes from authentication. Optional notes accept omission/null. Identical requests create independent activities. No query parameters are accepted. Authentication precedes HTTP validation, including parser failures; domain validation precedes transactional access. Pet access is checked before pet-scoped routine lookup. Technical timestamps are omitted. Local day is computed from completedAt in the recorded timezone and must remain within years 0001–9999; no missed activities or schedule evaluation are stored.',
     })
     @ApiParam({
         name: 'petId',

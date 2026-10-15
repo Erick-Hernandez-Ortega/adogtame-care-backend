@@ -244,9 +244,21 @@ consulting the Clock. Technical creation time is distinct from completion time.
 Activity timezone is the recorder's explicitly supplied IANA zone, canonicalized by
 Intl using the routine timezone validation convention. It is independent of routine
 timezone and later changes to routine suggestions. The domain computes `localDay`
-from completedAt in this stored zone, including daylight saving rules. No local day
-column is stored. Notes follow Health's optional notes convention: trimmed,
+from completedAt in this stored zone, including daylight saving rules. Creation and
+reconstitution explicitly check the Gregorian era and require this local date to stay
+within years 0001–9999; recording an out-of-range local date returns
+400 INVALID_ACTIVITY_COMPLETED_AT before persistence access. For example, midnight
+UTC on 0001-01-01 is rejected in America/New_York because its local date is BC.
+No local day column is stored. Notes follow Health's optional notes convention: trimmed,
 case-preserving, nonempty text up to 2,000 Unicode code points when supplied.
+
+Activity writes serialize the validated instant as UTC ISO text through Drizzle.
+History projects `completed_at` with `to_char` in UTC ISO millisecond format before
+domain reconstitution, following the existing SQL timestamp formatting pattern.
+This avoids JavaScript's legacy parsing of PostgreSQL timestamp text, which can
+reinterpret years below 0100 as 19xx/20xx. The supported range stays 0001–9999;
+SQL local-day filtering and microsecond cursor ordering are unchanged. No schema
+change or stored-data rewrite is required.
 
 Success returns 201 with exactly id, petId, routineId, completedAt, completedBy,
 timezone and nullable notes. completedBy comes exclusively from authentication.

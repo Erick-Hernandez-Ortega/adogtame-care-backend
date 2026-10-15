@@ -98,14 +98,25 @@ export class CompleteCareActivity {
             throw error;
         }
 
-        const activity: CareActivity = CareActivity.create({
-            petId: PetId.from(command.petId),
-            routineId: CareRoutineId.from(command.routineId),
-            completedAt,
-            timezone,
-            notes,
-            completedBy: CompletedByAccountId.from(command.authenticatedAccountId),
-        });
+        let activity: CareActivity;
+
+        try {
+            activity = CareActivity.create({
+                petId: PetId.from(command.petId),
+                routineId: CareRoutineId.from(command.routineId),
+                completedAt,
+                timezone,
+                notes,
+                completedBy: CompletedByAccountId.from(command.authenticatedAccountId),
+            });
+        } catch (error: unknown) {
+            if (error instanceof RangeError) {
+                throw new InvalidActivityCompletedAtError(error);
+            }
+
+            throw error;
+        }
+
         const outcome: CreateCareActivityOutcome = await this.repository.createIfPetWritable(
             activity,
             command.authenticatedAccountId,

@@ -16,7 +16,6 @@ import { ApiBearerAuth, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@ne
 import { AuthenticationGuard } from '../../../../identity/infrastructure/http/authentication/authentication.guard';
 import { CurrentAccountId } from '../../../../identity/infrastructure/http/decorators/current-account-id.decorator';
 import { errorSchema } from '../../../../infrastructure/http/openapi-error.schema';
-import { PetNotFoundError } from '../../../application/errors/pet-not-found.error';
 import {
     CancelInvitation,
     type CancelledPetInvitation,
@@ -299,12 +298,7 @@ export class PetInvitationsController {
     @ApiResponse({
         status: 404,
         description: 'Invitation missing or pet inaccessible',
-        schema: {
-            oneOf: [
-                errorSchema(['INVITATION_NOT_FOUND'], 'Invitation was not found'),
-                errorSchema(['PET_NOT_FOUND'], 'Pet was not found'),
-            ],
-        },
+        schema: errorSchema(['INVITATION_NOT_FOUND'], 'Invitation was not found'),
     })
     @ApiResponse({
         status: 409,
@@ -344,13 +338,6 @@ export class PetInvitationsController {
             if (error instanceof CancelInvitationNotFoundError) {
                 throw new NotFoundException({
                     code: 'INVITATION_NOT_FOUND',
-                    message: error.message,
-                });
-            }
-
-            if (error instanceof PetNotFoundError) {
-                throw new NotFoundException({
-                    code: 'PET_NOT_FOUND',
                     message: error.message,
                 });
             }

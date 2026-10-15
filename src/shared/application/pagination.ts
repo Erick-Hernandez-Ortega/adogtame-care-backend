@@ -63,7 +63,11 @@ export function pageRequest(query: PageQuery, scope: string): PageRequest {
         fields.after.length < 1 ||
         fields.after.length > 4 ||
         !fields.after.every(
-            (key: unknown): key is string => typeof key === 'string' && key.length <= 1024,
+            (key: unknown): key is string =>
+                typeof key === 'string' &&
+                key.length <= 1024 &&
+                !key.includes('\u0000') &&
+                !/[\uD800-\uDFFF]/u.test(key),
         )
     ) {
         throw new InvalidCursorError();

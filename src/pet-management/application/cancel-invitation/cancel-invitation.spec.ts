@@ -6,7 +6,6 @@ import {
     PetInvitationStatus,
 } from '../../domain/pet-invitation/pet-invitation';
 import { PetId } from '../../domain/pet/pet';
-import { PetNotFoundError } from '../errors/pet-not-found.error';
 import type {
     CancelInvitationPersistenceResult,
     PetInvitationRepository,
@@ -120,7 +119,7 @@ describe('CancelInvitation', () => {
 
     it.each([
         [{ outcome: 'NOT_FOUND' } as const, CancelInvitationNotFoundError],
-        [{ outcome: 'PET_NOT_FOUND' } as const, PetNotFoundError],
+        [{ outcome: 'PET_NOT_FOUND' } as const, CancelInvitationNotFoundError],
         [{ outcome: 'EXPIRED' } as const, CancelInvitationExpiredError],
         [{ outcome: 'NOT_PENDING' } as const, CancelInvitationNotPendingError],
     ])('maps %s to its application error', async (result, errorClass) => {

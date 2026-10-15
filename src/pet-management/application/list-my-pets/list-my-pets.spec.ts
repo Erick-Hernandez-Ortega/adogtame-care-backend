@@ -1,3 +1,4 @@
+import { InvalidCursorError } from '../../../shared/application/pagination';
 import type {
     AccessiblePetSummary,
     PetDetail,
@@ -85,6 +86,25 @@ describe('ListMyPets', () => {
         });
         expect(repository.requestedAccountIds).toEqual([ACCOUNT_ID]);
     });
+
+    it.each(['\u0000', '\uD800', '\uDC00'])(
+        'rejects incompatible cursor keys before repository access: %j',
+        async (key: string) => {
+            const repository = new InMemoryPetQueryRepository([]);
+            const cursor: string = Buffer.from(
+                JSON.stringify({
+                    v: 1,
+                    scope: JSON.stringify(['pets', ACCOUNT_ID]),
+                    after: [key],
+                }),
+            ).toString('base64url');
+
+            await expect(
+                new ListMyPets(repository).execute(ACCOUNT_ID, { cursor }),
+            ).rejects.toThrow(InvalidCursorError);
+            expect(repository.requestedAccountIds).toEqual([]);
+        },
+    );
 
     it('propagates repository errors', async () => {
         const persistenceError = new Error('Database unavailable');

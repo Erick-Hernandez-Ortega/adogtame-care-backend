@@ -53,7 +53,7 @@ pets. The remaining restrictions are preserved.
 | Vaccination History | Readable for an ACTIVE owner or collaborator. |
 | Update Pet Profile | `404 PET_NOT_FOUND`. |
 | Invite Collaborator | `404 PET_NOT_FOUND`; transaction revalidates authorization. |
-| Cancel Invitation | `404 PET_NOT_FOUND`, including cancellation retries. |
+| Cancel Invitation | `404 INVITATION_NOT_FOUND`, including cancellation retries; indistinguishable from a missing invitation. |
 | Remove Pet Member | `404 PET_NOT_FOUND`, before target resolution. |
 | Promote Collaborator | `404 PET_NOT_FOUND`, before target resolution. |
 | Leave Pet | Allowed; last-owner invariant and inactive-member retry still apply. |

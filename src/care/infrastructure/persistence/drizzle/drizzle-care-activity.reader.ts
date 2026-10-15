@@ -35,7 +35,19 @@ export class DrizzleCareActivityReader implements CareActivityReader {
             sql`${careActivities.id}::text`,
         ]);
         const rows = await this.databaseService.connection
-            .select({ activity: careActivities, paginationKey: key })
+            .select({
+                activity: {
+                    id: careActivities.id,
+                    petId: careActivities.petId,
+                    routineId: careActivities.routineId,
+                    // PostgreSQL timestamp text makes Date reinterpret years below 0100.
+                    completedAt: sql<string>`to_char(${careActivities.completedAt} AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')`,
+                    completedBy: careActivities.completedBy,
+                    timezone: careActivities.timezone,
+                    notes: careActivities.notes,
+                },
+                paginationKey: key,
+            })
             .from(pets)
             .innerJoin(
                 petMemberships,
@@ -83,9 +95,7 @@ export class DrizzleCareActivityReader implements CareActivityReader {
                 id: CareActivityId.from(row.activity.id),
                 petId: PetId.from(row.activity.petId),
                 routineId: CareRoutineId.from(row.activity.routineId),
-                completedAt: ActivityCompletedAt.reconstitute(
-                    row.activity.completedAt.toISOString(),
-                ),
+                completedAt: ActivityCompletedAt.reconstitute(row.activity.completedAt),
                 completedBy: CompletedByAccountId.from(row.activity.completedBy),
                 timezone: ActivityTimezone.from(row.activity.timezone),
                 notes: row.activity.notes === null ? null : ActivityNotes.from(row.activity.notes),
