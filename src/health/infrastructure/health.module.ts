@@ -1,3 +1,4 @@
+import { DeletePetVeterinaryVisit } from '../application/delete-pet-veterinary-visit/delete-pet-veterinary-visit';
 import { UpdatePetVeterinaryVisit } from '../application/update-pet-veterinary-visit/update-pet-veterinary-visit';
 import { ListPetVeterinaryVisits } from '../application/list-pet-veterinary-visits/list-pet-veterinary-visits';
 import {
@@ -128,6 +129,12 @@ import { DrizzleVaccinationHistoryReader } from './persistence/drizzle/drizzle-v
                 repository: PetVeterinaryVisitRepository,
                 clock: Clock,
             ): RecordPetVeterinaryVisit => new RecordPetVeterinaryVisit(repository, clock),
+        },
+        {
+            provide: DeletePetVeterinaryVisit,
+            inject: [PET_VETERINARY_VISIT_REPOSITORY],
+            useFactory: (repository: PetVeterinaryVisitRepository): DeletePetVeterinaryVisit =>
+                new DeletePetVeterinaryVisit(repository),
         },
         {
             provide: UpdatePetVeterinaryVisit,

@@ -139,3 +139,41 @@ physical no-ops, timestamps, duplicates, list ordering, UTC midnight after lock 
 concurrent partial corrections and both serialization orders for access changes. E2E and
 OpenAPI tests cover strict contracts, exact representations, error precedence, parser
 authentication and the 45-operation contract.
+
+## Delete (#45)
+
+`DELETE /pets/{petId}/health/veterinary-visits/{visitId}` adds one operation,
+bringing the API to 46 operations. It mirrors Medication's physical deletion:
+permanently remove an erroneous record without history, tombstones or restoration.
+Both IDs must be non-nil UUIDs. No query parameters are accepted; the body must be
+absent or `{}`. Success returns `204 No Content` without a representation.
+
+Authentication precedes HTTP validation, including malformed JSON and scalar parser
+failures. Structural errors return `400 INVALID_REQUEST`; missing or invalid tokens
+return `401 UNAUTHENTICATED`. ACTIVE owners and collaborators may delete regardless
+of authorship, including after the original author leaves. Archived pets are read-only.
+Missing, archived or inaccessible pets return `404 PET_NOT_FOUND` before target lookup.
+An authorized missing, wrong-pet or already deleted visit returns
+`404 PET_VETERINARY_VISIT_NOT_FOUND`. Repeated deletion preserves the absent state
+but does not repeat the successful response; access is revalidated on every request.
+
+`DeletePetVeterinaryVisit` delegates to the application-owned repository contract and
+maps `DELETED`, `PET_NOT_FOUND` and `PET_VETERINARY_VISIT_NOT_FOUND`. Unexpected errors
+propagate. The READ COMMITTED transaction locks Pet → requester Membership → Visit,
+then deletes only the pet-scoped target using DELETE RETURNING. It does not reconstruct
+or semantically validate stored visit facts. No domain deletion state is introduced.
+Existing date, text, identity and independent-duplicate invariants remain unchanged.
+
+Deletion makes no UPDATE: retained visits, pet and membership timestamps and row
+versions remain unchanged. The removed row's technical timestamps disappear with it.
+The existing List reader excludes committed deletions naturally; a concurrent read may
+observe an earlier snapshot. Duplicate visits and other pets' visits remain intact.
+No incoming foreign keys require cascading deletion. Existing primary key and history
+indexes suffice; there is no schema change or migration.
+
+Tests cover domain identity independence, application outcomes and unexpected failures,
+physical deletion, list exclusion, authorization hiding, archived pets, repeat requests,
+rollback and released locks, unchanged retained timestamps, Pet → Membership → Visit
+locking, and both serialization orders against Update, Record, Archive, Leave and Remove.
+E2E tests cover empty 204 responses, strict requests, authentication-first parser errors,
+access hiding and list exclusion. OpenAPI tests assert the 46-operation contract.

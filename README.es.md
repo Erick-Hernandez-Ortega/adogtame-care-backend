@@ -63,7 +63,7 @@ después llama a `POST /auth/login` con tu correo y contraseña. Copia
 `accessToken` de la respuesta, pulsa **Authorize** en Swagger e introduce el
 token. Swagger añade automáticamente el prefijo Bearer a las peticiones.
 
-La API expone 45 operaciones.
+La API expone 46 operaciones.
 
 | Ruta                                          | Descripción                 | Token Bearer |
 | --------------------------------------------- | --------------------------- | ------------ |
@@ -84,6 +84,7 @@ La API expone 45 operaciones.
 | `POST /pets/{petId}/health/veterinary-visits` | Registrar una visita veterinaria | Sí |
 | `GET /pets/{petId}/health/veterinary-visits` | Consultar el historial de visitas veterinarias | Sí |
 | `PATCH /pets/{petId}/health/veterinary-visits/{visitId}` | Corregir una visita veterinaria registrada | Sí |
+| `DELETE /pets/{petId}/health/veterinary-visits/{visitId}` | Eliminar una visita veterinaria registrada | Sí |
 | `POST /pets/{petId}/health/medications` | Registrar medicación indicada de la mascota | Sí |
 | `GET /pets/{petId}/health/medications` | Listar medicamentos registrados de la mascota | Sí |
 | `PATCH /pets/{petId}/health/medications/{medicationId}` | Actualizar información registrada de medicación de la mascota | Sí |
@@ -116,6 +117,8 @@ La API expone 45 operaciones.
 Para registrar una visita veterinaria, envía `POST /pets/{petId}/health/veterinary-visits` con Bearer y un cuerpo estricto como `{"visitDate":"2026-03-14","reason":"Annual checkup","diagnosis":null,"observations":"Routine examination completed."}`. Owners y colaboradores activos de mascotas ACTIVE reciben `201` con exactamente `id`, `petId`, `visitDate`, `reason`, `diagnosis` nullable, `observations` nullable y `recordedByAccountId`. La fecha es obligatoria, debe ser una fecha completa válida y no posterior a hoy UTC; es independiente de la fecha técnica de creación. El motivo es obligatorio y se recorta (255 puntos de código Unicode); el diagnóstico opcional (2.000) y las observaciones opcionales (5.000) aceptan omisión/null, pero deben tener contenido tras recortarse si se proporcionan. Los duplicados son registros independientes. No se aceptan parámetros de consulta. La autenticación precede a la validación HTTP; la validación de dominio precede al acceso transaccional. Los errores estructurales devuelven `400 INVALID_REQUEST`; los errores de campos devuelven `400 INVALID_VETERINARY_VISIT_REASON`, `INVALID_VETERINARY_VISIT_DATE`, `INVALID_VETERINARY_VISIT_DIAGNOSIS` o `INVALID_VETERINARY_VISIT_OBSERVATIONS`. Un token ausente/inválido devuelve `401 UNAUTHENTICATED`; mascotas ausentes, archivadas o inaccesibles devuelven `404 PET_NOT_FOUND`. Consulta [visitas veterinarias](docs/pet-veterinary-visits.md) para detalles de persistencia y consistencia.
 
 Para corregir una visita registrada, usa `PATCH /pets/{petId}/health/veterinary-visits/{visitId}` con al menos uno de `visitDate`, `reason`, `diagnosis` u `observations`. Los campos omitidos se conservan; `null` borra diagnóstico u observaciones. Owners y colaboradores ACTIVE pueden corregir visitas de mascotas ACTIVE independientemente del autor original. La autorización y búsqueda de la visita preceden a la validación semántica. Una visita ausente o de otra mascota devuelve `404 PET_VETERINARY_VISIT_NOT_FOUND`; mascotas archivadas o inaccesibles devuelven `404 PET_NOT_FOUND`. El éxito devuelve `200` con la representación completa; las correcciones equivalentes no modifican timestamps. Consulta [visitas veterinarias](docs/pet-veterinary-visits.md).
+
+Para eliminar una visita registrada por error, usa `DELETE /pets/{petId}/health/veterinary-visits/{visitId}` con Bearer, sin parámetros de consulta y sin cuerpo o con `{}`. Owners y colaboradores ACTIVE de mascotas ACTIVE pueden eliminarla independientemente del autor. La eliminación es física y permanente, sin historial ni restauración; List deja de incluirla. Devuelve `204` sin contenido; un reintento autorizado devuelve `404 PET_VETERINARY_VISIT_NOT_FOUND`. Mascotas ausentes, archivadas o inaccesibles devuelven `404 PET_NOT_FOUND` antes de buscar la visita. La autenticación precede a toda validación HTTP, incluidos errores del parser JSON. Consulta [visitas veterinarias](docs/pet-veterinary-visits.md).
 
 Para consultar todas las visitas veterinarias, usa `GET /pets/{petId}/health/veterinary-visits` con Bearer y sin parámetros de consulta. Owners y colaboradores ACTIVE pueden leer mascotas ACTIVE o ARCHIVED. Devuelve `200 { "items": [...] }` con `id`, `visitDate`, `reason`, `diagnosis` nullable, `observations` nullable y `recordedByAccountId`; no incluye timestamps técnicos ni `petId`. Orden: fecha de visita, creación e ID descendentes. Una mascota accesible sin visitas devuelve `items: []`. UUID o consulta inválidos devuelven `400 INVALID_REQUEST`; mascotas ausentes o inaccesibles devuelven `404 PET_NOT_FOUND`; tokens ausentes/inválidos devuelven `401 UNAUTHENTICATED`.
 

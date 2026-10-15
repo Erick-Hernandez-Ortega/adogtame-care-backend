@@ -1,3 +1,5 @@
+import { DeletePetVeterinaryVisit } from '../../../application/delete-pet-veterinary-visit/delete-pet-veterinary-visit';
+import { deletePetVeterinaryVisitSchema } from '../schemas/delete-pet-veterinary-visit.schema';
 import {
     UpdatePetVeterinaryVisit,
     PetVeterinaryVisitNotFoundError,
@@ -22,6 +24,8 @@ import {
     BadRequestException,
     Body,
     Controller,
+    Delete,
+    HttpCode,
     Get,
     NotFoundException,
     Param,
@@ -65,6 +69,7 @@ import {
 @ApiBearerAuth()
 export class PetVeterinaryVisitsController {
     constructor(
+        private readonly deletePetVeterinaryVisit: DeletePetVeterinaryVisit,
         private readonly updatePetVeterinaryVisit: UpdatePetVeterinaryVisit,
         private readonly recordPetVeterinaryVisit: RecordPetVeterinaryVisit,
         private readonly listPetVeterinaryVisits: ListPetVeterinaryVisits,
@@ -416,6 +421,108 @@ export class PetVeterinaryVisitsController {
             if (error instanceof InvalidVeterinaryVisitObservationsError) {
                 throw new BadRequestException({
                     code: 'INVALID_VETERINARY_VISIT_OBSERVATIONS',
+                    message: error.message,
+                });
+            }
+
+            throw error;
+        }
+    }
+
+    @Delete(':visitId')
+    @UseGuards(AuthenticationGuard)
+    @HttpCode(204)
+    @ApiOperation({
+        summary: 'Delete an erroneous pet veterinary visit record',
+        description:
+            'Hard delete permanently removes a visit record recorded in error, without deletion history, tombstones or restoration. Active owners and collaborators may delete records on active pets regardless of original authorship. Archived pets are read-only. A second authorized DELETE returns PET_VETERINARY_VISIT_NOT_FOUND. No query parameters or functional body are accepted; an absent body or empty JSON object is valid. Errors follow authentication, HTTP structure, Pet access, then visit lookup.',
+    })
+    @ApiParam({
+        name: 'petId',
+        description: 'Non-nil pet UUID',
+        schema: { type: 'string', format: 'uuid' },
+    })
+    @ApiParam({
+        name: 'visitId',
+        description: 'Non-nil visit UUID',
+        schema: { type: 'string', format: 'uuid' },
+    })
+    @ApiResponse({
+        status: 204,
+        description: 'Pet veterinary visit record permanently deleted',
+    })
+    @ApiResponse({
+        status: 400,
+        description: 'Invalid path, unexpected query parameters, or nonempty/invalid JSON body',
+        schema: errorSchema(['INVALID_REQUEST'], 'Request body is invalid'),
+    })
+    @ApiResponse({
+        status: 401,
+        description: 'Missing or invalid Bearer token',
+        schema: errorSchema(['UNAUTHENTICATED'], 'Authentication is required'),
+    })
+    @ApiResponse({
+        status: 404,
+        description:
+            'Pet missing, archived, or inaccessible; or visit missing from an authorized pet',
+        schema: {
+            oneOf: [
+                errorSchema(['PET_NOT_FOUND'], 'Pet was not found'),
+                errorSchema(
+                    ['PET_VETERINARY_VISIT_NOT_FOUND'],
+                    'Pet veterinary visit was not found',
+                ),
+            ],
+        },
+    })
+    async delete(
+        @CurrentAccountId() authenticatedAccountId: string,
+        @Param('petId') petId: string,
+        @Param('visitId') visitId: string,
+        @Query() query: unknown,
+        @Body() body: unknown,
+    ): Promise<void> {
+        const parsedPetId = veterinaryVisitPetIdSchema.safeParse(petId);
+        const parsedVisitId = veterinaryVisitIdSchema.safeParse(visitId);
+
+        if (!parsedPetId.success || !parsedVisitId.success) {
+            throw new BadRequestException({
+                code: 'INVALID_REQUEST',
+                message: 'Request path is invalid',
+            });
+        }
+
+        if (!recordPetVeterinaryVisitQuerySchema.safeParse(query).success) {
+            throw new BadRequestException({
+                code: 'INVALID_REQUEST',
+                message: 'Request query is invalid',
+            });
+        }
+
+        if (body !== undefined && !deletePetVeterinaryVisitSchema.safeParse(body).success) {
+            throw new BadRequestException({
+                code: 'INVALID_REQUEST',
+                message: 'Request body is invalid',
+            });
+        }
+
+        try {
+            await this.deletePetVeterinaryVisit.execute({
+                petId: parsedPetId.data,
+                visitId: parsedVisitId.data,
+                authenticatedAccountId,
+            });
+        } catch (error: unknown) {
+            if (error instanceof PetVeterinaryVisitNotFoundError) {
+                throw new NotFoundException({
+                    code: 'PET_VETERINARY_VISIT_NOT_FOUND',
+                    message: error.message,
+                });
+            }
+
+            if (error instanceof PetNotFoundError) {
+                throw new NotFoundException({
+                    code: 'PET_NOT_FOUND',
                     message: error.message,
                 });
             }

@@ -54,6 +54,7 @@ function setup() {
             },
         );
     const repository: PetVeterinaryVisitRepository = {
+        deleteIfPetWritable: jest.fn(),
         createIfPetWritable: jest.fn(),
         correctIfPetWritable,
     };

@@ -21,7 +21,17 @@ export type UpdatePetVeterinaryVisitOutcome =
     | { status: 'PET_NOT_FOUND' }
     | { status: 'PET_VETERINARY_VISIT_NOT_FOUND' };
 
+export interface PetVeterinaryVisitAccess {
+    petId: string;
+    visitId: string;
+    authenticatedAccountId: string;
+}
+
+export type DeletePetVeterinaryVisitOutcome =
+    'DELETED' | 'PET_NOT_FOUND' | 'PET_VETERINARY_VISIT_NOT_FOUND';
+
 export interface PetVeterinaryVisitRepository {
+    deleteIfPetWritable(access: PetVeterinaryVisitAccess): Promise<DeletePetVeterinaryVisitOutcome>;
     correctIfPetWritable(
         correction: PetVeterinaryVisitCorrection,
     ): Promise<UpdatePetVeterinaryVisitOutcome>;

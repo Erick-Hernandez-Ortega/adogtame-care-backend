@@ -33,7 +33,7 @@ describe('OpenAPI documentation (e2e)', () => {
         await application.close();
     });
 
-    it('serves Swagger UI and documents all forty-five operations and their contracts', async () => {
+    it('serves Swagger UI and documents all forty-six operations and their contracts', async () => {
         const htmlResponse = await request(application.getHttpServer()).get('/docs').expect(200);
 
         expect(htmlResponse.text).toContain('swagger-ui');
@@ -63,6 +63,7 @@ describe('OpenAPI documentation (e2e)', () => {
             ['/pets/{petId}/health/veterinary-visits', 'post'],
             ['/pets/{petId}/health/veterinary-visits', 'get'],
             ['/pets/{petId}/health/veterinary-visits/{visitId}', 'patch'],
+            ['/pets/{petId}/health/veterinary-visits/{visitId}', 'delete'],
             ['/pets/{petId}/health/medications', 'post'],
             ['/pets/{petId}/health/medications', 'get'],
             ['/pets/{petId}/health/medications/{medicationId}', 'patch'],
@@ -111,7 +112,7 @@ describe('OpenAPI documentation (e2e)', () => {
                     Number(Boolean(path?.delete)),
                 0,
             ),
-        ).toBe(45);
+        ).toBe(46);
 
         const veterinaryVisit = document.paths['/pets/{petId}/health/veterinary-visits']?.post;
 
@@ -237,6 +238,51 @@ describe('OpenAPI documentation (e2e)', () => {
             { properties: { code: { enum: ['PET_NOT_FOUND'] } } },
             { properties: { code: { enum: ['PET_VETERINARY_VISIT_NOT_FOUND'] } } },
         ]);
+        const visitDelete =
+            document.paths['/pets/{petId}/health/veterinary-visits/{visitId}']?.delete;
+
+        expect(visitDelete?.security).toEqual([{ bearer: [] }]);
+        expect(Object.keys(visitDelete?.responses ?? {}).sort()).toEqual([
+            '204',
+            '400',
+            '401',
+            '404',
+        ]);
+        expect(visitDelete?.parameters).toMatchObject([
+            {
+                name: 'petId',
+                in: 'path',
+                required: true,
+                schema: { type: 'string', format: 'uuid' },
+            },
+            {
+                name: 'visitId',
+                in: 'path',
+                required: true,
+                schema: { type: 'string', format: 'uuid' },
+            },
+        ]);
+        expect(visitDelete?.requestBody).toBeUndefined();
+        expect((visitDelete?.responses['204'] as ResponseObject).content).toBeUndefined();
+        expect(visitDelete?.description).toContain('Hard delete');
+        expect(visitDelete?.description).toContain('without deletion history');
+        expect(visitDelete?.description).toContain('second authorized DELETE');
+        expect(visitDelete?.description).toContain('absent body or empty JSON object');
+        expect(responseSchema(visitDelete, '400')?.properties?.code).toMatchObject({
+            enum: ['INVALID_REQUEST'],
+        });
+        expect(responseSchema(visitDelete, '401')?.properties?.code).toMatchObject({
+            enum: ['UNAUTHENTICATED'],
+        });
+        const visitDeletionNotFound: SchemaObject = responseSchema(visitDelete, '404') ?? {};
+
+        expect(
+            visitDeletionNotFound.oneOf?.map((schema) => (schema as SchemaObject).properties?.code),
+        ).toEqual([
+            expect.objectContaining({ enum: ['PET_NOT_FOUND'] }),
+            expect.objectContaining({ enum: ['PET_VETERINARY_VISIT_NOT_FOUND'] }),
+        ]);
+
         const veterinaryVisitList = document.paths['/pets/{petId}/health/veterinary-visits']?.get;
 
         expect(veterinaryVisitList?.security).toEqual([{ bearer: [] }]);

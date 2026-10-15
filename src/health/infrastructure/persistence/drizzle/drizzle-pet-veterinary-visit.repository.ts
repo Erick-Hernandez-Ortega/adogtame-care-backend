@@ -6,6 +6,8 @@ import {
     pets,
 } from '../../../../pet-management/infrastructure/persistence/drizzle/pet-management.schema';
 import type {
+    PetVeterinaryVisitAccess,
+    DeletePetVeterinaryVisitOutcome,
     PetVeterinaryVisitCorrection,
     UpdatePetVeterinaryVisitOutcome,
     CreatePetVeterinaryVisitOutcome,
@@ -158,6 +160,71 @@ export class DrizzlePetVeterinaryVisitRepository implements PetVeterinaryVisitRe
                 });
 
                 return 'CREATED';
+            },
+            { isolationLevel: 'read committed' },
+        );
+    }
+
+    async deleteIfPetWritable(
+        access: PetVeterinaryVisitAccess,
+    ): Promise<DeletePetVeterinaryVisitOutcome> {
+        return this.databaseService.connection.transaction(
+            async (transaction): Promise<DeletePetVeterinaryVisitOutcome> => {
+                const petRows = await transaction
+                    .select({ status: pets.status })
+                    .from(pets)
+                    .where(eq(pets.id, access.petId))
+                    .for('update');
+
+                if (petRows[0]?.status !== 'ACTIVE') {
+                    return 'PET_NOT_FOUND';
+                }
+
+                const membershipRows = await transaction
+                    .select({ role: petMemberships.role, status: petMemberships.status })
+                    .from(petMemberships)
+                    .where(
+                        and(
+                            eq(petMemberships.petId, access.petId),
+                            eq(petMemberships.accountId, access.authenticatedAccountId),
+                        ),
+                    )
+                    .for('update');
+                const membership = membershipRows[0];
+
+                if (
+                    membership?.status !== 'ACTIVE' ||
+                    (membership.role !== 'OWNER' && membership.role !== 'COLLABORATOR')
+                ) {
+                    return 'PET_NOT_FOUND';
+                }
+
+                const visitRows = await transaction
+                    .select({ id: healthPetVeterinaryVisits.id })
+                    .from(healthPetVeterinaryVisits)
+                    .where(
+                        and(
+                            eq(healthPetVeterinaryVisits.id, access.visitId),
+                            eq(healthPetVeterinaryVisits.petId, access.petId),
+                        ),
+                    )
+                    .for('update');
+
+                if (visitRows.length === 0) {
+                    return 'PET_VETERINARY_VISIT_NOT_FOUND';
+                }
+
+                const deletedRows = await transaction
+                    .delete(healthPetVeterinaryVisits)
+                    .where(
+                        and(
+                            eq(healthPetVeterinaryVisits.id, access.visitId),
+                            eq(healthPetVeterinaryVisits.petId, access.petId),
+                        ),
+                    )
+                    .returning({ id: healthPetVeterinaryVisits.id });
+
+                return deletedRows.length === 0 ? 'PET_VETERINARY_VISIT_NOT_FOUND' : 'DELETED';
             },
             { isolationLevel: 'read committed' },
         );

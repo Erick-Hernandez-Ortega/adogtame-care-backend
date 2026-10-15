@@ -30,6 +30,18 @@ describe('PetVeterinaryVisit', () => {
         expect(PetVeterinaryVisit.reconstitute({ ...visit })).toEqual(visit);
     });
 
+    it('preserves a retained duplicate independently of changes to another visit', () => {
+        const visit: PetVeterinaryVisit = PetVeterinaryVisit.create(input());
+        const retained: PetVeterinaryVisit = PetVeterinaryVisit.create(input());
+        const corrected: PetVeterinaryVisit = visit.correct({ reason: 'Follow-up' }, '2026-03-14');
+
+        expect(corrected.id).toEqual(visit.id);
+        expect(retained.id).not.toEqual(corrected.id);
+        expect(retained.reason.value).toBe('Annual checkup');
+        expect(retained.recordedByAccountId).toEqual(input().recordedByAccountId);
+        expect(retained).toMatchObject({ ...input(), diagnosis: null, observations: null });
+    });
+
     it.each([null, undefined])('normalizes absent optional text %s', (value: null | undefined) => {
         expect(
             PetVeterinaryVisit.create({ ...input(), diagnosis: value, observations: value }),

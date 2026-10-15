@@ -63,7 +63,7 @@ To try protected routes, register with `POST /accounts` if needed, then call
 response, click **Authorize** in Swagger, and enter the token. Swagger adds the
 Bearer prefix to requests automatically.
 
-The API exposes 45 operations.
+The API exposes 46 operations.
 
 | Route                                         | Description             | Bearer token |
 | --------------------------------------------- | ----------------------- | ------------ |
@@ -84,6 +84,7 @@ The API exposes 45 operations.
 | `POST /pets/{petId}/health/veterinary-visits` | Record a veterinary visit | Yes |
 | `GET /pets/{petId}/health/veterinary-visits` | List veterinary visit history | Yes |
 | `PATCH /pets/{petId}/health/veterinary-visits/{visitId}` | Correct a registered veterinary visit | Yes |
+| `DELETE /pets/{petId}/health/veterinary-visits/{visitId}` | Delete a registered veterinary visit | Yes |
 | `POST /pets/{petId}/health/medications` | Record indicated pet medication | Yes |
 | `GET /pets/{petId}/health/medications` | List registered pet medications | Yes |
 | `PATCH /pets/{petId}/health/medications/{medicationId}` | Update registered pet medication information | Yes |
@@ -116,6 +117,8 @@ The API exposes 45 operations.
 To record a veterinary visit, send `POST /pets/{petId}/health/veterinary-visits` with a Bearer token and a strict body such as `{"visitDate":"2026-03-14","reason":"Annual checkup","diagnosis":null,"observations":"Routine examination completed."}`. Active owners and collaborators of ACTIVE pets receive `201` with exactly `id`, `petId`, `visitDate`, `reason`, nullable `diagnosis`, nullable `observations`, and `recordedByAccountId`. Visit date is required, must be a complete valid calendar date no later than today UTC, and is distinct from technical creation time. Reason is required and trimmed (255 Unicode code points); optional diagnosis (2,000) and observations (5,000) accept omission/null but must be nonempty after trimming when supplied. Duplicate visits are independent records. No query parameters are accepted. Authentication precedes HTTP validation; domain validation precedes transactional access. Structural errors return `400 INVALID_REQUEST`; field errors return `400 INVALID_VETERINARY_VISIT_REASON`, `INVALID_VETERINARY_VISIT_DATE`, `INVALID_VETERINARY_VISIT_DIAGNOSIS`, or `INVALID_VETERINARY_VISIT_OBSERVATIONS`. Missing/invalid tokens return `401 UNAUTHENTICATED`; missing, archived, or inaccessible pets return `404 PET_NOT_FOUND`. See [veterinary visits](docs/pet-veterinary-visits.md) for persistence and consistency details.
 
 Correct a registered visit with `PATCH /pets/{petId}/health/veterinary-visits/{visitId}`, supplying at least one of `visitDate`, `reason`, `diagnosis`, or `observations`. Omitted fields are preserved; null clears diagnosis or observations. ACTIVE owners and collaborators may correct visits on ACTIVE pets regardless of original authorship. Authorization and target resolution precede semantic validation. Missing or wrong-pet visits return `404 PET_VETERINARY_VISIT_NOT_FOUND`; archived or inaccessible pets return `404 PET_NOT_FOUND`. Success returns `200` with the complete representation; normalized no-ops preserve timestamps. See [veterinary visits](docs/pet-veterinary-visits.md).
+
+Delete an erroneous registered visit with `DELETE /pets/{petId}/health/veterinary-visits/{visitId}`, a Bearer token, no query parameters, and no body or `{}`. ACTIVE owners and collaborators of ACTIVE pets may delete regardless of authorship. Physical deletion is permanent without history or restoration; List excludes the deleted visit. Success returns an empty `204`; an authorized retry returns `404 PET_VETERINARY_VISIT_NOT_FOUND`. Missing, archived, or inaccessible pets return `404 PET_NOT_FOUND` before visit lookup. Authentication precedes all HTTP validation, including JSON parser failures. See [veterinary visits](docs/pet-veterinary-visits.md).
 
 To list all veterinary visits, use `GET /pets/{petId}/health/veterinary-visits` with a Bearer token and no query parameters. ACTIVE owners and collaborators may read ACTIVE or ARCHIVED pets. It returns `200 { "items": [...] }` with `id`, `visitDate`, `reason`, nullable `diagnosis`, nullable `observations`, and `recordedByAccountId`; technical timestamps and `petId` are omitted. Order is visit date, creation timestamp, then ID descending. An accessible pet without visits returns `items: []`. Invalid UUIDs or queries return `400 INVALID_REQUEST`; missing or inaccessible pets return `404 PET_NOT_FOUND`; missing/invalid tokens return `401 UNAUTHENTICATED`.
 
