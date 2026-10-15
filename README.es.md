@@ -235,6 +235,14 @@ separada sobre la FK ausente entre memberships y accounts.
 
 Ejecuta `pnpm format` para aplicar el estilo del proyecto con ESLint y Prettier: indentación de cuatro espacios, ancho de 100 caracteres, llaves en control de flujo y líneas en blanco entre bloques lógicos y miembros de clases. Se utiliza rest/spread para proyecciones simples; las conversiones de dominio a respuestas se mantienen explícitas.
 
+## Cuidados
+
+El dominio de rutinas de cuidado y su esquema de persistencia generado permiten
+representar alimentación, paseos, higiene y otras rutinas, con frecuencias diarias
+o semanales, horarios locales sugeridos y zonas horarias IANA. Esta entrega del
+dominio no agrega rutas a la API. Consulta [Cuidados de mascotas](docs/pet-care.md)
+para conocer las decisiones y el estado de la persistencia.
+
 ## Verificación
 
 ```bash

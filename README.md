@@ -196,6 +196,13 @@ To leave a pet, send `POST /pets/{petId}/leave` with a Bearer token, no query pa
 
 Leave now returns `204` without a representation, replacing its previous `200` JSON response. Clients must no longer expect membership data in the response. See [Pet leave](docs/pet-leave.md) for the domain decision and transaction locking protocol.
 
+## Care
+
+Care routine domain objects and a generated persistence schema are available for
+feeding, walks, hygiene and other routines, with daily/weekly frequencies, local
+suggested times and IANA timezones. This domain slice adds no API routes.
+See [Pet care](docs/pet-care.md) for decisions and persistence status.
+
 ## Shared domain utilities
 
 `src/shared/domain/uuid.ts`, `civil-date.ts`, and `text.ts` provide reusable
