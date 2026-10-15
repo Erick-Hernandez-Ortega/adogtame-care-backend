@@ -178,3 +178,33 @@ export const completedCareActivityResponseSchema: SchemaObject = {
         },
     },
 };
+
+const activityListProperties = Object.fromEntries(
+    Object.entries(completedCareActivityResponseSchema.properties ?? {}).filter(
+        ([name]): boolean => name !== 'petId',
+    ),
+);
+
+export const careActivitiesResponseSchema: SchemaObject = {
+    type: 'object',
+    additionalProperties: false,
+    required: ['items'],
+    properties: {
+        items: {
+            type: 'array',
+            items: {
+                type: 'object',
+                additionalProperties: false,
+                required: [...Object.keys(activityListProperties), 'localDay'],
+                properties: {
+                    ...activityListProperties,
+                    localDay: {
+                        type: 'string',
+                        format: 'date',
+                        description: 'Completion day in this activity’s recorded IANA timezone.',
+                    },
+                },
+            },
+        },
+    },
+};

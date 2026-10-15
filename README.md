@@ -63,7 +63,7 @@ To try protected routes, register with `POST /accounts` if needed, then call
 response, click **Authorize** in Swagger, and enter the token. Swagger adds the
 Bearer prefix to requests automatically.
 
-The API exposes 50 operations.
+The API exposes 51 operations.
 
 | Route                                         | Description             | Bearer token |
 | --------------------------------------------- | ----------------------- | ------------ |
@@ -83,6 +83,7 @@ The API exposes 50 operations.
 | `POST /pets/{petId}/leave`                    | Leave a pet   | Yes          |
 | `POST /pets/{petId}/care/routines` | Create a care routine | Yes |
 | `GET /pets/{petId}/care/routines` | List care routines | Yes |
+| `GET /pets/{petId}/care/activities` | List care activity history | Yes |
 | `PATCH /pets/{petId}/care/routines/{routineId}` | Update a care routine | Yes |
 | `POST /pets/{petId}/care/routines/{routineId}/activities` | Record a completed care activity | Yes |
 | `POST /pets/{petId}/health/veterinary-visits` | Record a veterinary visit | Yes |
@@ -252,6 +253,21 @@ INVALID_ACTIVITY_COMPLETED_AT, INVALID_ACTIVITY_TIMEZONE, INVALID_ACTIVITY_NOTES
 UNAUTHENTICATED, PET_NOT_FOUND or CARE_ROUTINE_NOT_FOUND. Archived pets are read-only;
 pet access is checked before routine lookup. Local days are computed in the recorder's
 timezone; no missed activities are stored. See [Pet care](docs/pet-care.md).
+
+List activity history with `GET /pets/{petId}/care/activities` and a Bearer token.
+Optional `from` and `to` are inclusive `YYYY-MM-DD` bounds on each activity's local
+day in its recorded timezone; `routineId` filters within the pet. Active owners and
+collaborators may read active or archived pets. Success returns `200 { "items": [...] }`
+with `id`, `routineId`, `completedAt`, `completedBy`, `timezone`, `localDay` and nullable
+`notes`, ordered by completion instant, creation timestamp and ID descending, without
+pagination. No matches, including unknown or wrong-pet routines, return empty items
+after pet authorization. Reversed ranges, invalid dates/UUIDs and unknown or repeated
+query parameters return 400 INVALID_REQUEST; invalid authentication returns 401
+UNAUTHENTICATED; missing/inaccessible pets return 404 PET_NOT_FOUND. Authentication
+precedes validation, including JSON parser failures. A daily expected/completed
+summary is skipped because weekly allocation and historical routine expectations
+require additional product decisions. Missed activities are never stored. See
+[Pet care](docs/pet-care.md).
 
 ## Shared domain utilities
 

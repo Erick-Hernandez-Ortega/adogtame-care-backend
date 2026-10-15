@@ -63,7 +63,7 @@ después llama a `POST /auth/login` con tu correo y contraseña. Copia
 `accessToken` de la respuesta, pulsa **Authorize** en Swagger e introduce el
 token. Swagger añade automáticamente el prefijo Bearer a las peticiones.
 
-La API expone 50 operaciones.
+La API expone 51 operaciones.
 
 | Ruta                                          | Descripción                 | Token Bearer |
 | --------------------------------------------- | --------------------------- | ------------ |
@@ -83,6 +83,7 @@ La API expone 50 operaciones.
 | `POST /pets/{petId}/leave`                    | Abandonar una mascota  | Sí           |
 | `POST /pets/{petId}/care/routines` | Crear una rutina de cuidado | Sí |
 | `GET /pets/{petId}/care/routines` | Consultar rutinas de cuidado | Sí |
+| `GET /pets/{petId}/care/activities` | Consultar el historial de actividades de cuidado | Sí |
 | `PATCH /pets/{petId}/care/routines/{routineId}` | Actualizar una rutina de cuidado | Sí |
 | `POST /pets/{petId}/care/routines/{routineId}/activities` | Registrar una actividad de cuidado completada | Sí |
 | `POST /pets/{petId}/health/veterinary-visits` | Registrar una visita veterinaria | Sí |
@@ -295,6 +296,21 @@ INVALID_ACTIVITY_COMPLETED_AT, INVALID_ACTIVITY_TIMEZONE, INVALID_ACTIVITY_NOTES
 UNAUTHENTICATED, PET_NOT_FOUND o CARE_ROUTINE_NOT_FOUND. El acceso a la mascota se comprueba
 antes de buscar la rutina. El día local se calcula con la zona de quien registra;
 las actividades omitidas no se almacenan. Consulta [Pet care](docs/pet-care.md).
+
+Consulta el historial con `GET /pets/{petId}/care/activities` y un token Bearer.
+Los filtros opcionales `from` y `to` son fechas `YYYY-MM-DD` inclusivas en la zona
+horaria registrada de cada actividad; `routineId` filtra por rutina dentro de la
+mascota. Los propietarios y colaboradores activos pueden consultar mascotas activas
+o archivadas. Devuelve `200 { "items": [...] }` con `id`, `routineId`, `completedAt`,
+`completedBy`, `timezone`, `localDay` y `notes` nullable, ordenados por finalización,
+creación e ID descendentes, sin paginación. Sin coincidencias, incluso para una rutina
+inexistente o de otra mascota, devuelve una lista vacía tras autorizar el acceso.
+Rangos invertidos, fechas/UUID inválidos y parámetros desconocidos o repetidos usan
+400 INVALID_REQUEST; autenticación inválida usa 401 UNAUTHENTICATED; mascotas
+inexistentes o inaccesibles usan 404 PET_NOT_FOUND. No se incluye un resumen diario
+de expectativas: los objetivos semanales y los cambios históricos de rutinas
+requieren decisiones adicionales. Las actividades omitidas nunca se almacenan.
+Consulta [Cuidado de mascotas](docs/pet-care.md).
 
 ## Verificación
 

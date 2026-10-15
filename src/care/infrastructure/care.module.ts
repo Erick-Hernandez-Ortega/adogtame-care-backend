@@ -1,3 +1,10 @@
+import { ListCareActivities } from '../application/list-care-activities/list-care-activities';
+import {
+    CARE_ACTIVITY_READER,
+    type CareActivityReader,
+} from '../application/persistence/care-activity.reader';
+import { DrizzleCareActivityReader } from './persistence/drizzle/drizzle-care-activity.reader';
+import { CareActivityHistoryController } from './http/controllers/care-activity-history.controller';
 import { CompleteCareActivity } from '../application/complete-care-activity/complete-care-activity';
 import {
     CARE_ACTIVITY_REPOSITORY,
@@ -26,8 +33,16 @@ import { DrizzleCareRoutineReader } from './persistence/drizzle/drizzle-care-rou
 
 @Module({
     imports: [DatabaseModule, IdentityModule],
-    controllers: [CareRoutinesController, CareActivitiesController],
+    controllers: [CareRoutinesController, CareActivitiesController, CareActivityHistoryController],
     providers: [
+        DrizzleCareActivityReader,
+        { provide: CARE_ACTIVITY_READER, useExisting: DrizzleCareActivityReader },
+        {
+            provide: ListCareActivities,
+            inject: [CARE_ACTIVITY_READER],
+            useFactory: (reader: CareActivityReader): ListCareActivities =>
+                new ListCareActivities(reader),
+        },
         DrizzleCareActivityRepository,
         { provide: CARE_ACTIVITY_REPOSITORY, useExisting: DrizzleCareActivityRepository },
         { provide: CARE_CLOCK, useValue: { now: (): Date => new Date() } satisfies Clock },

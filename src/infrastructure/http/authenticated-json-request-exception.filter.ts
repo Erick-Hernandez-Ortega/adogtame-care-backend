@@ -31,6 +31,8 @@ export class AuthenticatedJsonRequestExceptionFilter extends BaseExceptionFilter
 
     private hasAuthenticationFirstParserContract(request: Request): boolean {
         return (
+            (request.method === 'GET' &&
+                /^\/pets\/[^/]+\/care\/activities\/?$/i.test(request.path)) ||
             (request.method === 'POST' &&
                 /^\/pets\/[^/]+\/care\/routines\/[^/]+\/activities\/?$/i.test(request.path)) ||
             (request.method === 'PATCH' &&

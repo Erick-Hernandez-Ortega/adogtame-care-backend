@@ -287,3 +287,65 @@ duplicates, strict bodies, wrong-pet targets, authentication-first parsing and 5
 Missed activities remain computed on query in a future slice, never persisted. No
 matching to suggested times, historical schedule rules, weekly query boundaries,
 reminders, notifications, attachments, stats or Adogtame integration are introduced.
+
+
+## Activity history (#51)
+
+`GET /pets/{petId}/care/activities` is the 51st API operation. Authentication
+precedes path/query validation and malformed/scalar JSON parser failures. The path
+requires a non-nil pet UUID. The strict query accepts optional `from`, `to` and
+`routineId`; unknown parameters, repeated values, nested values, invalid/nil
+UUIDs, invalid calendar dates and reversed ranges return 400 INVALID_REQUEST.
+Missing/invalid tokens return 401 UNAUTHENTICATED. Dates use complete Gregorian
+`YYYY-MM-DD` in years 0001–9999. Bounds may be omitted independently, are inclusive,
+and may be future dates (which simply match no future completions).
+
+`from` and `to` compare the completion's local day in **each activity's recorded
+IANA timezone**, using the existing `CareActivity.localDay` behavior, including DST.
+They do not compare UTC days or use the routine's current timezone. The same UTC
+instant can therefore belong to different local days for different recorders.
+Changing a routine's timezone or suggestions does not reinterpret recorded activities.
+
+ACTIVE owners and collaborators may read ACTIVE or ARCHIVED pets. Missing pets,
+outsiders and inactive members, including original recorders, receive the same
+404 PET_NOT_FOUND regardless of the filters. An accessible pet with no matching
+activities returns `200 { "items": [] }`. A valid unknown or wrong-pet `routineId`
+returns empty items after pet authorization; filtering never exposes another pet's
+routine or activity. No separate routine lookup or routine-not-found error is added.
+
+Each item contains exactly `id`, `routineId`, `completedAt`, `completedBy`, `timezone`,
+`localDay` and nullable `notes`. UTC completion instants use ISO millisecond precision;
+pet identity comes from the route and technical timestamps remain private.
+Independent duplicates and original completing accounts are preserved. All matching
+activities are returned without pagination, ordered by completed_at DESC, created_at
+DESC (including PostgreSQL microseconds), then id DESC, following Health history.
+
+`ListCareActivities` delegates to the application-owned `CareActivityReader` port,
+whose `findAccessibleByPet` returns an array or null for inaccessible pets. Null maps
+to PetNotFoundError; unexpected failures propagate. The Drizzle reader authorizes
+Pet and ACTIVE requester Membership in one statement with a left join of pet-scoped
+activities and the optional routine predicate. Local-day filtering happens in the
+reader after domain reconstitution, reusing the existing domain calculation instead
+of duplicating timezone/calendar rules in SQL. This simple, unpaginated reader loads
+all activities matching the pet/routine before date filtering; larger histories may
+justify a separately designed paginated query. Empty filters never erase the access
+sentinel. Reads take no row locks, change no timestamps and observe the statement's
+snapshot; subsequent requests recheck committed access changes. Existing write locks
+remain Pet → requester Membership → record. Archived pets remain read-only.
+
+The existing schema and pet/routine index suffice. `pnpm db:generate` confirms no
+schema changes; no migration, dependencies, infrastructure or domain mutation is added.
+
+The optional per-day expected/completed summary is deliberately skipped. WEEKLY
+`timesPerPeriod` has no approved daily allocation or week boundary, weekdays are
+suggestions, and editable routines have no historical schedule versions. Evaluating
+past expectations or allocating weekly targets to days would require new product
+rules. No missed activities are stored or inferred as persisted facts. No reminders,
+notifications, attachments, stats or Adogtame integration are introduced.
+
+Application tests cover delegation, filters, order, empty results, access errors and
+unexpected failures. PostgreSQL tests cover inclusive local-day/DST boundaries,
+routine and pet isolation, microsecond/UUID ordering, duplicates beyond 20 rows,
+active/archived access, revocation, preservation, unchanged timestamps and nonblocking
+snapshot reads. HTTP and OpenAPI tests cover exact contracts, strict queries,
+authentication-first parser failures, member access and the 51-operation contract.
