@@ -46,14 +46,14 @@ class FakePasswordHasher implements PasswordHasher {
 
     readonly verifications: Array<{
         plaintextPassword: string;
-        passwordHash: PasswordHash;
+        passwordHash: PasswordHash | null;
     }> = [];
 
     hash(): Promise<PasswordHash> {
         return Promise.resolve(PasswordHash.from(HASH_VALUE));
     }
 
-    verify(plaintextPassword: string, passwordHash: PasswordHash): Promise<boolean> {
+    verify(plaintextPassword: string, passwordHash: PasswordHash | null): Promise<boolean> {
         this.verifications.push({ plaintextPassword, passwordHash });
 
         return Promise.resolve(this.isPasswordValid);
@@ -114,25 +114,34 @@ describe('AuthenticateAccount', () => {
         expect(repository.searchedEmails).toHaveLength(0);
     });
 
-    it('returns invalid credentials without verifying when the account is absent', async () => {
-        const repository = new InMemoryAccountRepository();
+    it.each([false, true])(
+        'verifies absent credentials and never issues a token (verification: %s)',
+        async (isPasswordValid: boolean) => {
+            const repository = new InMemoryAccountRepository();
 
-        repository.account = null;
-        const passwordHasher = new FakePasswordHasher();
-        const authenticateAccount = new AuthenticateAccount(
-            repository,
-            passwordHasher,
-            new FakeAccessTokenIssuer(),
-        );
+            repository.account = null;
+            const passwordHasher = new FakePasswordHasher();
+            const accessTokenIssuer = new FakeAccessTokenIssuer();
 
-        await expect(
-            authenticateAccount.execute({
-                email: 'missing@example.com',
-                password: 'password',
-            }),
-        ).rejects.toEqual(new InvalidCredentialsError());
-        expect(passwordHasher.verifications).toHaveLength(0);
-    });
+            passwordHasher.isPasswordValid = isPasswordValid;
+            const authenticateAccount = new AuthenticateAccount(
+                repository,
+                passwordHasher,
+                accessTokenIssuer,
+            );
+
+            await expect(
+                authenticateAccount.execute({
+                    email: 'missing@example.com',
+                    password: 'password',
+                }),
+            ).rejects.toEqual(new InvalidCredentialsError());
+            expect(passwordHasher.verifications).toEqual([
+                { plaintextPassword: 'password', passwordHash: null },
+            ]);
+            expect(accessTokenIssuer.accountIds).toHaveLength(0);
+        },
+    );
 
     it('returns invalid credentials and does not issue a token for a wrong password', async () => {
         const passwordHasher = new FakePasswordHasher();
@@ -151,6 +160,7 @@ describe('AuthenticateAccount', () => {
                 password: 'wrong password',
             }),
         ).rejects.toEqual(new InvalidCredentialsError());
+        expect(passwordHasher.verifications).toHaveLength(1);
         expect(accessTokenIssuer.accountIds).toHaveLength(0);
     });
 });

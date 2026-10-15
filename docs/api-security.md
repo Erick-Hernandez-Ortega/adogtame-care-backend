@@ -27,6 +27,56 @@ Invitation operations retain their documented Invitation-first ordering where ap
 see [Pet archive](pet-archive.md). No locking, timestamp, authorship or no-op write
 behavior changes. Domain remains independent of NestJS, HTTP and Drizzle.
 
+## Account enumeration (M-05)
+
+Login performs exactly one Argon2 verification after looking up a syntactically
+valid email, whether or not the account exists. The application passes an absent
+credential through the existing PasswordHasher port; the Argon2id adapter verifies
+the submitted password against a fixed dummy hash precomputed once, outside request
+handling. It uses the same current library defaults as registration: Argon2id v19,
+64 MiB memory, three iterations, parallelism four, a 16-byte salt and 32-byte hash.
+Tests compare its encoded parameters with newly generated hashes; regenerate the
+dummy hash if real hashing parameters change. No per-request dummy hashing occurs.
+
+An absent account is always rejected, regardless of the verification result, and
+never receives a token. Unknown emails and wrong passwords retain exactly
+`401 { "code": "INVALID_CREDENTIALS", "message": "Email or password is incorrect" }`.
+Existing input validation, successful login and throttling remain unchanged.
+Equivalent password-verification work removes the missing-Argon2 timing shortcut;
+it does not guarantee identical total latency across database and runtime conditions.
+
+### Known/pending: registration oracle
+
+Registration deliberately retains its current contract: a new email returns 201
+with account ID/email; an equivalent registered email returns
+`409 EMAIL_ALREADY_REGISTERED`. This is a deterministic account-existence oracle,
+so M-05 remains partially open. Login hardening and throttling do not remove it.
+There is no email-verification workflow yet. A product decision is required before
+changing registration responses or onboarding:
+
+- Retain the explicit conflict: preserves current clients and clear duplicate-email
+  guidance, while accepting the enumeration risk. Throttling only bounds probing.
+- Return the same generic acknowledgement for both outcomes, with comparable work
+  and no account details: breaks the 201/409 contract and hides the direct oracle.
+  Without email verification or private email follow-up, users cannot tell whether
+  an account was created or get private guidance when the address is already taken.
+  Never overwrite existing credentials or authenticate an existing account merely
+  because registration was submitted.
+- Introduce email ownership verification before account activation, with a generic
+  acknowledgement and comparable work for new/existing addresses: provides useful
+  private onboarding guidance and stronger enumeration protection, but requires an
+  approved verification/email lifecycle and delivery implementation (eventually
+  Resend). It changes onboarding and cannot be delivered by this login-only slice.
+
+Application unit tests assert one verification for absent/wrong credentials and no
+token for an absent account even if the verifier returns true. Real Argon2 tests
+check dummy-hash reuse, validity, parameters and absence of per-login hashing.
+`test/identity/authenticate-account.integration-spec.ts` exercises the wired use
+case, real hasher and PostgreSQL account lookup, including unchanged rows/timestamps.
+`test/auth.e2e-spec.ts` compares exact unknown/wrong-password HTTP responses; existing
+registration and OpenAPI tests preserve the 409 and token contracts. Tests assert
+work and observable results rather than noisy wall-clock thresholds.
+
 ## Pagination
 
 Every list now accepts optional `limit` (default 20, integer 1–100) and opaque
@@ -205,7 +255,8 @@ Run `pnpm test:e2e --runInBand http-security openapi api-security` for HTTP secu
 Database tests require migrated PostgreSQL; HTTP tests require permission to bind
 local sockets. A sandbox without those capabilities cannot verify their runtime results.
 
-M-01 through M-04 are addressed here. H-01, M-05, low findings and informational
-items are unchanged. No domain, persistence schema, aggregate, locking or timestamp
-behavior changes. Readiness and login defaults are the bounded policies requested
+M-01 through M-04 were addressed by earlier slices. M-05 login verification is
+addressed; the registration oracle remains known/pending as described above. H-01,
+low findings and informational items are unchanged. No domain, persistence schema,
+aggregate, locking or timestamp behavior changes. Readiness and login defaults are the bounded policies requested
 for this slice; deployment ingress, CORS, retention and new dependencies remain pending.

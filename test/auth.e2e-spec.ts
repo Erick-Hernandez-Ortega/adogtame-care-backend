@@ -110,7 +110,7 @@ describe('POST /auth/login (e2e)', () => {
         });
     });
 
-    it('returns the same invalid credentials response for a wrong password', async () => {
+    it('returns identical invalid credentials responses for existing and unknown accounts', async () => {
         const email: string = uniqueEmail('wrong-password');
 
         try {
@@ -128,6 +128,13 @@ describe('POST /auth/login (e2e)', () => {
                 code: 'INVALID_CREDENTIALS',
                 message: 'Email or password is incorrect',
             });
+
+            const missingResponse = await request(application.getHttpServer())
+                .post('/auth/login')
+                .send({ email: uniqueEmail('unknown-comparison'), password: 'wrong password' })
+                .expect(401);
+
+            expect(missingResponse.body).toEqual(response.body);
         } finally {
             await databaseService.connection.delete(accounts).where(eq(accounts.email, email));
         }

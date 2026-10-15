@@ -32,16 +32,12 @@ export class AuthenticateAccount {
 
         const account: Account | null = await this.accountRepository.findByEmail(email);
 
-        if (account === null) {
-            throw new InvalidCredentialsError();
-        }
-
         const isPasswordValid: boolean = await this.passwordHasher.verify(
             command.password,
-            account.passwordHash,
+            account?.passwordHash ?? null,
         );
 
-        if (!isPasswordValid) {
+        if (account === null || !isPasswordValid) {
             throw new InvalidCredentialsError();
         }
 
