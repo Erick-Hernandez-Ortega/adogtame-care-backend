@@ -1,3 +1,10 @@
+import { RecordPetVeterinaryVisit } from '../application/record-pet-veterinary-visit/record-pet-veterinary-visit';
+import {
+    PET_VETERINARY_VISIT_REPOSITORY,
+    type PetVeterinaryVisitRepository,
+} from '../application/persistence/pet-veterinary-visit.repository';
+import { PetVeterinaryVisitsController } from './http/controllers/pet-veterinary-visits.controller';
+import { DrizzlePetVeterinaryVisitRepository } from './persistence/drizzle/drizzle-pet-veterinary-visit.repository';
 import { CompletePetMedication } from '../application/complete-pet-medication/complete-pet-medication';
 import { DiscontinuePetMedication } from '../application/discontinue-pet-medication/discontinue-pet-medication';
 import { ReopenPetMedication } from '../application/reopen-pet-medication/reopen-pet-medication';
@@ -86,6 +93,7 @@ import { DrizzleVaccinationHistoryReader } from './persistence/drizzle/drizzle-v
 @Module({
     imports: [DatabaseModule, IdentityModule],
     controllers: [
+        PetVeterinaryVisitsController,
         PetMedicationsController,
         PetMedicalConditionsController,
         WeightRecordsController,
@@ -93,6 +101,19 @@ import { DrizzleVaccinationHistoryReader } from './persistence/drizzle/drizzle-v
         PetAllergiesController,
     ],
     providers: [
+        DrizzlePetVeterinaryVisitRepository,
+        {
+            provide: PET_VETERINARY_VISIT_REPOSITORY,
+            useExisting: DrizzlePetVeterinaryVisitRepository,
+        },
+        {
+            provide: RecordPetVeterinaryVisit,
+            inject: [PET_VETERINARY_VISIT_REPOSITORY, HEALTH_CLOCK],
+            useFactory: (
+                repository: PetVeterinaryVisitRepository,
+                clock: Clock,
+            ): RecordPetVeterinaryVisit => new RecordPetVeterinaryVisit(repository, clock),
+        },
         {
             provide: CompletePetMedication,
             inject: [PET_MEDICATION_REPOSITORY, HEALTH_CLOCK],

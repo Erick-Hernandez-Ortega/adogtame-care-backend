@@ -1,0 +1,57 @@
+import { VisitDate } from './visit-date';
+
+describe('VisitDate', () => {
+    it.each(['0001-01-01', '1900-02-28', '2000-02-29', '2024-02-29', '2026-03-14'])(
+        'accepts past or current calendar date %s',
+        (value: string) => {
+            expect(VisitDate.from(value, '2026-03-14').value).toBe(value);
+        },
+    );
+    it.each([
+        '2026-03-15',
+        '0000-01-01',
+        '1900-02-29',
+        '2026-02-29',
+        '2026-04-31',
+        '2026-00-01',
+        '2026-13-01',
+        '2026-01-00',
+        '2026-01-32',
+        '2026-3-14',
+        '2026',
+        '2026-03',
+        '2026-03-14T00:00:00Z',
+        ' 2026-03-14 ',
+        '10000-01-01',
+        '',
+    ])('rejects invalid or future date %s', (value: string) => {
+        expect(() => VisitDate.from(value, '2026-03-14')).toThrow();
+    });
+    it.each([null, undefined, 1, {}])('rejects non-string runtime date %s', (value: unknown) => {
+        expect(() => VisitDate.from(value as string, '2026-03-14')).toThrow(TypeError);
+    });
+});
+
+describe('VisitDate persisted reconstruction', () => {
+    it('accepts historical dates independently of the current day', () => {
+        expect(VisitDate.reconstitute('2027-01-01').value).toBe('2027-01-01');
+        expect(() => VisitDate.from('2027-01-01', '2026-03-14')).toThrow(RangeError);
+    });
+    it.each(['2026', '2026-02-29', '0000-01-01', '2026-13-01'])(
+        'rejects structurally invalid stored date %s',
+        (value: string) => {
+            expect(() => VisitDate.reconstitute(value)).toThrow();
+        },
+    );
+});
+
+describe('VisitDate exact shared format', () => {
+    it.each(['2026-10-10\n', '2026-10-10\r', '2026-10-10 ', ' 2026-10-10'])(
+        'rejects additional characters in %s with the original format error',
+        (value: string) => {
+            expect(() => VisitDate.from(value, '2026-10-11')).toThrow(
+                new TypeError('Visit date must use the YYYY-MM-DD format'),
+            );
+        },
+    );
+});

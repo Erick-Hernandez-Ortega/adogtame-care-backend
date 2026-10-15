@@ -63,7 +63,7 @@ después llama a `POST /auth/login` con tu correo y contraseña. Copia
 `accessToken` de la respuesta, pulsa **Authorize** en Swagger e introduce el
 token. Swagger añade automáticamente el prefijo Bearer a las peticiones.
 
-La API expone 42 operaciones.
+La API expone 43 operaciones.
 
 | Ruta                                          | Descripción                 | Token Bearer |
 | --------------------------------------------- | --------------------------- | ------------ |
@@ -81,6 +81,7 @@ La API expone 42 operaciones.
 | `POST /pets/{petId}/archive` | Archivar una mascota | Sí |
 | `POST /pets/{petId}/restore` | Restaurar una mascota | Sí |
 | `POST /pets/{petId}/leave`                    | Abandonar una mascota  | Sí           |
+| `POST /pets/{petId}/health/veterinary-visits` | Registrar una visita veterinaria | Sí |
 | `POST /pets/{petId}/health/medications` | Registrar medicación indicada de la mascota | Sí |
 | `GET /pets/{petId}/health/medications` | Listar medicamentos registrados de la mascota | Sí |
 | `PATCH /pets/{petId}/health/medications/{medicationId}` | Actualizar información registrada de medicación de la mascota | Sí |
@@ -109,6 +110,8 @@ La API expone 42 operaciones.
 | `POST /pet-invitations/{invitationId}/accept` | Aceptar invitación          | Sí           |
 | `POST /pet-invitations/{invitationId}/reject` | Rechazar invitación         | Sí           |
 | `POST /pet-invitations/{invitationId}/cancel` | Cancelar invitación         | Sí           |
+
+Para registrar una visita veterinaria, envía `POST /pets/{petId}/health/veterinary-visits` con Bearer y un cuerpo estricto como `{"visitDate":"2026-03-14","reason":"Annual checkup","diagnosis":null,"observations":"Routine examination completed."}`. Owners y colaboradores activos de mascotas ACTIVE reciben `201` con exactamente `id`, `petId`, `visitDate`, `reason`, `diagnosis` nullable, `observations` nullable y `recordedByAccountId`. La fecha es obligatoria, debe ser una fecha completa válida y no posterior a hoy UTC; es independiente de la fecha técnica de creación. El motivo es obligatorio y se recorta (255 puntos de código Unicode); el diagnóstico opcional (2.000) y las observaciones opcionales (5.000) aceptan omisión/null, pero deben tener contenido tras recortarse si se proporcionan. Los duplicados son registros independientes. No se aceptan parámetros de consulta. La autenticación precede a la validación HTTP; la validación de dominio precede al acceso transaccional. Los errores estructurales devuelven `400 INVALID_REQUEST`; los errores de campos devuelven `400 INVALID_VETERINARY_VISIT_REASON`, `INVALID_VETERINARY_VISIT_DATE`, `INVALID_VETERINARY_VISIT_DIAGNOSIS` o `INVALID_VETERINARY_VISIT_OBSERVATIONS`. Un token ausente/inválido devuelve `401 UNAUTHENTICATED`; mascotas ausentes, archivadas o inaccesibles devuelven `404 PET_NOT_FOUND`. Consulta [visitas veterinarias](docs/pet-veterinary-visits.md) para detalles de persistencia y consistencia.
 
 Para archivar una mascota, envía `POST /pets/{petId}/archive` como owner activo. El éxito es `204 No Content`, también en retries sobre una mascota archivada después de volver a comprobar la autorización del owner. Un retry no ejecuta UPDATE y conserva `pets.updated_at`; una transición real lo cambia mediante el trigger existente. Archive conserva el perfil, memberships, invitaciones pendientes e historial Health. Collaborators, miembros inactivos, ausencia de membership y mascotas inexistentes reciben `404 PET_NOT_FOUND`. El ID debe ser un UUID non-nil. Envía sin query parameters y sin body o con `{}`; una estructura inválida devuelve `400 INVALID_REQUEST`. Un token Bearer ausente o inválido devuelve `401 UNAUTHENTICATED`.
 

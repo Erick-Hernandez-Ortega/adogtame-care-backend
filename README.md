@@ -63,7 +63,7 @@ To try protected routes, register with `POST /accounts` if needed, then call
 response, click **Authorize** in Swagger, and enter the token. Swagger adds the
 Bearer prefix to requests automatically.
 
-The API exposes 42 operations.
+The API exposes 43 operations.
 
 | Route                                         | Description             | Bearer token |
 | --------------------------------------------- | ----------------------- | ------------ |
@@ -81,6 +81,7 @@ The API exposes 42 operations.
 | `POST /pets/{petId}/archive` | Archive a pet | Yes |
 | `POST /pets/{petId}/restore` | Restore a pet | Yes |
 | `POST /pets/{petId}/leave`                    | Leave a pet   | Yes          |
+| `POST /pets/{petId}/health/veterinary-visits` | Record a veterinary visit | Yes |
 | `POST /pets/{petId}/health/medications` | Record indicated pet medication | Yes |
 | `GET /pets/{petId}/health/medications` | List registered pet medications | Yes |
 | `PATCH /pets/{petId}/health/medications/{medicationId}` | Update registered pet medication information | Yes |
@@ -109,6 +110,8 @@ The API exposes 42 operations.
 | `POST /pet-invitations/{invitationId}/accept` | Accept invitation       | Yes          |
 | `POST /pet-invitations/{invitationId}/reject` | Reject invitation       | Yes          |
 | `POST /pet-invitations/{invitationId}/cancel` | Cancel invitation       | Yes          |
+
+To record a veterinary visit, send `POST /pets/{petId}/health/veterinary-visits` with a Bearer token and a strict body such as `{"visitDate":"2026-03-14","reason":"Annual checkup","diagnosis":null,"observations":"Routine examination completed."}`. Active owners and collaborators of ACTIVE pets receive `201` with exactly `id`, `petId`, `visitDate`, `reason`, nullable `diagnosis`, nullable `observations`, and `recordedByAccountId`. Visit date is required, must be a complete valid calendar date no later than today UTC, and is distinct from technical creation time. Reason is required and trimmed (255 Unicode code points); optional diagnosis (2,000) and observations (5,000) accept omission/null but must be nonempty after trimming when supplied. Duplicate visits are independent records. No query parameters are accepted. Authentication precedes HTTP validation; domain validation precedes transactional access. Structural errors return `400 INVALID_REQUEST`; field errors return `400 INVALID_VETERINARY_VISIT_REASON`, `INVALID_VETERINARY_VISIT_DATE`, `INVALID_VETERINARY_VISIT_DIAGNOSIS`, or `INVALID_VETERINARY_VISIT_OBSERVATIONS`. Missing/invalid tokens return `401 UNAUTHENTICATED`; missing, archived, or inaccessible pets return `404 PET_NOT_FOUND`. See [veterinary visits](docs/pet-veterinary-visits.md) for persistence and consistency details.
 
 To archive a pet, send `POST /pets/{petId}/archive` as an active owner. Success is `204 No Content`, including retries on an archived pet after owner authorization is checked again. A retry performs no UPDATE and preserves `pets.updated_at`; a real transition changes it through the existing database trigger. Archive preserves the profile, memberships, pending invitations, and Health history. Collaborators, inactive members, absent memberships, and missing pets receive `404 PET_NOT_FOUND`. The pet ID must be a non-nil UUID. Send no query parameters and no body or `{}`; invalid structure returns `400 INVALID_REQUEST`. A missing or invalid Bearer token returns `401 UNAUTHENTICATED`.
 

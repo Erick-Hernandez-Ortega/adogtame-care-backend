@@ -120,6 +120,13 @@
       "when": 1791752771271,
       "tag": "0016_green_skullbuster",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1792035198130,
+      "tag": "0017_mean_bishop",
+      "breakpoints": true
     }
   ]
 }

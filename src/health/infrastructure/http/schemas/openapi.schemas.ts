@@ -1,3 +1,4 @@
+import { recordPetVeterinaryVisitSchema } from './record-pet-veterinary-visit.schema';
 import { recordPetMedicationSchema } from './record-pet-medication.schema';
 import type { SchemaObject } from '@nestjs/swagger';
 import { z } from 'zod';
@@ -663,5 +664,66 @@ export const petMedicationsResponseSchema: SchemaObject = {
     required: ['items'],
     properties: {
         items: { type: 'array', items: listedPetMedicationResponseSchema },
+    },
+};
+
+export const recordPetVeterinaryVisitRequestSchema: SchemaObject = {
+    ...(z.toJSONSchema(recordPetVeterinaryVisitSchema, { target: 'openapi-3.0' }) as SchemaObject),
+    properties: {
+        visitDate: {
+            type: 'string',
+            format: 'date',
+            description:
+                'Required exact calendar date YYYY-MM-DD, years 0001–9999, no later than today UTC.',
+        },
+        reason: {
+            type: 'string',
+            minLength: 1,
+            maxLength: 255,
+            description:
+                'Required trimmed nonempty text, preserving casing. Limits count Unicode code points.',
+        },
+        diagnosis: {
+            type: 'string',
+            nullable: true,
+            minLength: 1,
+            maxLength: 2000,
+            description:
+                'Omit or send null when absent. Supplied text is trimmed and nonempty. Limits count Unicode code points.',
+        },
+        observations: {
+            type: 'string',
+            nullable: true,
+            minLength: 1,
+            maxLength: 5000,
+            description:
+                'Omit or send null when absent. Supplied text is trimmed and nonempty. Limits count Unicode code points.',
+        },
+    },
+    example: {
+        visitDate: '2026-03-14',
+        reason: 'Annual checkup',
+        diagnosis: null,
+        observations: 'Routine examination completed.',
+    },
+};
+
+export const recordedPetVeterinaryVisitResponseSchema: SchemaObject = {
+    type: 'object',
+    additionalProperties: false,
+    required: [
+        'id',
+        'petId',
+        'visitDate',
+        'reason',
+        'diagnosis',
+        'observations',
+        'recordedByAccountId',
+    ],
+    properties: {
+        id: { type: 'string', format: 'uuid' },
+        petId: { type: 'string', format: 'uuid' },
+        ...recordPetVeterinaryVisitRequestSchema.properties,
+        recordedByAccountId: { type: 'string', format: 'uuid' },
     },
 };

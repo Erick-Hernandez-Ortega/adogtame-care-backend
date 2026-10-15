@@ -242,3 +242,45 @@ export const healthPetMedications = pgTable(
         ),
     ],
 );
+
+export const healthPetVeterinaryVisits = pgTable(
+    'health_pet_veterinary_visits',
+    {
+        id: uuid('id').primaryKey(),
+        petId: uuid('pet_id')
+            .notNull()
+            .references(() => pets.id, { onDelete: 'restrict' }),
+        reason: varchar('reason', { length: 255 }).notNull(),
+        visitDate: date('visit_date', { mode: 'string' }).notNull(),
+        diagnosis: varchar('diagnosis', { length: 2000 }),
+        observations: varchar('observations', { length: 5000 }),
+        recordedByAccountId: uuid('recorded_by_account_id')
+            .notNull()
+            .references(() => accounts.id, { onDelete: 'restrict' }),
+        createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' })
+            .notNull()
+            .defaultNow(),
+        updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' })
+            .notNull()
+            .defaultNow(),
+    },
+    (table) => [
+        index('health_pet_veterinary_visits_pet_history_idx').on(
+            table.petId,
+            table.visitDate.desc(),
+        ),
+        check('health_pet_veterinary_visits_reason_not_empty', sql`btrim(${table.reason}) <> ''`),
+        check(
+            'health_pet_veterinary_visits_diagnosis_not_empty',
+            sql`${table.diagnosis} is null or btrim(${table.diagnosis}) <> ''`,
+        ),
+        check(
+            'health_pet_veterinary_visits_observations_not_empty',
+            sql`${table.observations} is null or btrim(${table.observations}) <> ''`,
+        ),
+        check(
+            'health_pet_veterinary_visits_visit_date_range',
+            sql`${table.visitDate} between DATE '0001-01-01' and DATE '9999-12-31'`,
+        ),
+    ],
+);
