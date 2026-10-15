@@ -114,6 +114,7 @@ describe('DrizzlePetInvitationRepository (integration)', () => {
                 status: 'PENDING',
                 createdAt: NOW,
                 expiresAt: new Date('2026-10-03T12:30:00.000Z'),
+                updatedAt: expect.any(Date) as Date,
             },
         ]);
         const loaded: PetInvitation | null = await repository.findPending(

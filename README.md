@@ -269,6 +269,11 @@ summary is skipped because weekly allocation and historical routine expectations
 require additional product decisions. Missed activities are never stored. See
 [Pet care](docs/pet-care.md).
 
+## Audit and history
+
+See [Audit and history](docs/audit-and-history.md) for account attribution, timestamp
+triggers, archival, deletion behavior, and the limits of retained history across contexts.
+
 ## Shared domain utilities
 
 `src/shared/domain/uuid.ts`, `civil-date.ts`, and `text.ts` provide reusable

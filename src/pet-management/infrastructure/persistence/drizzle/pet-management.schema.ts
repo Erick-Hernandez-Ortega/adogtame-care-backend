@@ -97,6 +97,9 @@ export const petInvitations = pgTable(
             withTimezone: true,
             mode: 'date',
         }).notNull(),
+        updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' })
+            .notNull()
+            .defaultNow(),
     },
     (table) => [
         check(

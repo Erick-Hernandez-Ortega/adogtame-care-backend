@@ -312,6 +312,12 @@ de expectativas: los objetivos semanales y los cambios históricos de rutinas
 requieren decisiones adicionales. Las actividades omitidas nunca se almacenan.
 Consulta [Cuidado de mascotas](docs/pet-care.md).
 
+## Auditoría e historial
+
+Consulta [Auditoría e historial](docs/audit-and-history.md) para conocer la atribución
+de cuentas, los triggers de fechas, el archivado, las eliminaciones y los límites
+del historial conservado en los distintos contextos.
+
 ## Verificación
 
 ```bash
