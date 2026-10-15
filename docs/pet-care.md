@@ -2,7 +2,7 @@
 
 ## Routine domain (#46)
 
-Care owns routines (what should be done) and, in future slices, activities (what
+Care owns routines (what should be done) and activities (what
 actually happened). `CareRoutine` is an independent aggregate under
 `src/care/domain`, referencing a pet and the original recording account by UUID.
 It has no NestJS, Drizzle, HTTP or Health dependencies. Creation generates a UUID;
@@ -217,3 +217,73 @@ rollback, timestamps, access hiding, concurrent partial corrections and both loc
 orders with Archive/Leave/Remove. HTTP and OpenAPI tests cover exact representations,
 strict requests, Unicode limits, authentication-first parser failures, membership
 access, archived writes, wrong-pet targets and the 49-operation contract.
+
+
+## Complete activity (#50)
+
+`POST /pets/{petId}/care/routines/{routineId}/activities` is the 50th API operation.
+A routine describes what should be done; each independent `CareActivity` aggregate
+records an actual completion. No routine lifecycle transition or schedule evaluation
+occurs. The activity references the pet, routine and authenticated completing account.
+It does not copy the routine's profile or suggestions. Identical submissions create
+independent identities, matching Health creation semantics; no idempotency key exists.
+
+The strict body requires `completedAt` and `timezone`; optional `notes` accepts
+omission/null. Both path IDs must be non-nil UUIDs and queries are rejected. completedAt
+uses a valid Gregorian date in years 0001–9999 followed by UTC `THH:mm:ss[.SSS]Z`,
+with 1–3 fractional digits when present. Offsets, local timestamps, leap seconds,
+invalid calendar dates and surrounding whitespace are rejected. Domain normalizes to
+UTC ISO milliseconds and rejects instants after the single current Clock sample,
+including one millisecond into the future. Reconstitution validates structure without
+consulting the Clock. Technical creation time is distinct from completion time.
+
+Activity timezone is the recorder's explicitly supplied IANA zone, canonicalized by
+Intl using the routine timezone validation convention. It is independent of routine
+timezone and later changes to routine suggestions. The domain computes `localDay`
+from completedAt in this stored zone, including daylight saving rules. No local day
+column is stored. Notes follow Health's optional notes convention: trimmed,
+case-preserving, nonempty text up to 2,000 Unicode code points when supplied.
+
+Success returns 201 with exactly id, petId, routineId, completedAt, completedBy,
+timezone and nullable notes. completedBy comes exclusively from authentication.
+The response projects the created aggregate without a reader or postcommit lookup;
+localDay and technical timestamps are omitted. No activity listing is added.
+
+Authentication precedes HTTP validation, including parser failures. Structural errors
+are 400 INVALID_REQUEST. Domain validation proceeds through completedAt, timezone,
+then notes, before persistence authorization, matching Health recording. Semantic errors
+are 400 INVALID_ACTIVITY_COMPLETED_AT, INVALID_ACTIVITY_TIMEZONE and
+INVALID_ACTIVITY_NOTES. Missing/invalid tokens return 401 UNAUTHENTICATED.
+ACTIVE owners and collaborators may record regardless of routine authorship. Missing,
+archived or inaccessible pets return 404 PET_NOT_FOUND before routine lookup; an
+authorized missing or wrong-pet routine returns 404 CARE_ROUTINE_NOT_FOUND.
+No new collaborator permissions are introduced.
+
+CompleteCareActivity owns orchestration through CareActivityRepository and a Care-owned
+Clock. The adapter returns CREATED, PET_NOT_FOUND or CARE_ROUTINE_NOT_FOUND; unexpected
+failures propagate and roll back. READ COMMITTED locks Pet → requester Membership →
+pet-scoped Routine → INSERT. There is no existing activity row to lock. Archive, Leave,
+Remove and routine updates serialize on Pet; an access change committed first denies
+recording, while an activity committed first remains preserved. No pet, membership or
+routine UPDATE occurs. Authorship does not grant enduring access.
+
+`pnpm db:generate` generated 0019_mysterious_thena.sql and metadata. care_activities
+has restrictive pet, routine and completing-account foreign keys, a UTC timestamptz,
+required timezone, bounded optional notes, complementary nonempty/range checks and a
+non-unique pet/routine index. Pet-scoped routine consistency is checked under locks.
+Future-instant and IANA validation stay in Domain. created_at and updated_at default
+to transaction now() and begin equal; the appended set_updated_at() trigger follows
+0017 and uses statement_timestamp() for physical updates. No existing data is rewritten.
+Archive/Restore preserves activities and their timestamps.
+
+Domain tests cover identity, reconstitution, UTC boundaries, invalid runtime values,
+Unicode notes, timezone canonicalization and local days including DST. Application
+tests cover projection, single Clock sampling, errors, outcomes and unexpected failures.
+Integration tests cover persistence, constraints, rollback, timestamps, preservation,
+authorization and both serialization orders with Archive/Leave/Remove using observed
+PostgreSQL lock barriers. HTTP and OpenAPI tests cover exact responses, independent
+duplicates, strict bodies, wrong-pet targets, authentication-first parsing and 50 operations.
+
+Missed activities remain computed on query in a future slice, never persisted. No
+matching to suggested times, historical schedule rules, weekly query boundaries,
+reminders, notifications, attachments, stats or Adogtame integration are introduced.

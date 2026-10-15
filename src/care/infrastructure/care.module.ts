@@ -1,3 +1,11 @@
+import { CompleteCareActivity } from '../application/complete-care-activity/complete-care-activity';
+import {
+    CARE_ACTIVITY_REPOSITORY,
+    type CareActivityRepository,
+} from '../application/persistence/care-activity.repository';
+import { CARE_CLOCK, type Clock } from '../application/time/clock';
+import { DrizzleCareActivityRepository } from './persistence/drizzle/drizzle-care-activity.repository';
+import { CareActivitiesController } from './http/controllers/care-activities.controller';
 import { UpdateCareRoutine } from '../application/update-care-routine/update-care-routine';
 import { Module } from '@nestjs/common';
 import { DatabaseModule } from '../../infrastructure/database/database.module';
@@ -18,8 +26,17 @@ import { DrizzleCareRoutineReader } from './persistence/drizzle/drizzle-care-rou
 
 @Module({
     imports: [DatabaseModule, IdentityModule],
-    controllers: [CareRoutinesController],
+    controllers: [CareRoutinesController, CareActivitiesController],
     providers: [
+        DrizzleCareActivityRepository,
+        { provide: CARE_ACTIVITY_REPOSITORY, useExisting: DrizzleCareActivityRepository },
+        { provide: CARE_CLOCK, useValue: { now: (): Date => new Date() } satisfies Clock },
+        {
+            provide: CompleteCareActivity,
+            inject: [CARE_ACTIVITY_REPOSITORY, CARE_CLOCK],
+            useFactory: (repository: CareActivityRepository, clock: Clock): CompleteCareActivity =>
+                new CompleteCareActivity(repository, clock),
+        },
         {
             provide: UpdateCareRoutine,
             inject: [CARE_ROUTINE_REPOSITORY],

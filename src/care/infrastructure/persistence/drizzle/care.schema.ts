@@ -68,3 +68,40 @@ export const careRoutines = pgTable(
         check('care_routines_timezone_not_empty', sql`btrim(${table.timezone}) <> ''`),
     ],
 );
+
+export const careActivities = pgTable(
+    'care_activities',
+    {
+        id: uuid('id').primaryKey(),
+        petId: uuid('pet_id')
+            .notNull()
+            .references(() => pets.id, { onDelete: 'restrict' }),
+        routineId: uuid('routine_id')
+            .notNull()
+            .references(() => careRoutines.id, { onDelete: 'restrict' }),
+        completedAt: timestamp('completed_at', { withTimezone: true, mode: 'date' }).notNull(),
+        completedBy: uuid('completed_by')
+            .notNull()
+            .references(() => accounts.id, { onDelete: 'restrict' }),
+        timezone: text('timezone').notNull(),
+        notes: varchar('notes', { length: 2000 }),
+        createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' })
+            .notNull()
+            .defaultNow(),
+        updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' })
+            .notNull()
+            .defaultNow(),
+    },
+    (table) => [
+        index('care_activities_pet_routine_idx').on(table.petId, table.routineId),
+        check('care_activities_timezone_not_empty', sql`btrim(${table.timezone}) <> ''`),
+        check(
+            'care_activities_notes_not_empty',
+            sql`${table.notes} is null or btrim(${table.notes}) <> ''`,
+        ),
+        check(
+            'care_activities_completed_at_range',
+            sql`${table.completedAt} >= TIMESTAMPTZ '0001-01-01 00:00:00+00' and ${table.completedAt} < TIMESTAMPTZ '10000-01-01 00:00:00+00'`,
+        ),
+    ],
+);

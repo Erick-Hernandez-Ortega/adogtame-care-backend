@@ -128,3 +128,53 @@ export const updateCareRoutineRequestSchema: SchemaObject = {
         'Partial update. Omitted fields are preserved; null clears instructions. A supplied frequency replaces the complete frequency, using the creation shape. Timezone changes preserve local wall-clock suggestions.',
     example: { title: 'Evening meal', instructions: null, timezone: 'UTC' },
 };
+
+export const completeCareActivityRequestSchema: SchemaObject = {
+    type: 'object',
+    additionalProperties: false,
+    required: ['completedAt', 'timezone'],
+    properties: {
+        completedAt: {
+            type: 'string',
+            format: 'date-time',
+            pattern: '^\\d{4}-\\d{2}-\\d{2}T([01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d{1,3})?Z$',
+            description:
+                'Valid UTC instant ending in Z, with optional 1–3 fractional digits. Must be at or before the current instant. Returned with millisecond precision.',
+        },
+        timezone: {
+            type: 'string',
+            description:
+                "Recorder's explicit IANA timezone; canonicalized using Intl. Independent of the routine timezone.",
+        },
+        notes: {
+            type: 'string',
+            nullable: true,
+            minLength: 1,
+            maxLength: 2000,
+            description:
+                'Optional trimmed notes, bounded by Unicode code points. Omission/null becomes null.',
+        },
+    },
+    example: {
+        completedAt: '2026-10-10T14:00:00.000Z',
+        timezone: 'America/Mexico_City',
+        notes: 'Finished breakfast.',
+    },
+};
+
+export const completedCareActivityResponseSchema: SchemaObject = {
+    type: 'object',
+    additionalProperties: false,
+    required: ['id', 'petId', 'routineId', 'completedAt', 'completedBy', 'timezone', 'notes'],
+    properties: {
+        id: { type: 'string', format: 'uuid' },
+        petId: { type: 'string', format: 'uuid' },
+        routineId: { type: 'string', format: 'uuid' },
+        ...completeCareActivityRequestSchema.properties,
+        completedBy: {
+            type: 'string',
+            format: 'uuid',
+            description: 'Authenticated account recording completion.',
+        },
+    },
+};

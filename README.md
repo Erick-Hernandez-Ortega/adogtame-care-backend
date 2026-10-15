@@ -63,7 +63,7 @@ To try protected routes, register with `POST /accounts` if needed, then call
 response, click **Authorize** in Swagger, and enter the token. Swagger adds the
 Bearer prefix to requests automatically.
 
-The API exposes 49 operations.
+The API exposes 50 operations.
 
 | Route                                         | Description             | Bearer token |
 | --------------------------------------------- | ----------------------- | ------------ |
@@ -84,6 +84,7 @@ The API exposes 49 operations.
 | `POST /pets/{petId}/care/routines` | Create a care routine | Yes |
 | `GET /pets/{petId}/care/routines` | List care routines | Yes |
 | `PATCH /pets/{petId}/care/routines/{routineId}` | Update a care routine | Yes |
+| `POST /pets/{petId}/care/routines/{routineId}/activities` | Record a completed care activity | Yes |
 | `POST /pets/{petId}/health/veterinary-visits` | Record a veterinary visit | Yes |
 | `GET /pets/{petId}/health/veterinary-visits` | List veterinary visit history | Yes |
 | `PATCH /pets/{petId}/health/veterinary-visits/{visitId}` | Correct a registered veterinary visit | Yes |
@@ -236,6 +237,21 @@ Success returns the complete routine with 200; normalized no-ops do not write.
 Archived/inaccessible pets return PET_NOT_FOUND; an authorized missing or wrong-pet
 routine returns CARE_ROUTINE_NOT_FOUND. Authentication precedes HTTP validation;
 access and target lookup precede semantic validation. See [Pet care](docs/pet-care.md).
+
+Record a completion with `POST /pets/{petId}/care/routines/{routineId}/activities`,
+a Bearer token and `{"completedAt":"2026-10-10T14:00:00Z","timezone":"America/Mexico_City","notes":"Finished breakfast"}`.
+Active owners and collaborators may write active pets regardless of routine authorship.
+Supply a valid UTC instant ending in Z, with optional 1–3 fractional digits, no later
+than now, and the recorder's explicit IANA timezone. Optional notes accept omission/null
+or trimmed nonempty text up to 2,000 Unicode code points. Success returns 201 with
+`id`, `petId`, `routineId`, normalized `completedAt`, authenticated `completedBy`,
+canonical `timezone` and nullable `notes`. Identical requests create independent
+activities. No query parameters are accepted. Authentication precedes HTTP validation;
+semantic validation precedes transactional access. Errors are INVALID_REQUEST,
+INVALID_ACTIVITY_COMPLETED_AT, INVALID_ACTIVITY_TIMEZONE, INVALID_ACTIVITY_NOTES,
+UNAUTHENTICATED, PET_NOT_FOUND or CARE_ROUTINE_NOT_FOUND. Archived pets are read-only;
+pet access is checked before routine lookup. Local days are computed in the recorder's
+timezone; no missed activities are stored. See [Pet care](docs/pet-care.md).
 
 ## Shared domain utilities
 

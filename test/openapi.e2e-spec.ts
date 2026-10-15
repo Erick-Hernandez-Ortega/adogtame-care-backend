@@ -33,7 +33,7 @@ describe('OpenAPI documentation (e2e)', () => {
         await application.close();
     });
 
-    it('serves Swagger UI and documents all forty-nine operations and their contracts', async () => {
+    it('serves Swagger UI and documents all fifty operations and their contracts', async () => {
         const htmlResponse = await request(application.getHttpServer()).get('/docs').expect(200);
 
         expect(htmlResponse.text).toContain('swagger-ui');
@@ -63,6 +63,7 @@ describe('OpenAPI documentation (e2e)', () => {
             ['/pets/{petId}/care/routines', 'post'],
             ['/pets/{petId}/care/routines', 'get'],
             ['/pets/{petId}/care/routines/{routineId}', 'patch'],
+            ['/pets/{petId}/care/routines/{routineId}/activities', 'post'],
             ['/pets/{petId}/health/veterinary-visits', 'post'],
             ['/pets/{petId}/health/veterinary-visits', 'get'],
             ['/pets/{petId}/health/veterinary-visits/{visitId}', 'patch'],
@@ -115,7 +116,80 @@ describe('OpenAPI documentation (e2e)', () => {
                     Number(Boolean(path?.delete)),
                 0,
             ),
-        ).toBe(49);
+        ).toBe(50);
+
+        const activity = document.paths['/pets/{petId}/care/routines/{routineId}/activities']?.post;
+
+        expect(activity?.security).toEqual([{ bearer: [] }]);
+        expect(activity?.tags).toEqual(['Care']);
+        expect(Object.keys(activity?.responses ?? {}).sort()).toEqual(['201', '400', '401', '404']);
+        expect(activity?.parameters).toEqual(
+            ['petId', 'routineId'].map((name: string): unknown =>
+                expect.objectContaining({
+                    name,
+                    in: 'path',
+                    required: true,
+                    schema: { type: 'string', format: 'uuid' },
+                }),
+            ),
+        );
+        const activityRequest = (
+            activity?.requestBody as { content: { 'application/json': { schema: SchemaObject } } }
+        ).content['application/json'].schema;
+
+        expect(activityRequest).toMatchObject({
+            type: 'object',
+            additionalProperties: false,
+            required: ['completedAt', 'timezone'],
+        });
+        expect(Object.keys(activityRequest.properties ?? {}).sort()).toEqual([
+            'completedAt',
+            'notes',
+            'timezone',
+        ]);
+        expect(activityRequest.properties).toMatchObject({
+            completedAt: {
+                type: 'string',
+                format: 'date-time',
+                pattern: expect.any(String) as string,
+            },
+            timezone: { type: 'string' },
+            notes: { type: 'string', nullable: true, minLength: 1, maxLength: 2000 },
+        });
+        const activityResponse = responseSchema(activity, '201');
+        const activityFields: string[] = [
+            'completedAt',
+            'completedBy',
+            'id',
+            'notes',
+            'petId',
+            'routineId',
+            'timezone',
+        ];
+
+        expect(activityResponse?.additionalProperties).toBe(false);
+        expect(activityResponse?.required?.slice().sort()).toEqual(activityFields);
+        expect(Object.keys(activityResponse?.properties ?? {}).sort()).toEqual(activityFields);
+        expect(activityResponse?.properties).toMatchObject({
+            completedBy: { type: 'string', format: 'uuid' },
+            completedAt: activityRequest.properties?.completedAt,
+            timezone: activityRequest.properties?.timezone,
+            notes: activityRequest.properties?.notes,
+        });
+        expect(responseSchema(activity, '400')?.oneOf).toMatchObject(
+            [
+                'INVALID_REQUEST',
+                'INVALID_ACTIVITY_COMPLETED_AT',
+                'INVALID_ACTIVITY_TIMEZONE',
+                'INVALID_ACTIVITY_NOTES',
+            ].map((code: string) => ({ properties: { code: { enum: [code] } } })),
+        );
+        expect(responseSchema(activity, '401')?.properties?.code).toMatchObject({
+            enum: ['UNAUTHENTICATED'],
+        });
+        expect(responseSchema(activity, '404')?.properties?.code).toMatchObject({
+            enum: ['PET_NOT_FOUND', 'CARE_ROUTINE_NOT_FOUND'],
+        });
 
         const routine = document.paths['/pets/{petId}/care/routines']?.post;
 

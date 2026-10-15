@@ -63,7 +63,7 @@ después llama a `POST /auth/login` con tu correo y contraseña. Copia
 `accessToken` de la respuesta, pulsa **Authorize** en Swagger e introduce el
 token. Swagger añade automáticamente el prefijo Bearer a las peticiones.
 
-La API expone 49 operaciones.
+La API expone 50 operaciones.
 
 | Ruta                                          | Descripción                 | Token Bearer |
 | --------------------------------------------- | --------------------------- | ------------ |
@@ -84,6 +84,7 @@ La API expone 49 operaciones.
 | `POST /pets/{petId}/care/routines` | Crear una rutina de cuidado | Sí |
 | `GET /pets/{petId}/care/routines` | Consultar rutinas de cuidado | Sí |
 | `PATCH /pets/{petId}/care/routines/{routineId}` | Actualizar una rutina de cuidado | Sí |
+| `POST /pets/{petId}/care/routines/{routineId}/activities` | Registrar una actividad de cuidado completada | Sí |
 | `POST /pets/{petId}/health/veterinary-visits` | Registrar una visita veterinaria | Sí |
 | `GET /pets/{petId}/health/veterinary-visits` | Consultar el historial de visitas veterinarias | Sí |
 | `PATCH /pets/{petId}/health/veterinary-visits/{visitId}` | Corregir una visita veterinaria registrada | Sí |
@@ -278,6 +279,22 @@ con 200; una actualización equivalente no escribe. Las mascotas archivadas o
 inaccesibles devuelven PET_NOT_FOUND; una rutina ausente o de otra mascota devuelve
 CARE_ROUTINE_NOT_FOUND tras autorizar. La autenticación precede a la validación HTTP;
 el acceso y la búsqueda preceden a la validación semántica. Consulta [Pet care](docs/pet-care.md).
+
+Registra una actividad completada con `POST /pets/{petId}/care/routines/{routineId}/activities`,
+un token Bearer y `{"completedAt":"2026-10-10T14:00:00Z","timezone":"America/Mexico_City","notes":"Finished breakfast"}`.
+Los propietarios y colaboradores activos pueden registrar actividades para mascotas activas;
+las archivadas son de solo lectura. `completedAt` es un instante UTC terminado en Z,
+con 1–3 dígitos fraccionarios opcionales, que no puede ser futuro. `timezone` es la zona
+IANA explícita de quien registra. Las notas opcionales aceptan omisión/null o texto
+no vacío de hasta 2,000 puntos de código Unicode. La respuesta 201 incluye `id`,
+`petId`, `routineId`, `completedAt` normalizado, `completedBy` autenticado, `timezone`
+canónica y `notes` nullable. Las solicitudes idénticas crean actividades independientes.
+No se aceptan parámetros de consulta. La autenticación precede a la validación HTTP;
+la validación semántica precede al acceso transaccional. Los errores son INVALID_REQUEST,
+INVALID_ACTIVITY_COMPLETED_AT, INVALID_ACTIVITY_TIMEZONE, INVALID_ACTIVITY_NOTES,
+UNAUTHENTICATED, PET_NOT_FOUND o CARE_ROUTINE_NOT_FOUND. El acceso a la mascota se comprueba
+antes de buscar la rutina. El día local se calcula con la zona de quien registra;
+las actividades omitidas no se almacenan. Consulta [Pet care](docs/pet-care.md).
 
 ## Verificación
 
