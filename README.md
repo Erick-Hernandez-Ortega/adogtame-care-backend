@@ -67,6 +67,8 @@ variables or a `.env` file before startup:
 | `JWT_ACCESS_TOKEN_TTL_SECONDS` | Positive integer | `3600` |
 | `THROTTLE_LIMIT` | Positive integer; requests/minute per IP across API routes | `100` |
 | `AUTH_THROTTLE_LIMIT` | Positive integer; requests/minute per IP per auth endpoint | `10` |
+| `LOGIN_ACCOUNT_THROTTLE_LIMIT` | Positive integer; login requests/minute per normalized email | `10` |
+| `READINESS_THROTTLE_LIMIT` | Positive integer; readiness requests/minute per IP | `10` |
 
 The secret in `.env.example` is intentionally empty; set it before running.
 Process variables override `.env`. Invalid configuration prevents startup and
@@ -90,17 +92,23 @@ pnpm start:prod
 
 Build and migration tooling require development dependencies in the preparation
 stage. Runtime requires `dist/` and production dependencies. Public `GET /health`
-executes `SELECT 1` and returns `200 {"status":"ok"}` or
+and `GET /health/live` return `200 {"status":"ok"}` without database access.
+Use `GET /health/ready` to probe PostgreSQL: 200 with the same body, or
 `503 {"code":"DATABASE_UNAVAILABLE","message":"Database is unavailable"}`.
-Check this route after startup; an open port does not prove database connectivity
-or applied migrations. `GET /` retains its welcome message.
+Readiness allows one in-flight probe per process, a one-second response deadline
+and PostgreSQL statement timeout, and 10 requests/minute per IP by default (429
+when exceeded). Update existing database monitors to `/health/ready`. Readiness
+does not verify applied migrations. `GET /` retains its welcome message.
 
 Logs use Nest's built-in Logger in JSON format. SIGINT/SIGTERM invoke Nest shutdown,
 close the HTTP server and PostgreSQL pool; the process manager must forward the
 signal to Node and allow shutdown to finish. SIGKILL cannot shut down gracefully.
 Helmet applies its default security headers, including on Swagger. In-memory rate
 limiting allows 100 requests/minute per IP across API routes and 10/minute per IP
-on each of `POST /accounts` and `POST /auth/login`. `GET /health` is exempt.
+on each of `POST /accounts` and `POST /auth/login`. `GET /health` and `/health/live` are exempt. Login also allows 10/minute per
+normalized email across sources. IPv6 addresses share a /64 source budget. Parser
+failures on protected routes consume the global budget before authentication.
+Unexpected request errors log fixed event/status diagnostics, without raw exceptions.
 Excess requests return `429 {"code":"RATE_LIMIT_EXCEEDED","message":"Too many requests"}`
 with `Retry-After` in seconds. Counters are process-local and reset on restart.
 No deployment provider, CORS policy, retention or trusted-proxy setting is configured.
@@ -120,7 +128,7 @@ To try protected routes, register with `POST /accounts` if needed, then call
 response, click **Authorize** in Swagger, and enter the token. Swagger adds the
 Bearer prefix to requests automatically.
 
-The API exposes 53 operations.
+The API exposes 55 operations.
 
 All list endpoints accept optional `limit` (default 20, maximum 100) and opaque
 `cursor`; responses use `{ items, nextCursor }`. Pass `nextCursor` for the next
@@ -135,7 +143,9 @@ error handling, security headers and rate limiting.
 | Route                                         | Description             | Bearer token |
 | --------------------------------------------- | ----------------------- | ------------ |
 | `GET /`                                       | Welcome message         | No           |
-| `GET /health` | Check PostgreSQL connectivity | No |
+| `GET /health` | Application liveness | No |
+| `GET /health/live` | Application liveness | No |
+| `GET /health/ready` | Bounded PostgreSQL readiness | No |
 | `POST /accounts`                              | Register account        | No           |
 | `POST /auth/login`                            | Get access token        | No           |
 | `GET /pets`                                   | List accessible pets    | Yes          |

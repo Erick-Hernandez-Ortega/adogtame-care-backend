@@ -13,8 +13,8 @@ separate from the pet medical Health bounded context in `src/health`.
 
 No dependencies, compose services, external systems, schema changes or migrations
 are introduced. The approved #53 pagination, routine limits and authentication-first
-parser contracts remain intact. The API now exposes 52 operations: four public
-operations and the existing 48 protected operations. The new public health route
+parser contracts remain intact. The API now exposes 55 operations: six public
+operations and the existing 49 protected operations. The new public health route
 requires no extension to the protected-route exception filter.
 
 ## Startup configuration
@@ -32,6 +32,8 @@ are permitted. Existing rules and defaults remain:
 | JWT_ACCESS_TOKEN_TTL_SECONDS | Positive integer, numeric strings converted | 3600        |
 | THROTTLE_LIMIT | Positive integer, requests/minute per IP across API routes | 100 |
 | AUTH_THROTTLE_LIMIT | Positive integer, requests/minute per IP per auth endpoint | 10 |
+| LOGIN_ACCOUNT_THROTTLE_LIMIT | Positive integer, login requests/minute per normalized email | 10 |
+| READINESS_THROTTLE_LIMIT | Positive integer, readiness requests/minute per IP | 10 |
 
 Defaults apply to omitted optional variables, not empty strings. Set a randomly
 generated JWT secret before running; `.env.example` intentionally leaves it empty.
@@ -46,23 +48,21 @@ connectivity; apply migrations separately before routing application traffic.
 
 ## Database health endpoint
 
-Public `GET /health` executes `SELECT 1` through the existing DatabaseService and
-Drizzle/postgres.js pool on every request. It creates no separate pool, transaction,
-row locks, domain records or writes. There are no query options or input fields;
-like the welcome endpoint, it does not introduce strict request validation.
+Public `GET /health` and `GET /health/live` return `200 { "status": "ok" }`
+without database access. Move existing database readiness monitors to
+`GET /health/ready`. That endpoint runs `SELECT 1` through the existing pool,
+with a local one-second PostgreSQL statement timeout and a one-second response
+deadline including pool acquisition. Only one readiness probe may be pending per
+process; the slot stays occupied until the driver settles, even after a deadline.
+The transaction changes no application data and restores timeout settings on exit.
 
-- Connected: `200 { "status": "ok" }`.
-- Database check rejected: `503 { "code": "DATABASE_UNAVAILABLE", "message": "Database is unavailable" }`.
-
-Failures log a fixed event and return no exception text, connection URL, credentials,
-SQL details or stack. Successful probes do not emit application log events. Responses
-contain no host, version, account or pet data. This is database readiness, not a
-migration verifier, schema check or separate process-only liveness endpoint. It uses
-the existing driver's connection/query behavior; this slice adds no custom probe
-deadline or global database timeout. A stalled query can delay the response. Configure
-probe timing in the eventual deployment environment rather than assuming an immediate
-503 for every network failure. Swagger documents both responses under Application;
-`GET /`, `/docs` and `/docs-json` keep their existing behavior.
+Readiness returns 200 with the same status body, or
+`503 { "code": "DATABASE_UNAVAILABLE", "message": "Database is unavailable" }`
+on failure, saturation or timeout. Its separate source budget defaults to 10/minute,
+validated through READINESS_THROTTLE_LIMIT; exhaustion returns the standard
+RATE_LIMIT_EXCEEDED 429 before probing. Liveness remains exempt. The endpoints
+are public and documented in OpenAPI, without internal error data. Readiness is
+not a schema or migration check. See [API security](api-security.md).
 
 ## Logging and shutdown
 
@@ -78,9 +78,9 @@ messages use stable event fields:
 - `database_pool_closed`, after pool shutdown completes.
 
 New operational messages deliberately omit raw errors and configuration values.
-This is not request/access logging, a redaction system for arbitrary exceptions,
-log storage or a retention policy. Existing unexpected exceptions still follow
-Nest's exception handling and server-side diagnostics. No request bodies, tokens,
+This is not request/access logging, log storage or a retention policy. The global
+HTTP filter logs unexpected exceptions using only the fixed event
+`unexpected_request_failed` and status 500, never raw exceptions or causes. No request bodies, tokens,
 passwords or medical data are added to operational events.
 
 `enableShutdownHooks()` handles operating-system termination signals, including
@@ -136,8 +136,9 @@ columns or rewriting applied migration history.
 No deployment provider, CORS origins, trusted-proxy configuration, log retention or
 secret rotation schedule is chosen. The subsequent security slice applies Helmet
 defaults and in-memory throttling: 100 requests/minute per IP across API routes,
-plus 10/minute per IP on each auth endpoint. GET /health is exempt. The validated
-THROTTLE_LIMIT and AUTH_THROTTLE_LIMIT settings override these defaults. Counters
+plus 10/minute per IP on each auth endpoint. GET /health and /health/live are exempt; readiness has its own 10/minute budget.
+Login also has a 10/minute normalized-email budget across sources. IPv6 sources
+share /64 budgets. The four validated throttle settings override these defaults. Counters
 are process-local and reset on restart. Behind a proxy, review IP identification
 and trusted-proxy configuration before deployment; see [API security](api-security.md)
 for that note, 429 contracts and isolated test limits. Swagger remains available
@@ -170,8 +171,8 @@ exercise invalid configuration without exposing supplied values, JSON startup lo
 and SIGINT/SIGTERM pool closure using the actual HTTP bootstrap. They run source
 entrypoints with the existing ts-node tooling and require child-process execution
 and local socket binding. OpenAPI tests assert the
-52-operation contract and exact health schemas. Existing security HTTP tests still
-exercise all 48 protected routes.
+55-operation contract and exact health schemas. Existing security HTTP tests still
+exercise all 49 protected routes.
 
 ```bash
 pnpm format

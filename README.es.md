@@ -67,6 +67,8 @@ proceso o un archivo `.env` antes de iniciar:
 | `JWT_ACCESS_TOKEN_TTL_SECONDS` | Entero positivo | `3600` |
 | `THROTTLE_LIMIT` | Entero positivo; solicitudes/minuto por IP entre rutas de la API | `100` |
 | `AUTH_THROTTLE_LIMIT` | Entero positivo; solicitudes/minuto por IP por endpoint de autenticación | `10` |
+| `LOGIN_ACCOUNT_THROTTLE_LIMIT` | Entero positivo; intentos de acceso/minuto por correo normalizado | `10` |
+| `READINESS_THROTTLE_LIMIT` | Entero positivo; consultas de disponibilidad/minuto por IP | `10` |
 
 El archivo `.env.example` deja el secreto vacío intencionalmente; debes completarlo.
 Las variables del proceso tienen prioridad sobre `.env`. Una configuración inválida
@@ -90,10 +92,14 @@ pnpm start:prod
 
 La compilación y las herramientas de migración requieren las dependencias de
 preparación. La ejecución requiere `dist/` y las dependencias de producción.
-`GET /health` es público: ejecuta `SELECT 1` y devuelve `200 {"status":"ok"}` o
+`GET /health` y `GET /health/live` son públicos y devuelven
+`200 {"status":"ok"}` sin acceder a la base de datos. Usa `GET /health/ready`
+para comprobar PostgreSQL: 200 con el mismo cuerpo o
 `503 {"code":"DATABASE_UNAVAILABLE","message":"Database is unavailable"}`.
-Comprueba esta ruta después del arranque; un puerto abierto no prueba conectividad
-ni que las migraciones estén aplicadas. `GET /` conserva su mensaje de bienvenida.
+La comprobación admite una consulta en curso por proceso, un plazo de respuesta
+y un límite de ejecución SQL de un segundo, y 10 solicitudes/minuto por IP de
+forma predeterminada (429 al excederlo). Actualiza los monitores de base de datos
+a `/health/ready`. No verifica migraciones. `GET /` conserva su bienvenida.
 
 Los logs usan el Logger integrado de Nest en formato JSON. SIGINT/SIGTERM activan
 el cierre de Nest, del servidor HTTP y del pool PostgreSQL; el gestor de procesos
@@ -101,7 +107,11 @@ debe enviar la señal al proceso Node y permitir que termine. SIGKILL no permite
 cierre ordenado. Helmet aplica sus encabezados de seguridad predeterminados, también
 en Swagger. El control de frecuencia en memoria permite 100 solicitudes/minuto por IP
 entre las rutas de la API y 10/minuto por IP en cada endpoint `POST /accounts` y
-`POST /auth/login`. `GET /health` está exento. Las solicitudes excedentes devuelven
+`POST /auth/login`. `GET /health` y `/health/live` están exentos. El acceso también permite
+10 intentos/minuto por correo normalizado entre diferentes orígenes. Las IPv6
+comparten presupuesto por subred /64. Los errores del parser en rutas protegidas
+consumen el presupuesto global antes de autenticar. Los errores inesperados solo
+registran evento y estado fijos, sin excepciones originales. Las solicitudes excedentes devuelven
 `429 {"code":"RATE_LIMIT_EXCEEDED","message":"Too many requests"}` con `Retry-After`
 en segundos. Los contadores pertenecen a cada proceso y se reinician al arrancar.
 No se configura proveedor de despliegue, política CORS, retención ni proxy de confianza.
@@ -120,7 +130,7 @@ después llama a `POST /auth/login` con tu correo y contraseña. Copia
 `accessToken` de la respuesta, pulsa **Authorize** en Swagger e introduce el
 token. Swagger añade automáticamente el prefijo Bearer a las peticiones.
 
-La API expone 53 operaciones.
+La API expone 55 operaciones.
 
 Todos los endpoints de listado aceptan `limit` opcional (20 por defecto, máximo
 100) y `cursor` opaco; responden con `{ items, nextCursor }`. Envía `nextCursor`
@@ -136,7 +146,9 @@ para límites, autorización, errores, encabezados de seguridad y control de fre
 | Ruta                                          | Descripción                 | Token Bearer |
 | --------------------------------------------- | --------------------------- | ------------ |
 | `GET /`                                       | Mensaje de bienvenida       | No           |
-| `GET /health` | Verificar conectividad con PostgreSQL | No |
+| `GET /health` | Comprobar proceso activo | No |
+| `GET /health/live` | Comprobar proceso activo | No |
+| `GET /health/ready` | Comprobar PostgreSQL con límites | No |
 | `POST /accounts`                              | Registrar cuenta            | No           |
 | `POST /auth/login`                            | Obtener token               | No           |
 | `GET /pets`                                   | Listar mascotas accesibles  | Sí           |

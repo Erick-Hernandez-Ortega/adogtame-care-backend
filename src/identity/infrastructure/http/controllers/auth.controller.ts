@@ -1,4 +1,7 @@
-import { AuthenticationRateLimit } from '../../../../infrastructure/http/rate-limiting';
+import {
+    AuthenticationRateLimit,
+    LoginRateLimit,
+} from '../../../../infrastructure/http/rate-limiting';
 import {
     BadRequestException,
     Body,
@@ -31,6 +34,7 @@ export class AuthController {
 
     @Post('login')
     @AuthenticationRateLimit()
+    @LoginRateLimit()
     @HttpCode(HttpStatus.OK)
     @ApiOperation({ summary: 'Log in to an account' })
     @ApiBody({

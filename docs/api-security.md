@@ -1,8 +1,7 @@
 # API security and hardening (#53)
 
-The API has 53 operations: four public operations (`GET /`, `GET /health`, registration
-and login) and 49 Bearer-protected operations. This slice uses the approved, already
-installed `helmet@8.3.0` and `@nestjs/throttler@6.7.1`. No other dependency, external
+The API has 55 operations: six public operations (`GET /`, `GET /health`,
+`GET /health/live`, `GET /health/ready`, registration and login) and 49 Bearer-protected operations. The baseline already uses the installed `helmet@8.3.0` and `@nestjs/throttler@6.7.1`. No other dependency, external
 system, database migration, CORS policy, retention rule or deployment change is introduced.
 
 ## Authorization review
@@ -92,11 +91,14 @@ reconstitution; no silent deduplication or data migration is performed.
 
 ## Error handling and security controls
 
-Controllers expose explicit application errors. Unexpected exceptions propagate to
-Nest's base filter, which returns the generic 500 Internal server error; stack traces,
-SQL/constraint details and internal exception messages are not response fields.
-The authentication-first parser filter uses fixed public messages and delegates all
-other errors to the base filter. Server-side logging remains available.
+Controllers expose explicit application errors. The global exception filter converts
+unexpected exceptions to the existing generic 500 response before calling Nest's
+base filter. It logs only `{ event: "unexpected_request_failed", status: 500 }`.
+No exception object, message, stack, cause, query, parameters, constraint, email,
+hash, token, URL, path or clinical text is passed to the logger. This also covers
+unexpected authentication failures while handling parser errors. Parser input is never passed to the logger.
+Readiness failures log only `{ event: "database_health_check_failed" }` and return
+the existing generic DATABASE_UNAVAILABLE 503.
 
 ### Security headers
 
@@ -111,50 +113,70 @@ upgrade-insecure-requests directive are retained; serve production over HTTPS.
 
 ### Rate limiting
 
-The global Nest Throttler guard uses its built-in in-memory storage and two budgets
-with a 60,000 ms lifetime/block duration:
+The existing Nest Throttler guard and in-memory storage enforce 60,000 ms
+lifetime/block durations:
 
-- Global: **100 requests/minute per IP**, shared across controller routes.
-- Authentication: **10 requests/minute per IP per endpoint**, in addition to the
-  global budget. This covers registration (`POST /accounts`) and login
-  (`POST /auth/login`); there are currently no password/reset/refresh/token routes.
-  Future credential/token endpoints must opt in with `AuthenticationRateLimit`.
-- `GET /health` skips both budgets so readiness probes remain available under load.
+- Global: **100 requests/minute per source**, shared across controller routes.
+- Authentication: **10/minute per source per endpoint**, for registration and login.
+- Login account: **10/minute per normalized email**, shared across source addresses.
+  Normalization uses Identity's `Email.from` (trim/lowercase). Only bounded valid
+  email values get an account bucket; malformed bodies still consume source budgets.
+  Keys contain a SHA-256 digest instead of the raw email. No key or digest is logged.
+- Readiness: **10/minute per source**, independent of the global/auth budgets.
+- `/health` and `/health/live` are exempt liveness endpoints with no DB access.
 
-Validated positive integer `THROTTLE_LIMIT` and `AUTH_THROTTLE_LIMIT` settings can
-override the respective defaults (100 and 10). No environment automatically disables
-protection. The global guard executes before authentication and controller validation;
-once a budget is exhausted, 429 takes precedence. Requests that reach guards count
-regardless of success, invalid credentials or invalid body shape. Express parser
-failures occur before guards and retain the authentication-first contracts above.
-Swagger/static middleware and unknown routes do not pass through controller guards.
+Validated positive integer `THROTTLE_LIMIT`, `AUTH_THROTTLE_LIMIT`,
+`LOGIN_ACCOUNT_THROTTLE_LIMIT` and `READINESS_THROTTLE_LIMIT` override the defaults.
+No environment automatically disables protection. The global guard runs before
+authentication and controller validation. Protected JSON parser failures run that
+same guard/storage/global key in the exception filter before authentication's
+crypto or account query. Every such request consumes one global hit; parser failures
+never reach controller guards and are not counted twice. An exhausted budget
+returns 429 before authentication. Other requests reaching guards count regardless
+of success. Swagger/static middleware and unknown routes remain outside guards.
 
-The existing exception filter maps ThrottlerException to exactly
-`429 { "code": "RATE_LIMIT_EXCEEDED", "message": "Too many requests" }`, with the
-standard `Retry-After` header in seconds. Throttler's rate-limit headers are retained
-(the auth budget uses the `-auth` suffix). OpenAPI documents 429 on all controller
-operations except health. No counter is stored in PostgreSQL; replicas do not share
-budgets and process restarts reset them. There is no Redis or distributed limiter.
+The filter returns exactly `429 { "code": "RATE_LIMIT_EXCEEDED", "message": "Too many requests" }`
+and copies named-budget Retry-After headers to the standard `Retry-After` header
+(seconds). OpenAPI documents 429 on all controller operations except liveness.
 
-IP tracking uses Express `request.ip`, with IPv6 tracked per full address. Trust
-proxy is not configured or changed: forwarded headers alone cannot choose the IP.
-Behind a reverse proxy, requests may therefore share the proxy's budget. Before
-such a deployment, configure trust only for the actual trusted proxy topology and
-ensure the proxy replaces untrusted forwarding headers. Do not blindly enable
-trust proxy or derive identity directly from client-supplied X-Forwarded-For.
+IPv4 addresses remain independent. IPv6 clients share their **/64 subnet** budget,
+including equivalent compressed/expanded spellings. Express proxy trust remains
+disabled; client-supplied forwarding headers cannot select the source. Behind a
+reverse proxy, clients may share its budget. Configure only a known trusted proxy
+topology in a separately approved deployment change.
+
+Counters remain process-local, reset on restart and are not shared across replicas.
+Account throttling can temporarily block a legitimate account targeted by others;
+it expires with the same one-minute budget. No permanent account state changes.
+No new dependency, distributed limiter, storage service or infrastructure is added.
+The original proposal for new Helmet/rate-limiting dependencies remains pending;
+this slice preserves the already installed and active implementations.
+
+### Liveness and readiness
+
+`GET /health` now serves liveness, with `/health/live` as an explicit alias. Both
+return 200 `{ "status": "ok" }` without touching PostgreSQL, including during DB
+failure. Database monitors must move from `/health` to `/health/ready`.
+Readiness returns the same 200 body on success or generic DATABASE_UNAVAILABLE 503
+on failure, saturation or timeout; an exhausted source budget returns 429 first.
+
+Readiness shares the existing database pool, with at most one queued/running probe
+per process. A one-second response deadline includes pool acquisition. The single
+slot remains occupied until the driver settles even if the response times out,
+so repeated deadlines cannot enqueue unbounded probes. An acquired probe runs
+`SET LOCAL statement_timeout = '1000ms'` and `SELECT 1` in a read-only-in-practice
+transaction (no data writes); the setting resets on completion/rollback. This does
+not impose a global database deadline or verify schema/migrations. Successful probes
+do not log; failed probes log only the fixed event above.
 
 ### Test isolation
 
-`test/setup-environment.ts` supplies high, validated limits (1,000,000) for ordinary
-API tests so fixture registration and large validation matrices are not accidentally
-throttled. This applies only in the test process. `test/http-security.e2e-spec.ts`
-overrides ConfigService in each fresh test app with validated production defaults
-(omitting the two test limit overrides) and uses fresh in-memory counters. The
-process environment and production configuration remain unchanged. It
-checks headers and Swagger assets, the eleventh login/registration request returning
-429, spoofed forwarding headers, a global budget shared across routes, and exempt
-health probes. Security tests use invalid transport bodies to avoid creating accounts
-or hashing passwords; only the unrelated database readiness probe is stubbed.
+`test/setup-environment.ts` sets all four validated throttle limits to 1,000,000
+for ordinary test fixtures. HTTP security tests explicitly omit those overrides
+and validate production defaults in each fresh app. Rate-limiting integration tests
+use real guard metadata/storage without a socket or database. Exception integration
+tests use the real filter, Express adapter and throttle storage, with an authentication
+test double, to prove parser rejection precedes authentication after exhaustion.
 
 ## Verification
 
@@ -165,14 +187,25 @@ empty pages and histories beyond the default page size. HTTP tests cover page tr
 cross-pet cursors and strict validation. api-security.e2e-spec.ts derives all protected
 operations from OpenAPI and exercises missing/invalid/valid authentication against
 malformed, scalar and oversized JSON, plus pagination and generic unexpected errors.
-OpenAPI regression tests retain 53 operations and check pagination and 429 contracts.
+OpenAPI regression tests retain 55 operations and check pagination and 429 contracts.
 
 `test/rate-limiting.integration-spec.ts` exercises the real Throttler guard and
 in-memory storage with production controller metadata without an HTTP socket or
 database. It covers auth limits, retry after expiry, IP isolation, the shared global
-budget and health exemption. Run `pnpm test:integration --runInBand rate-limiting`.
+budget, /64 isolation, normalized-email account limits, readiness limits and liveness
+exemption. `test/security-errors.integration-spec.ts` verifies real Drizzle exception
+redaction, parser exhaustion before authentication, authentication failure redaction
+and closed-pool readiness/liveness. Run
+`pnpm test:integration --runInBand rate-limiting security-errors`.
+The PostgreSQL readiness tests also cover probe-slot release and a saturated pool
+with a deadline while retaining exactly one pending probe.
 
 Run pnpm lint, pnpm build, pnpm exec tsc --noEmit -p tsconfig.json and pnpm test.
 Run `pnpm test:e2e --runInBand http-security openapi api-security` for HTTP security checks.
 Database tests require migrated PostgreSQL; HTTP tests require permission to bind
 local sockets. A sandbox without those capabilities cannot verify their runtime results.
+
+M-01 through M-04 are addressed here. H-01, M-05, low findings and informational
+items are unchanged. No domain, persistence schema, aggregate, locking or timestamp
+behavior changes. Readiness and login defaults are the bounded policies requested
+for this slice; deployment ingress, CORS, retention and new dependencies remain pending.

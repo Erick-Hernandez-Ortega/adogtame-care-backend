@@ -7,6 +7,8 @@ const environmentSchema = z.object({
     DATABASE_URL: databaseUrlSchema,
     THROTTLE_LIMIT: z.coerce.number().int().positive().default(100),
     AUTH_THROTTLE_LIMIT: z.coerce.number().int().positive().default(10),
+    READINESS_THROTTLE_LIMIT: z.coerce.number().int().positive().default(10),
+    LOGIN_ACCOUNT_THROTTLE_LIMIT: z.coerce.number().int().positive().default(10),
     JWT_ACCESS_TOKEN_SECRET: z.string().min(32),
     JWT_ACCESS_TOKEN_TTL_SECONDS: z.coerce.number().int().positive().default(3600),
 });

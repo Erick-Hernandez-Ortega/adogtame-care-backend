@@ -28,7 +28,7 @@ describe('Production readiness (e2e)', () => {
 
     it('checks the real database without authentication or pet data', async () => {
         await request(application.getHttpServer())
-            .get('/health')
+            .get('/health/ready')
             .expect(200)
             .expect({ status: 'ok' });
     });
@@ -38,9 +38,30 @@ describe('Production readiness (e2e)', () => {
         await databaseService.onApplicationShutdown();
 
         await request(application.getHttpServer())
-            .get('/health')
+            .get('/health/ready')
             .expect(503)
             .expect({ code: 'DATABASE_UNAVAILABLE', message: 'Database is unavailable' });
+    });
+
+    it('serves both liveness paths without database access', async () => {
+        let probeCalls: number = 0;
+
+        databaseService.checkReadiness = (): Promise<void> => {
+            probeCalls += 1;
+
+            return Promise.reject(new Error('Database is unavailable'));
+        };
+
+        await databaseService.onApplicationShutdown();
+
+        for (const path of ['/health', '/health/live']) {
+            await request(application.getHttpServer())
+                .get(path)
+                .expect(200)
+                .expect({ status: 'ok' });
+        }
+
+        expect(probeCalls).toBe(0);
     });
 
     it('keeps the existing welcome route', async () => {

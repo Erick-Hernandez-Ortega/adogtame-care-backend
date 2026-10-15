@@ -17,6 +17,8 @@ describe('validateEnvironment', () => {
             JWT_ACCESS_TOKEN_TTL_SECONDS: 3600,
             THROTTLE_LIMIT: 100,
             AUTH_THROTTLE_LIMIT: 10,
+            READINESS_THROTTLE_LIMIT: 10,
+            LOGIN_ACCOUNT_THROTTLE_LIMIT: 10,
         });
     });
 
@@ -32,6 +34,8 @@ describe('validateEnvironment', () => {
             JWT_ACCESS_TOKEN_TTL_SECONDS: 3600,
             THROTTLE_LIMIT: 100,
             AUTH_THROTTLE_LIMIT: 10,
+            READINESS_THROTTLE_LIMIT: 10,
+            LOGIN_ACCOUNT_THROTTLE_LIMIT: 10,
         });
     });
 
@@ -44,22 +48,24 @@ describe('validateEnvironment', () => {
         },
     );
 
-    it.each(['THROTTLE_LIMIT', 'AUTH_THROTTLE_LIMIT'])(
-        'validates positive integer limits for %s',
-        (field: string): void => {
-            expect(
-                validateEnvironment({ ...validConfiguration, [field]: '250' })[
-                    field as 'THROTTLE_LIMIT' | 'AUTH_THROTTLE_LIMIT'
-                ],
-            ).toBe(250);
+    it.each([
+        'THROTTLE_LIMIT',
+        'AUTH_THROTTLE_LIMIT',
+        'READINESS_THROTTLE_LIMIT',
+        'LOGIN_ACCOUNT_THROTTLE_LIMIT',
+    ])('validates positive integer limits for %s', (field: string): void => {
+        expect(
+            validateEnvironment({ ...validConfiguration, [field]: '250' })[
+                field as keyof ReturnType<typeof validateEnvironment>
+            ],
+        ).toBe(250);
 
-            for (const value of ['', '0', '-1', '1.5', 'invalid']) {
-                expect(() =>
-                    validateEnvironment({ ...validConfiguration, [field]: value }),
-                ).toThrow(`Invalid environment configuration: ${field}`);
-            }
-        },
-    );
+        for (const value of ['', '0', '-1', '1.5', 'invalid']) {
+            expect(() => validateEnvironment({ ...validConfiguration, [field]: value })).toThrow(
+                `Invalid environment configuration: ${field}`,
+            );
+        }
+    });
 
     it('rejects unsupported environments', () => {
         expect(() => validateEnvironment({ ...validConfiguration, NODE_ENV: 'staging' })).toThrow(

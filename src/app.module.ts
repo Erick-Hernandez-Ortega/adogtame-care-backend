@@ -34,7 +34,8 @@ import { HealthCheckController } from './infrastructure/http/health-check.contro
     controllers: [AppController, HealthCheckController],
     providers: [
         AppService,
-        { provide: APP_GUARD, useClass: ThrottlerGuard },
+        ThrottlerGuard,
+        { provide: APP_GUARD, useExisting: ThrottlerGuard },
         { provide: APP_FILTER, useClass: AuthenticatedJsonRequestExceptionFilter },
     ],
 })

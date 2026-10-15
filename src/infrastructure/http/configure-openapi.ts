@@ -13,7 +13,7 @@ export function createOpenApiDocument(application: INestApplication): OpenAPIObj
     const document: OpenAPIObject = SwaggerModule.createDocument(application, config);
 
     for (const [path, entry] of Object.entries(document.paths)) {
-        if (path === '/health') {
+        if (path === '/health' || path === '/health/live') {
             continue;
         }
 
@@ -23,7 +23,7 @@ export function createOpenApiDocument(application: INestApplication): OpenAPIObj
             if (operation !== undefined) {
                 operation.responses['429'] = {
                     description:
-                        'Per-IP request limit exceeded; retry after the Retry-After interval',
+                        'Request limit exceeded (source, login account, or readiness budget); retry after the Retry-After interval',
                     headers: {
                         'Retry-After': {
                             description: 'Seconds until requests may be retried',

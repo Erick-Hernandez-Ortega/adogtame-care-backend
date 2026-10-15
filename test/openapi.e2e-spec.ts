@@ -46,7 +46,7 @@ describe('OpenAPI documentation (e2e)', () => {
         await request(application.getHttpServer()).get('/docs-json').expect(200);
     });
 
-    it('documents all fifty-three operations and their contracts', () => {
+    it('documents all fifty-five operations and their contracts', () => {
         const document: OpenAPIObject = createOpenApiDocument(application);
 
         for (const [path, entry] of Object.entries(document.paths)) {
@@ -74,6 +74,8 @@ describe('OpenAPI documentation (e2e)', () => {
         const routes: [string, string][] = [
             ['/', 'get'],
             ['/health', 'get'],
+            ['/health/live', 'get'],
+            ['/health/ready', 'get'],
             ['/accounts', 'post'],
             ['/auth/login', 'post'],
             ['/pets', 'get'],
@@ -134,7 +136,7 @@ describe('OpenAPI documentation (e2e)', () => {
             expect(operation).toBeDefined();
             expect(operation?.summary).toBeTruthy();
 
-            if (path !== '/health') {
+            if (path !== '/health' && path !== '/health/live') {
                 expect(responseSchema(operation, '429')).toEqual({
                     type: 'object',
                     required: ['code', 'message'],
@@ -160,12 +162,25 @@ describe('OpenAPI documentation (e2e)', () => {
                     Number(Boolean(path?.delete)),
                 0,
             ),
-        ).toBe(53);
+        ).toBe(55);
 
-        const healthCheck = document.paths['/health']?.get;
+        for (const path of ['/health', '/health/live']) {
+            const liveness = document.paths[path]?.get;
+
+            expect(liveness?.security ?? []).toEqual([]);
+            expect(Object.keys(liveness?.responses ?? {})).toEqual(['200']);
+            expect(responseSchema(liveness, '200')).toEqual({
+                type: 'object',
+                additionalProperties: false,
+                required: ['status'],
+                properties: { status: { type: 'string', enum: ['ok'] } },
+            });
+        }
+
+        const healthCheck = document.paths['/health/ready']?.get;
 
         expect(healthCheck?.security ?? []).toEqual([]);
-        expect(Object.keys(healthCheck?.responses ?? {}).sort()).toEqual(['200', '503']);
+        expect(Object.keys(healthCheck?.responses ?? {}).sort()).toEqual(['200', '429', '503']);
         expect(healthCheck?.requestBody).toBeUndefined();
         expect(responseSchema(healthCheck, '200')).toEqual({
             type: 'object',

@@ -1,3 +1,4 @@
+import { AuthenticationGuard } from '../src/identity/infrastructure/http/authentication/authentication.guard';
 import { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
@@ -18,6 +19,8 @@ describe('HTTP security defaults (e2e)', () => {
                 ...process.env,
                 THROTTLE_LIMIT: undefined,
                 AUTH_THROTTLE_LIMIT: undefined,
+                READINESS_THROTTLE_LIMIT: undefined,
+                LOGIN_ACCOUNT_THROTTLE_LIMIT: undefined,
             }),
         );
         const fixture = await Test.createTestingModule({ imports: [AppModule] })
@@ -101,6 +104,93 @@ describe('HTTP security defaults (e2e)', () => {
             await request(application.getHttpServer()).get('/').expect(200);
         },
     );
+
+    it('charges malformed JSON to the shared budget before authentication', async (): Promise<void> => {
+        // The exception filter and route guards receive different module-scoped instances.
+        // eslint-disable-next-line @typescript-eslint/unbound-method -- Restore the original prototype method after counting authentication calls.
+        const originalCanActivate = AuthenticationGuard.prototype.canActivate;
+        let authenticationCalls: number = 0;
+
+        AuthenticationGuard.prototype.canActivate = (): Promise<boolean> => {
+            authenticationCalls += 1;
+
+            return Promise.resolve(true);
+        };
+
+        try {
+            for (let requestNumber: number = 0; requestNumber < 99; requestNumber += 1) {
+                await request(application.getHttpServer())
+                    .post('/pets')
+                    .set('Content-Type', 'application/json')
+                    .send('{')
+                    .expect(400)
+                    .expect({ code: 'INVALID_REQUEST', message: 'Request body is invalid' });
+            }
+
+            await request(application.getHttpServer()).get('/').expect(200);
+            const response = await request(application.getHttpServer())
+                .post('/pets')
+                .set('Content-Type', 'application/json')
+                .send('{')
+                .expect(429);
+
+            expect(response.body).toEqual({
+                code: 'RATE_LIMIT_EXCEEDED',
+                message: 'Too many requests',
+            });
+            expect(Number(response.headers['retry-after'])).toBeGreaterThan(0);
+            expect(authenticationCalls).toBe(99);
+        } finally {
+            AuthenticationGuard.prototype.canActivate = originalCanActivate;
+        }
+    });
+
+    it('returns the standard 429 for the normalized login account budget', async (): Promise<void> => {
+        for (let requestNumber: number = 0; requestNumber < 10; requestNumber += 1) {
+            await request(application.getHttpServer())
+                .post('/auth/login')
+                .send({ email: ' Alex@Example.COM ' })
+                .expect(400);
+        }
+
+        const response = await request(application.getHttpServer())
+            .post('/auth/login')
+            .send({ email: 'alex@example.com' })
+            .expect(429);
+
+        expect(response.body).toEqual({
+            code: 'RATE_LIMIT_EXCEEDED',
+            message: 'Too many requests',
+        });
+        expect(Number(response.headers['retry-after-account'])).toBeGreaterThan(0);
+        expect(response.headers['retry-after']).toBe(response.headers['retry-after-account']);
+    });
+
+    it('limits readiness before probing while keeping liveness available', async (): Promise<void> => {
+        let probeCalls: number = 0;
+
+        application.get(DatabaseService).checkReadiness = (): Promise<void> => {
+            probeCalls += 1;
+
+            return Promise.resolve();
+        };
+
+        for (let requestNumber: number = 0; requestNumber < 10; requestNumber += 1) {
+            await request(application.getHttpServer()).get('/health/ready').expect(200);
+        }
+
+        const response = await request(application.getHttpServer())
+            .get('/health/ready')
+            .expect(429);
+
+        expect(response.body).toEqual({
+            code: 'RATE_LIMIT_EXCEEDED',
+            message: 'Too many requests',
+        });
+        expect(Number(response.headers['retry-after'])).toBeGreaterThan(0);
+        expect(probeCalls).toBe(10);
+        await request(application.getHttpServer()).get('/health/live').expect(200);
+    });
 
     it('shares the global IP budget across routes and exempts health probes even when blocked', async (): Promise<void> => {
         application.get(DatabaseService).checkConnection = (): Promise<void> => Promise.resolve();

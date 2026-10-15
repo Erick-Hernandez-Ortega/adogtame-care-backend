@@ -1,5 +1,5 @@
-import { ArgumentsHost, Catch, HttpException } from '@nestjs/common';
-import { ThrottlerException } from '@nestjs/throttler';
+import { ArgumentsHost, Catch, HttpException, Logger } from '@nestjs/common';
+import { ThrottlerException, ThrottlerGuard } from '@nestjs/throttler';
 import { BaseExceptionFilter, HttpAdapterHost } from '@nestjs/core';
 import { ExecutionContextHost } from '@nestjs/core/helpers/execution-context-host';
 import type { Request, Response } from 'express';
@@ -7,9 +7,12 @@ import { AuthenticationGuard } from '../../identity/infrastructure/http/authenti
 
 @Catch()
 export class AuthenticatedJsonRequestExceptionFilter extends BaseExceptionFilter<unknown> {
+    private readonly logger: Logger = new Logger(AuthenticatedJsonRequestExceptionFilter.name);
+
     constructor(
         adapterHost: HttpAdapterHost,
         private readonly authenticationGuard: AuthenticationGuard,
+        private readonly throttlerGuard: ThrottlerGuard,
     ) {
         super(adapterHost.httpAdapter);
     }
@@ -17,10 +20,13 @@ export class AuthenticatedJsonRequestExceptionFilter extends BaseExceptionFilter
     override catch(exception: unknown, host: ArgumentsHost): void {
         if (exception instanceof ThrottlerException) {
             const httpResponse: Response = host.switchToHttp().getResponse<Response>();
-            const authRetryAfter: string | undefined = httpResponse.get('Retry-After-auth');
+            const namedRetryAfter: string | undefined =
+                httpResponse.get('Retry-After-auth') ??
+                httpResponse.get('Retry-After-account') ??
+                httpResponse.get('Retry-After-readiness');
 
-            if (authRetryAfter !== undefined) {
-                httpResponse.set('Retry-After', authRetryAfter);
+            if (namedRetryAfter !== undefined) {
+                httpResponse.set('Retry-After', namedRetryAfter);
             }
 
             super.catch(
@@ -48,6 +54,28 @@ export class AuthenticatedJsonRequestExceptionFilter extends BaseExceptionFilter
             !(typeof response === 'object' && response !== null && 'code' in response);
 
         if (!isParserFailure || !this.hasAuthenticationFirstParserContract(request)) {
+            if (!(exception instanceof HttpException)) {
+                if (isParserFailure) {
+                    super.catch(
+                        new HttpException(
+                            {
+                                statusCode: status,
+                                message:
+                                    status === 413 ? 'request entity too large' : 'Bad Request',
+                            },
+                            status === 413 ? 413 : 400,
+                        ),
+                        host,
+                    );
+
+                    return;
+                }
+
+                this.rejectUnexpectedException(host);
+
+                return;
+            }
+
             super.catch(exception, host);
 
             return;
@@ -56,19 +84,28 @@ export class AuthenticatedJsonRequestExceptionFilter extends BaseExceptionFilter
         void this.rejectParserFailure(host, status === 413);
     }
 
+    private rejectUnexpectedException(host: ArgumentsHost): void {
+        this.logger.error({ event: 'unexpected_request_failed', status: 500 });
+        super.catch(
+            new HttpException({ statusCode: 500, message: 'Internal server error' }, 500),
+            host,
+        );
+    }
+
     private hasAuthenticationFirstParserContract(request: Request): boolean {
         const path: string = request.path;
+        const method: string = request.method === 'HEAD' ? 'GET' : request.method;
 
         if (/^\/pets\/?$/i.test(path)) {
-            return request.method === 'GET' || request.method === 'POST';
+            return method === 'GET' || method === 'POST';
         }
 
         if (/^\/pets\/[^/]+\/?$/i.test(path)) {
-            return request.method === 'GET' || request.method === 'PATCH';
+            return method === 'GET' || method === 'PATCH';
         }
 
         if (/^\/pet-invitations\/[^/]+\/(accept|reject|cancel)\/?$/i.test(path)) {
-            return request.method === 'POST';
+            return method === 'POST';
         }
 
         if (
@@ -76,15 +113,15 @@ export class AuthenticatedJsonRequestExceptionFilter extends BaseExceptionFilter
                 path,
             )
         ) {
-            return request.method === 'POST';
+            return method === 'POST';
         }
 
         if (/^\/pets\/[^/]+\/(members|care\/(activities|summary))\/?$/i.test(path)) {
-            return request.method === 'GET';
+            return method === 'GET';
         }
 
         if (/^\/pets\/[^/]+\/members\/[^/]+\/?$/i.test(path)) {
-            return request.method === 'DELETE';
+            return method === 'DELETE';
         }
 
         if (
@@ -92,7 +129,7 @@ export class AuthenticatedJsonRequestExceptionFilter extends BaseExceptionFilter
                 path,
             )
         ) {
-            return request.method === 'GET' || request.method === 'POST';
+            return method === 'GET' || method === 'POST';
         }
 
         if (
@@ -100,10 +137,7 @@ export class AuthenticatedJsonRequestExceptionFilter extends BaseExceptionFilter
                 path,
             )
         ) {
-            return (
-                request.method === 'PATCH' ||
-                (request.method === 'DELETE' && !path.includes('/care/'))
-            );
+            return method === 'PATCH' || (method === 'DELETE' && !path.includes('/care/'));
         }
 
         return false;
@@ -112,11 +146,25 @@ export class AuthenticatedJsonRequestExceptionFilter extends BaseExceptionFilter
     private async rejectParserFailure(host: ArgumentsHost, isTooLarge: boolean): Promise<void> {
         // JSON parser failures precede route guards; these routes require authentication first.
         try {
+            const context: ExecutionContextHost = new ExecutionContextHost(
+                host.getArgs<unknown[]>(),
+                AuthenticatedJsonRequestExceptionFilter,
+                // eslint-disable-next-line @typescript-eslint/unbound-method -- Metadata only; the context never invokes this handler.
+                this.rejectParserFailure,
+            );
+
+            await this.throttlerGuard.canActivate(context);
             await this.authenticationGuard.canActivate(
                 new ExecutionContextHost(host.getArgs<unknown[]>()),
             );
         } catch (error: unknown) {
-            super.catch(error, host);
+            if (error instanceof ThrottlerException) {
+                this.catch(error, host);
+            } else if (error instanceof HttpException) {
+                super.catch(error, host);
+            } else {
+                this.rejectUnexpectedException(host);
+            }
 
             return;
         }

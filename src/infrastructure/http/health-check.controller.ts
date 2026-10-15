@@ -2,6 +2,7 @@ import { Controller, Get, Logger, ServiceUnavailableException } from '@nestjs/co
 import { ApiOkResponse, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { SkipThrottle } from '@nestjs/throttler';
 import { DatabaseService } from '../database/database.service';
+import { ReadinessRateLimit } from './rate-limiting';
 import { errorSchema } from './openapi-error.schema';
 
 interface HealthCheckResponse {
@@ -16,7 +17,23 @@ export class HealthCheckController {
 
     constructor(private readonly databaseService: DatabaseService) {}
 
-    @Get()
+    @Get(['', 'live'])
+    @ApiOperation({ summary: 'Check application liveness without accessing the database' })
+    @ApiOkResponse({
+        description: 'Application is running',
+        schema: {
+            type: 'object',
+            additionalProperties: false,
+            required: ['status'],
+            properties: { status: { type: 'string', enum: ['ok'] } },
+        },
+    })
+    check(): HealthCheckResponse {
+        return { status: 'ok' };
+    }
+
+    @Get('ready')
+    @ReadinessRateLimit()
     @ApiOperation({ summary: 'Check application and database connectivity' })
     @ApiOkResponse({
         description: 'Database connection is available',
@@ -32,9 +49,9 @@ export class HealthCheckController {
         description: 'Database connection is unavailable',
         schema: errorSchema(['DATABASE_UNAVAILABLE'], 'Database is unavailable'),
     })
-    async check(): Promise<HealthCheckResponse> {
+    async ready(): Promise<HealthCheckResponse> {
         try {
-            await this.databaseService.checkConnection();
+            await this.databaseService.checkReadiness();
         } catch {
             this.logger.error({ event: 'database_health_check_failed' });
 
