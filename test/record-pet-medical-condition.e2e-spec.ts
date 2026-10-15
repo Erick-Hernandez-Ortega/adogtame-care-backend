@@ -249,7 +249,9 @@ describe('POST /pets/:petId/health/medical-conditions (e2e)', () => {
         ];
 
         for (const payload of payloads) {
-            const response = await post().send(payload).expect(400);
+            const response = await post()
+                .send(payload as string | object)
+                .expect(400);
 
             expect(response.body).toEqual({
                 code: 'INVALID_REQUEST',

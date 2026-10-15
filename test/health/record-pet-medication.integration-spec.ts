@@ -418,14 +418,14 @@ describe('RecordPetMedication with PostgreSQL (integration)', () => {
     it.each(['id', 'pet_id', 'name', 'recorded_by_account_id'] as const)(
         'enforces required column %s at the database boundary',
         async (column) => {
-            const values = {
+            const values: Record<typeof column, string | null> = {
                 id: randomUUID(),
                 pet_id: petId,
                 name: 'Amoxicillin',
                 recorded_by_account_id: ownerId,
             };
 
-            values[column] = null as unknown as string;
+            values[column] = null;
             await expect(
                 database.connection.execute(
                     sql`INSERT INTO health_pet_medications (id, pet_id, name, recorded_by_account_id) VALUES (${values.id}, ${values.pet_id}, ${values.name}, ${values.recorded_by_account_id})`,

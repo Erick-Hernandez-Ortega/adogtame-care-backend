@@ -1,4 +1,8 @@
-import type { PetRepository } from '../persistence/pet.repository';
+import type {
+    PetRepository,
+    RestorePetCommand,
+    RestorePetPersistenceResult,
+} from '../persistence/pet.repository';
 import type { Pet } from '../../domain/pet/pet';
 import { InvalidPetRegistrationError, RegisterPet } from './register-pet';
 import type { RegisteredPet, RegisterPetCommand } from './register-pet.types';
@@ -11,6 +15,31 @@ class InMemoryPetRepository implements PetRepository {
     }> => Promise.resolve({ outcome: 'PET_NOT_FOUND' });
 
     readonly savedPets: Pet[] = [];
+
+    restoreIfOwned(command: RestorePetCommand): Promise<RestorePetPersistenceResult> {
+        const petIndex: number = this.savedPets.findIndex((pet) => pet.id.value === command.petId);
+        const pet: Pet | undefined = this.savedPets[petIndex];
+
+        if (
+            pet === undefined ||
+            !pet.memberships.some(
+                (membership) =>
+                    membership.accountId.value === command.requesterAccountId &&
+                    membership.role === 'OWNER' &&
+                    membership.status === 'ACTIVE',
+            )
+        ) {
+            return Promise.resolve({ outcome: 'PET_NOT_FOUND' });
+        }
+
+        if (pet.status === 'ACTIVE') {
+            return Promise.resolve({ outcome: 'ALREADY_ACTIVE' });
+        }
+
+        this.savedPets[petIndex] = pet.restore();
+
+        return Promise.resolve({ outcome: 'RESTORED' });
+    }
 
     correctProfileIfOwned(): Promise<null> {
         return Promise.resolve(null);

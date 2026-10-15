@@ -373,9 +373,10 @@ describe('PetMedication reconstitution and correction', () => {
     });
 
     it('corrects multiple fields without mutating input or the original aggregate', () => {
-        const medication: PetMedication = Object.freeze(
-            PetMedication.reconstitute(persistedInput()),
-        );
+        const medication: PetMedication = PetMedication.reconstitute(persistedInput());
+
+        Object.freeze(medication);
+
         const patch = Object.freeze({
             name: ' Other drug ',
             dosage: null,

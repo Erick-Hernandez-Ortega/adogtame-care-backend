@@ -238,7 +238,7 @@ describe('POST /pets/:petId/health/allergies (e2e)', () => {
             const response = await request(application.getHttpServer())
                 .post(path())
                 .set('Authorization', `Bearer ${owner.token}`)
-                .send(payload)
+                .send(payload as string | object)
                 .expect(400);
 
             expect(response.body).toMatchObject({ code: 'INVALID_REQUEST' });
