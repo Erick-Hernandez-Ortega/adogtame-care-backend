@@ -1,3 +1,4 @@
+import { AuthenticationRateLimit } from '../../../../infrastructure/http/rate-limiting';
 import {
     BadRequestException,
     Body,
@@ -32,6 +33,7 @@ export class AccountsController {
     constructor(private readonly registerAccount: RegisterAccount) {}
 
     @Post()
+    @AuthenticationRateLimit()
     @HttpCode(HttpStatus.CREATED)
     @ApiOperation({
         summary: 'Register an account',

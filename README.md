@@ -65,6 +65,8 @@ variables or a `.env` file before startup:
 | `DATABASE_URL` | `postgres://` or `postgresql://` URL | Required |
 | `JWT_ACCESS_TOKEN_SECRET` | At least 32 characters; generate a random secret | Required |
 | `JWT_ACCESS_TOKEN_TTL_SECONDS` | Positive integer | `3600` |
+| `THROTTLE_LIMIT` | Positive integer; requests/minute per IP across API routes | `100` |
+| `AUTH_THROTTLE_LIMIT` | Positive integer; requests/minute per IP per auth endpoint | `10` |
 
 The secret in `.env.example` is intentionally empty; set it before running.
 Process variables override `.env`. Invalid configuration prevents startup and
@@ -96,8 +98,15 @@ or applied migrations. `GET /` retains its welcome message.
 Logs use Nest's built-in Logger in JSON format. SIGINT/SIGTERM invoke Nest shutdown,
 close the HTTP server and PostgreSQL pool; the process manager must forward the
 signal to Node and allow shutdown to finish. SIGKILL cannot shut down gracefully.
-No deployment provider, CORS policy, retention or rate limits are configured.
-Helmet and rate limiting remain pending because they need new dependencies.
+Helmet applies its default security headers, including on Swagger. In-memory rate
+limiting allows 100 requests/minute per IP across API routes and 10/minute per IP
+on each of `POST /accounts` and `POST /auth/login`. `GET /health` is exempt.
+Excess requests return `429 {"code":"RATE_LIMIT_EXCEEDED","message":"Too many requests"}`
+with `Retry-After` in seconds. Counters are process-local and reset on restart.
+No deployment provider, CORS policy, retention or trusted-proxy setting is configured.
+Before deploying behind a proxy, review the IP/trust-proxy notes in
+[API security](docs/api-security.md). Ordinary e2e tests set higher validated limits;
+security e2e tests exercise production defaults.
 See [Production readiness](docs/production-readiness.md).
 
 ## API documentation
@@ -120,7 +129,7 @@ and member lists use `items` instead of `members`. Routine suggested times allow
 at most 24 unique entries, weekdays at most seven unique entries. Authentication
 precedes body parser errors on every protected operation; the existing 100 KB body
 limit is retained. See [API security](docs/api-security.md) for limits, authorization,
-error handling and pending Helmet/rate limiting.
+error handling, security headers and rate limiting.
 
 
 | Route                                         | Description             | Bearer token |

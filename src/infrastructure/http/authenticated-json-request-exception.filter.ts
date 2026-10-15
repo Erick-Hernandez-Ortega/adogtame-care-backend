@@ -1,7 +1,8 @@
 import { ArgumentsHost, Catch, HttpException } from '@nestjs/common';
+import { ThrottlerException } from '@nestjs/throttler';
 import { BaseExceptionFilter, HttpAdapterHost } from '@nestjs/core';
 import { ExecutionContextHost } from '@nestjs/core/helpers/execution-context-host';
-import type { Request } from 'express';
+import type { Request, Response } from 'express';
 import { AuthenticationGuard } from '../../identity/infrastructure/http/authentication/authentication.guard';
 
 @Catch()
@@ -14,6 +15,25 @@ export class AuthenticatedJsonRequestExceptionFilter extends BaseExceptionFilter
     }
 
     override catch(exception: unknown, host: ArgumentsHost): void {
+        if (exception instanceof ThrottlerException) {
+            const httpResponse: Response = host.switchToHttp().getResponse<Response>();
+            const authRetryAfter: string | undefined = httpResponse.get('Retry-After-auth');
+
+            if (authRetryAfter !== undefined) {
+                httpResponse.set('Retry-After', authRetryAfter);
+            }
+
+            super.catch(
+                new HttpException(
+                    { code: 'RATE_LIMIT_EXCEEDED', message: 'Too many requests' },
+                    429,
+                ),
+                host,
+            );
+
+            return;
+        }
+
         const request: Request = host.switchToHttp().getRequest<Request>();
         const response: string | object | null =
             exception instanceof HttpException ? exception.getResponse() : null;

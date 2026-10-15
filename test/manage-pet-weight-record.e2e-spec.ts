@@ -1,3 +1,4 @@
+import { configureSecurityHeaders } from '../src/infrastructure/http/configure-security-headers';
 import { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { eq } from 'drizzle-orm';
@@ -51,6 +52,7 @@ describe('PATCH and DELETE pet weight records (e2e)', () => {
         }).compile();
 
         application = fixture.createNestApplication();
+        configureSecurityHeaders(application);
         await application.init();
         database = application.get(DatabaseService);
         owner = await createAccount();

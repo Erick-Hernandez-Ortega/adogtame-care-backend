@@ -1,3 +1,4 @@
+import { configureSecurityHeaders } from '../src/infrastructure/http/configure-security-headers';
 import { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import request from 'supertest';
@@ -15,6 +16,7 @@ describe('Production readiness (e2e)', () => {
         }).compile();
 
         application = moduleFixture.createNestApplication();
+        configureSecurityHeaders(application);
         application.useLogger(false);
         databaseService = application.get(DatabaseService);
         await application.init();

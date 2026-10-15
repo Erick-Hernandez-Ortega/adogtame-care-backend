@@ -1,3 +1,4 @@
+import { configureSecurityHeaders } from '../src/infrastructure/http/configure-security-headers';
 import { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { and, eq, inArray } from 'drizzle-orm';
@@ -52,6 +53,7 @@ describe('DELETE /pets/:petId/members/:membershipId (e2e)', () => {
         }).compile();
 
         application = moduleFixture.createNestApplication();
+        configureSecurityHeaders(application);
         await application.init();
         database = application.get(DatabaseService);
         owner = await account('leave-owner');

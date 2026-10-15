@@ -1,3 +1,4 @@
+import { configureSecurityHeaders } from './infrastructure/http/configure-security-headers';
 import { ConsoleLogger, INestApplication, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
@@ -16,6 +17,7 @@ async function bootstrap(): Promise<void> {
             application.get(ConfigService);
         const port: number = configService.getOrThrow('PORT', { infer: true });
 
+        configureSecurityHeaders(application);
         configureOpenApi(application);
         application.enableShutdownHooks();
 

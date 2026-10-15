@@ -1,8 +1,10 @@
 import { CareModule } from './care/infrastructure/care.module';
 import { Module } from '@nestjs/common';
-import { APP_FILTER } from '@nestjs/core';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { rateLimitingOptions } from './infrastructure/http/rate-limiting';
+import { APP_GUARD, Reflector, APP_FILTER } from '@nestjs/core';
 import { AuthenticatedJsonRequestExceptionFilter } from './infrastructure/http/authenticated-json-request-exception.filter';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { validateEnvironment } from './infrastructure/config/environment.validation';
@@ -19,6 +21,10 @@ import { HealthCheckController } from './infrastructure/http/health-check.contro
             envFilePath: '.env',
             validate: validateEnvironment,
         }),
+        ThrottlerModule.forRootAsync({
+            inject: [ConfigService, Reflector],
+            useFactory: rateLimitingOptions,
+        }),
         DatabaseModule,
         IdentityModule,
         PetManagementModule,
@@ -28,6 +34,7 @@ import { HealthCheckController } from './infrastructure/http/health-check.contro
     controllers: [AppController, HealthCheckController],
     providers: [
         AppService,
+        { provide: APP_GUARD, useClass: ThrottlerGuard },
         { provide: APP_FILTER, useClass: AuthenticatedJsonRequestExceptionFilter },
     ],
 })

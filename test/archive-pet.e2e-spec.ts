@@ -1,3 +1,4 @@
+import { configureSecurityHeaders } from '../src/infrastructure/http/configure-security-headers';
 import { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { and, eq } from 'drizzle-orm';
@@ -58,6 +59,7 @@ describe('POST /pets/:petId/archive (e2e)', () => {
         }).compile();
 
         application = moduleFixture.createNestApplication();
+        configureSecurityHeaders(application);
         await application.init();
         database = application.get(DatabaseService);
         owner = await account('archive-owner');

@@ -15,6 +15,8 @@ describe('validateEnvironment', () => {
             DATABASE_URL: 'postgresql://adogtame:adogtame_local@localhost:5432/adogtame_care',
             JWT_ACCESS_TOKEN_SECRET: 'a-secure-test-secret-with-32-characters',
             JWT_ACCESS_TOKEN_TTL_SECONDS: 3600,
+            THROTTLE_LIMIT: 100,
+            AUTH_THROTTLE_LIMIT: 10,
         });
     });
 
@@ -28,6 +30,8 @@ describe('validateEnvironment', () => {
             ...validConfiguration,
             PORT: 3000,
             JWT_ACCESS_TOKEN_TTL_SECONDS: 3600,
+            THROTTLE_LIMIT: 100,
+            AUTH_THROTTLE_LIMIT: 10,
         });
     });
 
@@ -37,6 +41,23 @@ describe('validateEnvironment', () => {
             expect(() => validateEnvironment({ ...validConfiguration, PORT: port })).toThrow(
                 'Invalid environment configuration: PORT',
             );
+        },
+    );
+
+    it.each(['THROTTLE_LIMIT', 'AUTH_THROTTLE_LIMIT'])(
+        'validates positive integer limits for %s',
+        (field: string): void => {
+            expect(
+                validateEnvironment({ ...validConfiguration, [field]: '250' })[
+                    field as 'THROTTLE_LIMIT' | 'AUTH_THROTTLE_LIMIT'
+                ],
+            ).toBe(250);
+
+            for (const value of ['', '0', '-1', '1.5', 'invalid']) {
+                expect(() =>
+                    validateEnvironment({ ...validConfiguration, [field]: value }),
+                ).toThrow(`Invalid environment configuration: ${field}`);
+            }
         },
     );
 

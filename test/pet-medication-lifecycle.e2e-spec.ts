@@ -1,3 +1,4 @@
+import { configureSecurityHeaders } from '../src/infrastructure/http/configure-security-headers';
 import { HEALTH_CLOCK } from '../src/health/application/time/clock';
 import { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
@@ -58,6 +59,7 @@ describe('Pet medication lifecycle (e2e)', () => {
             .compile();
 
         application = fixture.createNestApplication();
+        configureSecurityHeaders(application);
         await application.init();
         database = application.get(DatabaseService);
         owner = await createAccount();

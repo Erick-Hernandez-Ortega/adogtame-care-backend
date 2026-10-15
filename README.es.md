@@ -65,6 +65,8 @@ proceso o un archivo `.env` antes de iniciar:
 | `DATABASE_URL` | URL `postgres://` o `postgresql://` | Obligatoria |
 | `JWT_ACCESS_TOKEN_SECRET` | Al menos 32 caracteres; genera un secreto aleatorio | Obligatoria |
 | `JWT_ACCESS_TOKEN_TTL_SECONDS` | Entero positivo | `3600` |
+| `THROTTLE_LIMIT` | Entero positivo; solicitudes/minuto por IP entre rutas de la API | `100` |
+| `AUTH_THROTTLE_LIMIT` | Entero positivo; solicitudes/minuto por IP por endpoint de autenticación | `10` |
 
 El archivo `.env.example` deja el secreto vacío intencionalmente; debes completarlo.
 Las variables del proceso tienen prioridad sobre `.env`. Una configuración inválida
@@ -96,9 +98,16 @@ ni que las migraciones estén aplicadas. `GET /` conserva su mensaje de bienveni
 Los logs usan el Logger integrado de Nest en formato JSON. SIGINT/SIGTERM activan
 el cierre de Nest, del servidor HTTP y del pool PostgreSQL; el gestor de procesos
 debe enviar la señal al proceso Node y permitir que termine. SIGKILL no permite
-cierre ordenado. No se configura un proveedor de despliegue, política CORS, retención
-ni límites de frecuencia. Helmet y rate limiting siguen pendientes porque necesitan
-dependencias nuevas. Consulta [Preparación para producción](docs/production-readiness.md).
+cierre ordenado. Helmet aplica sus encabezados de seguridad predeterminados, también
+en Swagger. El control de frecuencia en memoria permite 100 solicitudes/minuto por IP
+entre las rutas de la API y 10/minuto por IP en cada endpoint `POST /accounts` y
+`POST /auth/login`. `GET /health` está exento. Las solicitudes excedentes devuelven
+`429 {"code":"RATE_LIMIT_EXCEEDED","message":"Too many requests"}` con `Retry-After`
+en segundos. Los contadores pertenecen a cada proceso y se reinician al arrancar.
+No se configura proveedor de despliegue, política CORS, retención ni proxy de confianza.
+Antes de desplegar detrás de un proxy, revisa las notas de IP/trust proxy en
+[Seguridad de la API](docs/api-security.md). Las pruebas e2e generales configuran límites
+validados más altos; las pruebas de seguridad ejercitan los valores de producción. Consulta [Preparación para producción](docs/production-readiness.md).
 
 ## Documentación de la API
 
@@ -120,7 +129,7 @@ arreglo anterior en `items`, y miembros usa `items` en lugar de `members`. Las
 rutinas permiten hasta 24 horarios sugeridos únicos y siete días únicos. La
 autenticación precede los errores del parser en toda operación protegida; se
 conserva el límite de cuerpo de 100 KB. Consulta [Seguridad de la API](docs/api-security.md)
-para límites, autorización, errores y Helmet/control de frecuencia pendientes.
+para límites, autorización, errores, encabezados de seguridad y control de frecuencia.
 
 
 

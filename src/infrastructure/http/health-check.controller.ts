@@ -1,5 +1,6 @@
 import { Controller, Get, Logger, ServiceUnavailableException } from '@nestjs/common';
 import { ApiOkResponse, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { SkipThrottle } from '@nestjs/throttler';
 import { DatabaseService } from '../database/database.service';
 import { errorSchema } from './openapi-error.schema';
 
@@ -7,6 +8,7 @@ interface HealthCheckResponse {
     status: 'ok';
 }
 
+@SkipThrottle({ default: true, auth: true })
 @Controller('health')
 @ApiTags('Application')
 export class HealthCheckController {

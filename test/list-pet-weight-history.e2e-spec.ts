@@ -1,3 +1,4 @@
+import { configureSecurityHeaders } from '../src/infrastructure/http/configure-security-headers';
 import { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { eq, sql } from 'drizzle-orm';
@@ -60,6 +61,7 @@ describe('GET /pets/:petId/health/weight-records (e2e)', () => {
         }).compile();
 
         application = moduleFixture.createNestApplication();
+        configureSecurityHeaders(application);
         await application.init();
         database = application.get(DatabaseService);
         owner = await account('history-owner');

@@ -30,6 +30,8 @@ are permitted. Existing rules and defaults remain:
 | DATABASE_URL                 | postgres:// or postgresql:// URL            | Required    |
 | JWT_ACCESS_TOKEN_SECRET      | String of at least 32 characters            | Required    |
 | JWT_ACCESS_TOKEN_TTL_SECONDS | Positive integer, numeric strings converted | 3600        |
+| THROTTLE_LIMIT | Positive integer, requests/minute per IP across API routes | 100 |
+| AUTH_THROTTLE_LIMIT | Positive integer, requests/minute per IP per auth endpoint | 10 |
 
 Defaults apply to omitted optional variables, not empty strings. Set a randomly
 generated JWT secret before running; `.env.example` intentionally leaves it empty.
@@ -131,10 +133,15 @@ for locking and compatibility before deployment. Roll back application code only
 when compatible with the applied schema; do not erase historical facts by dropping
 columns or rewriting applied migration history.
 
-This slice chooses no deployment provider, CORS origins, trusted-proxy configuration,
-rate limits, log retention or secret rotation schedule. Helmet and rate limiting
-remain pending because the required dependencies are not installed; see
-[API security](api-security.md). Swagger remains available in every environment.
+No deployment provider, CORS origins, trusted-proxy configuration, log retention or
+secret rotation schedule is chosen. The subsequent security slice applies Helmet
+defaults and in-memory throttling: 100 requests/minute per IP across API routes,
+plus 10/minute per IP on each auth endpoint. GET /health is exempt. The validated
+THROTTLE_LIMIT and AUTH_THROTTLE_LIMIT settings override these defaults. Counters
+are process-local and reset on restart. Behind a proxy, review IP identification
+and trusted-proxy configuration before deployment; see [API security](api-security.md)
+for that note, 429 contracts and isolated test limits. Swagger remains available
+with the default Helmet CSP in every environment.
 
 ## Migration workflow
 

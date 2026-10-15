@@ -1,8 +1,9 @@
 # API security and hardening (#53)
 
-This review covers all 51 operations: three public operations (`GET /`, registration
-and login) and 48 Bearer-protected operations. No dependency, external system,
-database migration, CORS policy, retention rule or deployment change is introduced.
+The API has 53 operations: four public operations (`GET /`, `GET /health`, registration
+and login) and 49 Bearer-protected operations. This slice uses the approved, already
+installed `helmet@8.3.0` and `@nestjs/throttler@6.7.1`. No other dependency, external
+system, database migration, CORS policy, retention rule or deployment change is introduced.
 
 ## Authorization review
 
@@ -89,7 +90,7 @@ from timesPerPeriod remain unchanged. Creation, correction and reconstitution sh
 the value object. Existing invalid persisted suggestions require correction before
 reconstitution; no silent deduplication or data migration is performed.
 
-## Error handling and pending controls
+## Error handling and security controls
 
 Controllers expose explicit application errors. Unexpected exceptions propagate to
 Nest's base filter, which returns the generic 500 Internal server error; stack traces,
@@ -97,10 +98,63 @@ SQL/constraint details and internal exception messages are not response fields.
 The authentication-first parser filter uses fixed public messages and delegates all
 other errors to the base filter. Server-side logging remains available.
 
-Helmet and rate limiting are **not present**. Neither package is installed, and the
-approved slice prohibits dependencies. Both remain pending; this review adds no
-rate limits, custom replacement middleware, trusted proxy, CORS origins or security
-header policy. Swagger remains available at /docs and /docs-json as before.
+### Security headers
+
+The HTTP entry point and every e2e app bootstrap call the same
+`configureSecurityHeaders` function before initialization and Swagger setup. Helmet
+uses its defaults, including CSP, HSTS, nosniff, frame protection and removal of
+X-Powered-By. Headers apply to API successes/errors and Swagger assets. Swagger's
+scripts are served from the same origin; its inline styles are permitted by the
+default CSP. No docs-only relaxation is needed. Swagger remains available at
+`/docs` and `/docs-json` in every environment. Helmet's default HSTS and
+upgrade-insecure-requests directive are retained; serve production over HTTPS.
+
+### Rate limiting
+
+The global Nest Throttler guard uses its built-in in-memory storage and two budgets
+with a 60,000 ms lifetime/block duration:
+
+- Global: **100 requests/minute per IP**, shared across controller routes.
+- Authentication: **10 requests/minute per IP per endpoint**, in addition to the
+  global budget. This covers registration (`POST /accounts`) and login
+  (`POST /auth/login`); there are currently no password/reset/refresh/token routes.
+  Future credential/token endpoints must opt in with `AuthenticationRateLimit`.
+- `GET /health` skips both budgets so readiness probes remain available under load.
+
+Validated positive integer `THROTTLE_LIMIT` and `AUTH_THROTTLE_LIMIT` settings can
+override the respective defaults (100 and 10). No environment automatically disables
+protection. The global guard executes before authentication and controller validation;
+once a budget is exhausted, 429 takes precedence. Requests that reach guards count
+regardless of success, invalid credentials or invalid body shape. Express parser
+failures occur before guards and retain the authentication-first contracts above.
+Swagger/static middleware and unknown routes do not pass through controller guards.
+
+The existing exception filter maps ThrottlerException to exactly
+`429 { "code": "RATE_LIMIT_EXCEEDED", "message": "Too many requests" }`, with the
+standard `Retry-After` header in seconds. Throttler's rate-limit headers are retained
+(the auth budget uses the `-auth` suffix). OpenAPI documents 429 on all controller
+operations except health. No counter is stored in PostgreSQL; replicas do not share
+budgets and process restarts reset them. There is no Redis or distributed limiter.
+
+IP tracking uses Express `request.ip`, with IPv6 tracked per full address. Trust
+proxy is not configured or changed: forwarded headers alone cannot choose the IP.
+Behind a reverse proxy, requests may therefore share the proxy's budget. Before
+such a deployment, configure trust only for the actual trusted proxy topology and
+ensure the proxy replaces untrusted forwarding headers. Do not blindly enable
+trust proxy or derive identity directly from client-supplied X-Forwarded-For.
+
+### Test isolation
+
+`test/setup-environment.ts` supplies high, validated limits (1,000,000) for ordinary
+API tests so fixture registration and large validation matrices are not accidentally
+throttled. This applies only in the test process. `test/http-security.e2e-spec.ts`
+overrides ConfigService in each fresh test app with validated production defaults
+(omitting the two test limit overrides) and uses fresh in-memory counters. The
+process environment and production configuration remain unchanged. It
+checks headers and Swagger assets, the eleventh login/registration request returning
+429, spoofed forwarding headers, a global budget shared across routes, and exempt
+health probes. Security tests use invalid transport bodies to avoid creating accounts
+or hashing passwords; only the unrelated database readiness probe is stubbed.
 
 ## Verification
 
@@ -111,8 +165,14 @@ empty pages and histories beyond the default page size. HTTP tests cover page tr
 cross-pet cursors and strict validation. api-security.e2e-spec.ts derives all protected
 operations from OpenAPI and exercises missing/invalid/valid authentication against
 malformed, scalar and oversized JSON, plus pagination and generic unexpected errors.
-OpenAPI regression tests retain 51 operations and check paginated contracts.
+OpenAPI regression tests retain 53 operations and check pagination and 429 contracts.
+
+`test/rate-limiting.integration-spec.ts` exercises the real Throttler guard and
+in-memory storage with production controller metadata without an HTTP socket or
+database. It covers auth limits, retry after expiry, IP isolation, the shared global
+budget and health exemption. Run `pnpm test:integration --runInBand rate-limiting`.
 
 Run pnpm lint, pnpm build, pnpm exec tsc --noEmit -p tsconfig.json and pnpm test.
+Run `pnpm test:e2e --runInBand http-security openapi api-security` for HTTP security checks.
 Database tests require migrated PostgreSQL; HTTP tests require permission to bind
 local sockets. A sandbox without those capabilities cannot verify their runtime results.

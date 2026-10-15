@@ -1,3 +1,4 @@
+import { configureSecurityHeaders } from '../src/infrastructure/http/configure-security-headers';
 import { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { and, eq } from 'drizzle-orm';
@@ -79,6 +80,7 @@ describe('POST /pets (e2e)', () => {
         }).compile();
 
         application = moduleFixture.createNestApplication();
+        configureSecurityHeaders(application);
         await application.init();
         databaseService = application.get(DatabaseService);
     });
@@ -249,6 +251,7 @@ describe('PATCH /pets/:petId (e2e)', () => {
         }).compile();
 
         application = moduleFixture.createNestApplication();
+        configureSecurityHeaders(application);
         await application.init();
         databaseService = application.get(DatabaseService);
     });
@@ -451,6 +454,7 @@ describe('GET /pets (e2e)', () => {
         }).compile();
 
         application = moduleFixture.createNestApplication();
+        configureSecurityHeaders(application);
         await application.init();
         databaseService = application.get(DatabaseService);
     });
@@ -628,6 +632,7 @@ describe('GET /pets/:petId (e2e)', () => {
         }).compile();
 
         application = moduleFixture.createNestApplication();
+        configureSecurityHeaders(application);
         await application.init();
         databaseService = application.get(DatabaseService);
     });
@@ -854,6 +859,7 @@ describe('POST /pets/:petId/invitations (e2e)', () => {
         }).compile();
 
         application = moduleFixture.createNestApplication();
+        configureSecurityHeaders(application);
         await application.init();
         databaseService = application.get(DatabaseService);
     });

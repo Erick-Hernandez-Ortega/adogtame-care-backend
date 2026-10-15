@@ -1,7 +1,8 @@
 import { INestApplication } from '@nestjs/common';
-import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { DocumentBuilder, SwaggerModule, type OpenAPIObject } from '@nestjs/swagger';
+import { errorSchema } from './openapi-error.schema';
 
-export function configureOpenApi(application: INestApplication): void {
+export function createOpenApiDocument(application: INestApplication): OpenAPIObject {
     const config = new DocumentBuilder()
         .setTitle('Adogtame Care API')
         .setDescription('REST API for pet profiles, accounts, invitations, health, and care.')
@@ -9,7 +10,39 @@ export function configureOpenApi(application: INestApplication): void {
         .addBearerAuth()
         .build();
 
-    SwaggerModule.setup('docs', application, () =>
-        SwaggerModule.createDocument(application, config),
-    );
+    const document: OpenAPIObject = SwaggerModule.createDocument(application, config);
+
+    for (const [path, entry] of Object.entries(document.paths)) {
+        if (path === '/health') {
+            continue;
+        }
+
+        for (const method of ['get', 'post', 'patch', 'delete'] as const) {
+            const operation = entry?.[method];
+
+            if (operation !== undefined) {
+                operation.responses['429'] = {
+                    description:
+                        'Per-IP request limit exceeded; retry after the Retry-After interval',
+                    headers: {
+                        'Retry-After': {
+                            description: 'Seconds until requests may be retried',
+                            schema: { type: 'integer', minimum: 1 },
+                        },
+                    },
+                    content: {
+                        'application/json': {
+                            schema: errorSchema(['RATE_LIMIT_EXCEEDED'], 'Too many requests'),
+                        },
+                    },
+                };
+            }
+        }
+    }
+
+    return document;
+}
+
+export function configureOpenApi(application: INestApplication): void {
+    SwaggerModule.setup('docs', application, () => createOpenApiDocument(application));
 }

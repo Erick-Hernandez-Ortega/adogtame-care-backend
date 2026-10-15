@@ -1,3 +1,4 @@
+import { configureSecurityHeaders } from '../src/infrastructure/http/configure-security-headers';
 import { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { eq } from 'drizzle-orm';
@@ -27,6 +28,7 @@ describe('POST /auth/login (e2e)', () => {
         }).compile();
 
         application = moduleFixture.createNestApplication();
+        configureSecurityHeaders(application);
         await application.init();
         databaseService = application.get(DatabaseService);
     });

@@ -1,3 +1,4 @@
+import { configureSecurityHeaders } from '../src/infrastructure/http/configure-security-headers';
 import { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { and, eq, inArray } from 'drizzle-orm';
@@ -71,6 +72,7 @@ describe('GET /pets/:petId/care/activities (e2e)', () => {
         }).compile();
 
         application = fixture.createNestApplication();
+        configureSecurityHeaders(application);
         await application.init();
         database = application.get(DatabaseService);
         owner = await createAccount();

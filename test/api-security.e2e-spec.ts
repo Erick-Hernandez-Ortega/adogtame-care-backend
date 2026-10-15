@@ -1,3 +1,4 @@
+import { configureSecurityHeaders } from '../src/infrastructure/http/configure-security-headers';
 import { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
@@ -26,6 +27,7 @@ describe('API security (e2e)', () => {
         const fixture = await Test.createTestingModule({ imports: [AppModule] }).compile();
 
         application = fixture.createNestApplication();
+        configureSecurityHeaders(application);
         await application.init();
         const document: OpenAPIObject = SwaggerModule.createDocument(
             application,

@@ -5,6 +5,8 @@ const environmentSchema = z.object({
     NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
     PORT: z.coerce.number().int().min(1).max(65_535).default(3000),
     DATABASE_URL: databaseUrlSchema,
+    THROTTLE_LIMIT: z.coerce.number().int().positive().default(100),
+    AUTH_THROTTLE_LIMIT: z.coerce.number().int().positive().default(10),
     JWT_ACCESS_TOKEN_SECRET: z.string().min(32),
     JWT_ACCESS_TOKEN_TTL_SECONDS: z.coerce.number().int().positive().default(3600),
 });
